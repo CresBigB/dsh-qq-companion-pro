@@ -89,13 +89,16 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
     "@types/ws": "^8.5.12",
     "@vitest/coverage-v8": "^3.2.7",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:client": "node scripts/build-client.mjs",
     "link-host": "node scripts/link-host.mjs",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",

@@ -73,7 +73,7 @@ if [ ! -x "$TSC" ]; then
 fi
 
 # Start from an empty lib/ so modules deleted from src/ leave nothing behind.
-# lib/client.js (the settings page, hand-written) is the one file kept.
+# lib/client.js（设置页，由 scripts/build-client.mjs 生成）是唯一保留的文件。
 find lib -type f ! -path lib/client.js -delete 2>/dev/null || true
 find lib -mindepth 1 -type d -empty -delete 2>/dev/null || true
 

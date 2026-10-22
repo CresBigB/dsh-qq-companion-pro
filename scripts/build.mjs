@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Windows / 无 bash 环境的构建入口：链宿主包 → 清理 lib/ → tsc 编译 src → lib。
+// Windows / 无 bash 环境的构建入口：链宿主包 → 清理 lib/ → tsc 编译 src → lib
+// → 打包设置页前端（src/client → lib/client.js）→ 客户端侧类型检查。
 // 用法：npm run build
 import { spawnSync } from 'node:child_process'
 import {
@@ -12,9 +13,11 @@ import { LINK_PKGS, linkHost } from './link-host.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LIB = join(ROOT, 'lib')
-const KEEP = join(LIB, 'client.js') // 设置页是手写的，唯一保留的文件
 const NODE_MODULES = join(ROOT, 'node_modules')
 const TSC = join(NODE_MODULES, 'typescript', 'bin', 'tsc')
+// 设置页前端：src/client（TS）→ lib/client.js（浏览器 bundle）。
+const BUILD_CLIENT = join(ROOT, 'scripts', 'build-client.mjs')
+const CLIENT_TSCONFIG = join(ROOT, 'tsconfig.client.json')
 // 类型缓存：桌面版 dsh 打包时会剥掉 .d.ts，此时从这里取同版本的编译期类型。
 // 放在 node_modules 内，天然不入库，npm ci 后按需重建。
 const TYPE_CACHE = join(NODE_MODULES, '.host-types')
@@ -39,7 +42,6 @@ function listFiles(dir) {
 /** 从空 lib/ 开始，src 里删掉的模块不会在 lib/ 留下残骸。 */
 function cleanLib() {
   for (const file of listFiles(LIB)) {
-    if (file === KEEP) continue
     rmSync(file, { force: true })
   }
   const removeEmptyDirs = dir => {
@@ -115,6 +117,8 @@ function ensureHostTypes(hostRoot) {
       },
     },
     include: [join(ROOT, 'src').replace(/\\/g, '/')],
+    // 设置页前端（src/client）是浏览器代码，单独用 tsconfig.client.json 检查。
+    exclude: [join(ROOT, 'src', 'client').replace(/\\/g, '/')],
   }, null, 2) + '\n')
   return configPath
 }
@@ -139,6 +143,14 @@ console.log(`=== 编译 src → lib（${tscVersion}，宿主: ${hostRoot}）===`
 
 const result = spawnSync(process.execPath, [TSC, '-p', tsconfigPath], { cwd: ROOT, stdio: 'inherit' })
 if (result.status !== 0) fail(`tsc 编译失败（退出码 ${result.status ?? 'null'}）`)
+
+// 设置页前端：esbuild 打包 src/client → lib/client.js（外壳 + externals 见脚本内注释）。
+const clientBuild = spawnSync(process.execPath, [BUILD_CLIENT], { cwd: ROOT, stdio: 'inherit' })
+if (clientBuild.status !== 0) fail(`客户端 bundle 构建失败（退出码 ${clientBuild.status ?? 'null'}）`)
+
+// 设置页前端类型检查（浏览器 lib：DOM；与宿主侧 lib/tsconfig 隔离）。
+const clientCheck = spawnSync(process.execPath, [TSC, '-p', CLIENT_TSCONFIG], { cwd: ROOT, stdio: 'inherit' })
+if (clientCheck.status !== 0) fail(`客户端类型检查失败（退出码 ${clientCheck.status ?? 'null'}）`)
 
 const produced = listFiles(LIB)
 const size = produced.reduce((sum, file) => sum + statSync(file).size, 0)

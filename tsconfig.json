@@ -13,5 +13,8 @@
     "declarationDir": "lib/types",
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  // 设置页前端（src/client）是浏览器代码，由 tsconfig.client.json 单独检查、
+  // 由 scripts/build-client.mjs 打包成 lib/client.js。
+  "exclude": ["src/client"]
 }
