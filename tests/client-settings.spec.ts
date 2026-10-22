@@ -57,8 +57,8 @@ function loadClientModule(): Record<string, unknown> {
   globalWithWindow.window = { __ModuleLoader__: { load: (entry: { id: string; factory: (request: (spec: string) => unknown) => unknown }) => { factories[entry.id] = entry.factory } } }
   // 求值 bundle 源码：new Function 体在调用时经全局 window 找到 ModuleLoader 桩完成注册。
   new Function(CLIENT_SOURCE)()
-  const factory = factories['dsh-qq-companion']
-  if (factory === undefined) throw new Error('lib/client.js 未注册 dsh-qq-companion 模块')
+  const factory = factories['dsh-qq-companion-pro']
+  if (factory === undefined) throw new Error('lib/client.js 未注册 dsh-qq-companion-pro 模块')
   return factory((spec: string) => {
     if (spec !== 'react') throw new Error(`unexpected external require: ${spec}`)
     return stubReact
@@ -79,7 +79,7 @@ describe('客户端 bundle — 装载契约（CJS 包裹 / externals / 入口导
 
   it('CJS 包裹形态：banner window.__ModuleLoader__.load({id, factory:(require)=>{ + footer return module.exports', () => {
     expect(CLIENT_SOURCE).toContain('window.__ModuleLoader__.load({')
-    expect(CLIENT_SOURCE).toContain('id: "dsh-qq-companion",')
+    expect(CLIENT_SOURCE).toContain('id: "dsh-qq-companion-pro",')
     expect(CLIENT_SOURCE).toContain('factory: (require) => {')
     expect(CLIENT_SOURCE.trimEnd().endsWith('return module.exports;\n\t}\n});')).toBe(true)
   })
@@ -105,12 +105,12 @@ describe('客户端 bundle — 装载契约（CJS 包裹 / externals / 入口导
 
 describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote.js 逐字对齐）', () => {
   it('namespace/service = onebotSettings，与宿主 NAMESPACE 常量一致', () => {
-    expect(client.ONEBOT_SETTINGS_REMOTE).toEqual({ package: 'dsh-qq-companion', descriptors })
+    expect(client.ONEBOT_SETTINGS_REMOTE).toEqual({ package: 'dsh-qq-companion-pro', descriptors })
     for (const descriptor of descriptors) {
       expect(descriptor.namespace).toBe(NAMESPACE)
       expect(descriptor.service).toBe(NAMESPACE)
       expect(descriptor.method).toBeTypeOf('string')
-      expect(descriptor.id).toBe(`dsh-qq-companion#${NAMESPACE}/${String(descriptor.method)}`)
+      expect(descriptor.id).toBe(`dsh-qq-companion-pro#${NAMESPACE}/${String(descriptor.method)}`)
     }
   })
 

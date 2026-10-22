@@ -64,16 +64,16 @@ log('fake model at ' + llmUrl)
 const home = mkdtempSync(join(tmpdir(), 'dsh-e2e-'))
 const profile = join(home, 'profiles', 'web')
 mkdirSync(join(profile, 'node_modules'), { recursive: true })
-symlinkSync(ROOT, join(profile, 'node_modules', 'dsh-qq-companion'), 'dir')
+symlinkSync(ROOT, join(profile, 'node_modules', 'dsh-qq-companion-pro'), 'dir')
 writeFileSync(join(profile, 'package.json'), JSON.stringify({
   name: 'dsh-profile-web', private: true,
-  dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-qq-companion'] } },
-  dependencies: { 'dsh-qq-companion': 'link:' + ROOT },
+  dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-qq-companion-pro'] } },
+  dependencies: { 'dsh-qq-companion-pro': 'link:' + ROOT },
 }, null, 2))
 const workspace = join(home, 'workspace')
 mkdirSync(workspace)
 writeFileSync(join(profile, 'cordis.patch.yml'), `- id: dsh-onebot
-  name: 'dsh-qq-companion'
+  name: 'dsh-qq-companion-pro'
   config:
     host: 127.0.0.1
     port: ${WS_PORT}

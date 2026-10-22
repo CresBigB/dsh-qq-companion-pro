@@ -1,5 +1,5 @@
 /**
- * dsh-qq-companion: a QQ (OneBot 11 / NapCat) chat channel for DeepSeek Harness.
+ * dsh-qq-companion-pro: a QQ (OneBot 11 / NapCat) chat channel for DeepSeek Harness.
  *
  * Mounts inside the dsh host process: a reverse-WebSocket server NapCat dials
  * into, one Agent per QQ chat, inbound images/voice handled for the model
@@ -88,7 +88,7 @@ type Context = CordisContext & {
   }
 }
 
-export const name = 'dsh-qq-companion'
+export const name = 'dsh-qq-companion-pro'
 export const inject = ['tools', 'systemPrompt', 'agents', 'sessions', 'agentDefaultModel', 'agentPresets', 'sessionPersistence', 'workspaceRegistry', 'commands', 'llm']
 
 /** Plugin configuration (validated by schemastery); see config.ts. */

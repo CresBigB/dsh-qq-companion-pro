@@ -253,7 +253,7 @@ describe('commands', () => {
 
     h.sendText('/ver')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('dsh-qq-companion v'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('dsh-qq-companion-pro v'))).toBe(true)
     })
 
     h.sendText('/status')
@@ -653,13 +653,13 @@ describe('commands', () => {
     const h = await makeCmdHarness()
     h.sendText('/doctor')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion-pro 体检'))).toBe(true)
     }, { timeout: 15_000 })
     for (const removed of ['/healthcheck', '/ocr', '/mode instant']) h.sendText(removed)
     await vi.waitFor(() => {
       expect(h.outbound.filter(f => JSON.stringify(f.params).includes('未知命令'))).toHaveLength(3)
     }, { timeout: 15_000 })
-    expect(h.outbound.filter(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toHaveLength(1)
+    expect(h.outbound.filter(f => JSON.stringify(f.params).includes('▍dsh-qq-companion-pro 体检'))).toHaveLength(1)
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()

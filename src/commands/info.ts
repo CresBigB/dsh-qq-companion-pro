@@ -25,7 +25,7 @@ export async function handleIdCommand(ctx: CommandContext, chatId: ChatId): Prom
 /** /ver: plugin version + git commit (each read once and cached). */
 export async function handleVerCommand(ctx: CommandContext, chatId: ChatId): Promise<void> {
   const commit = gitCommit()
-  await ctx.sendToChat(chatId, 'dsh-qq-companion v' + (packageVersion() ?? '?') + (commit !== undefined ? ' (' + commit + ')' : ''))
+  await ctx.sendToChat(chatId, 'dsh-qq-companion-pro v' + (packageVersion() ?? '?') + (commit !== undefined ? ' (' + commit + ')' : ''))
 }
 
 /** /status: one-shot snapshot of the chat session state. */
@@ -116,7 +116,7 @@ export function pluginRoot(): string | undefined {
   for (;;) {
     try {
       const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { name?: string }
-      if (pkg.name === 'dsh-qq-companion') return dir
+      if (pkg.name === 'dsh-qq-companion-pro') return dir
     } catch {
       // no package.json here: keep walking up
     }

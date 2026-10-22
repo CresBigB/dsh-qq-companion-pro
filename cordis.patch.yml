@@ -1,4 +1,4 @@
-# dsh-qq-companion cordis.patch.yml —— dsh.bundle.patch（随 npm 包发布，宿主直接加载）
+# dsh-qq-companion-pro cordis.patch.yml —— dsh.bundle.patch（随 npm 包发布，宿主直接加载）
 #
 # 声明：package.json `dsh.bundle.patch = "./cordis.patch.yml"`。
 # 宿主读取点：dsh-app-boot/lib/index.js:497（bundlePatchFiles，patch 为字符串或
@@ -8,7 +8,7 @@
 #
 # 行说明：
 # 1. `dsh-onebot` 主条目（行 id 沿用原版 dsh-onebot，原版用户换包名即可，config 覆盖行不用改）——挂载插件主入口（exports "."）。name 用裸包名
-#    `dsh-qq-companion`：插件经 pnpm 装进 profile node_modules 后由运行时解析。
+#    `dsh-qq-companion-pro`：插件经 pnpm 装进 profile node_modules 后由运行时解析。
 #    禁止对同一插件文件二次 insert（如再为 settings-remote 挂一次 lib/index.js）：
 #    同一插件文件双实例注册 = 冲突崩溃循环（DEVLOG.md:70 实测事故）。
 #    注意：config 覆盖须挂 patch 文档顶层的同 id 行（insert 块内行 configEditor
@@ -26,7 +26,7 @@
 # 绝对路径 name 不受锚定影响。）
 - insert:
   - id: dsh-onebot
-    name: 'dsh-qq-companion'
+    name: 'dsh-qq-companion-pro'
     # config: { mode: reverse, host: 127.0.0.1, port: 8643, ... }
   - id: onebot-settings-remote
-    name: 'dsh-qq-companion/settings-remote'
+    name: 'dsh-qq-companion-pro/settings-remote'

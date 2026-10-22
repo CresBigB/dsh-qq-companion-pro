@@ -38,7 +38,7 @@ describe('health report (src/health.ts)', () => {
     ].join('\n') + '\n')
     const report = await healthReport(baseDeps(mediaDir, {
     }))
-    expect(report).toContain('▍dsh-qq-companion 体检')
+    expect(report).toContain('▍dsh-qq-companion-pro 体检')
     expect(report).toContain('连接：已连接（127.0.0.1:8643')
     expect(report).toContain('端口占用重试：0 次')
     expect(report).toContain('去重窗口：3 条在窗（dedupWindowSeconds=300）')
@@ -141,7 +141,7 @@ describe('/doctor command', () => {
     const h = await makeCmdHarness()
     h.sendText('/doctor')
     await vi.waitFor(() => {
-      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion 体检'))).toBe(true)
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('▍dsh-qq-companion-pro 体检'))).toBe(true)
     }, { timeout: 15_000 })
     h.sendText('/doctor export')
     await vi.waitFor(() => {

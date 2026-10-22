@@ -1,5 +1,5 @@
 {
-  "name": "dsh-qq-companion",
+  "name": "dsh-qq-companion-pro",
   "version": "1.12.1",
   "description": "给 dsh（DeepSeek Harness）接个人 QQ 号的陪伴型通道插件：OneBot 11 / NapCat，一句一条、私聊与群聊权限隔离、记忆与日记、主动聊天、定期换新会话、运行期群白名单，状态文件原子写、QQ 在线监视。基于 mario841859784/dsh-onebot（BSD-3）。",
   "keywords": [
@@ -44,14 +44,6 @@
     "docs"
   ],
   "license": "BSD-3-Clause",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Geng-zy/dsh-qq-companion.git"
-  },
-  "homepage": "https://github.com/Geng-zy/dsh-qq-companion#readme",
-  "bugs": {
-    "url": "https://github.com/Geng-zy/dsh-qq-companion/issues"
-  },
   "engines": {
     "dsh": ">=0.1.5-rc.1 <0.1.6-0 || >=0.1.6-alpha.1 <0.1.7-0 || >=0.1.7-alpha.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0 || >=0.2.1-0 <0.3.0-0",
     "node": ">=22"
