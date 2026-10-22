@@ -1,4 +1,5 @@
 #!/bin/bash
+# Windows / 无 bash 环境请用 scripts/build.mjs（npm run build）。
 # Build the dsh-qq-companion plugin: compile src/ → lib/ (JS) and lib/types/
 # (declarations) with TypeScript. The @deepseek-ai/dsh-* peer packages are
 # resolved from the same install the running `dsh` binary uses (npx store or

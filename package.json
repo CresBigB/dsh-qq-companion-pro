@@ -95,7 +95,8 @@
     "vitest": "^3.2.0"
   },
   "scripts": {
-    "build": "./scripts/build.sh",
+    "build": "node scripts/build.mjs",
+    "link-host": "node scripts/link-host.mjs",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
     "coverage": "vitest run --coverage",

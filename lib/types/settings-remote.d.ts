@@ -1,5 +1,5 @@
 /**
- * dsh-qq-companion — `onebotSettings` Typert Remote service
+ * dsh-qq-companion-pro — `onebotSettings` Typert Remote service
  *
  * Host-plane root service declared in cordis.patch.yml（仓库模板同名文件）via an
  * independent insert row (`- id: onebot-settings-remote / name:

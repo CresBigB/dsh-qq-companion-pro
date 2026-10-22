@@ -1,4 +1,5 @@
 #!/bin/bash
+# Windows / 无 bash 环境请用 scripts/build.mjs（npm run build）。
 # Link the running dsh host's @deepseek-ai packages into this plugin's
 # node_modules, so the plugin runs against the SAME module instances the host
 # process uses (dual-package hazard: npm copies would break instanceof-style
