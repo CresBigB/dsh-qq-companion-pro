@@ -15,11 +15,13 @@
  * failure throws — the caller keeps the [语音] placeholder.
  * @module dsh-qq-companion/stt
  */
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
-import { access, mkdir, open, rm, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { access, mkdir, open, readdir, rm, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { basename, dirname, extname, join } from 'node:path'
+import type { Readable } from 'node:stream'
 
 export type SttEngine = 'auto' | 'sherpa-onnx' | 'whisper-cpp' | 'command'
 
@@ -50,10 +52,61 @@ export const MAX_QUEUE = 5
 export const MAX_TRANSCRIPT_CHARS = 500
 const MAX_INPUT_BYTES = 20 * 1024 * 1024
 
+/** Windows batch shims (.cmd/.bat) cannot be started directly — Node refuses
+ * without a shell — so those (and only those) go through cmd.exe. */
+const BATCH_PROGRAM = process.platform === 'win32' ? /\.(bat|cmd)$/i : undefined
+
+/** Characters cmd.exe still honours inside double quotes: " ends the quoted
+ * run, % expands a variable, ! expands under delayed expansion, and a line
+ * break ends the command. None of them can be escaped there — cmd has no
+ * escape for a quote (\" is a C-runtime rule, which cmd does not follow) — so
+ * a word containing one is refused instead of being passed on. */
+const CMD_UNQUOTABLE = /["%!\r\n]/
+
+/** One cmd.exe command line for a batch program: the program itself and every
+ * argument, without exception, are wrapped in double quotes (an empty word is
+ * `""`). Inside quotes cmd treats & | < > ( ) ^ and spaces as literal text, so
+ * an argument can never split the command or start a new one.
+ *
+ * Only " % ! and line breaks survive quoting, and %1..%9 in a batch shim is
+ * where an injected word would land, so those are rejected outright with an
+ * error naming the offending word. Pure string function, exported for tests.
+ * @throws when the program or an argument contains " % ! or a line break. */
+export function cmdCommandLine(program: string, args: readonly string[]): string {
+  const quote = (word: string): string => {
+    if (CMD_UNQUOTABLE.test(word)) {
+      throw new Error('批处理程序（.cmd/.bat）的参数里不能含有 " % ! 或换行：' + word + '。请改用 .exe 版本的识别引擎，或去掉这些字符。')
+    }
+    return '"' + word + '"'
+  }
+  return [program, ...args].map(quote).join(' ')
+}
+
+/** spawn() with Windows batch files routed through cmd.exe /d /s /c. */
+function spawnProgram(program: string, args: readonly string[]): ChildProcessByStdio<null, Readable, Readable> {
+  const stdio: ['ignore', 'pipe', 'pipe'] = ['ignore', 'pipe', 'pipe']
+  if (BATCH_PROGRAM !== undefined && BATCH_PROGRAM.test(program)) {
+    const comspec = process.env.ComSpec ?? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe')
+    return spawn(comspec, ['/d', '/s', '/c', '"' + cmdCommandLine(program, args) + '"'], {
+      stdio,
+      windowsVerbatimArguments: true,
+    })
+  }
+  return spawn(program, [...args], { stdio })
+}
+
 /** Run a program; resolves stdout+stderr, rejects on a non-zero exit or timeout. */
 export function runProcess(program: string, args: readonly string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, [...args], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let child: ChildProcessByStdio<null, Readable, Readable>
+    try {
+      child = spawnProgram(program, args)
+    } catch (error) {
+      // cmdCommandLine refused an argument it cannot quote safely; reject like
+      // any other failed run so the caller falls back to the [语音] placeholder.
+      reject(error)
+      return
+    }
     let stdout = ''
     let stderr = ''
     let done = false
@@ -75,12 +128,58 @@ export function runProcess(program: string, args: readonly string[], timeoutMs: 
   })
 }
 
+/** Extensions Windows appends to a bare command name (PATHEXT). */
+function windowsExtensions(): string[] {
+  const list = (process.env.PATHEXT ?? '').split(';').map(ext => ext.trim()).filter(ext => ext !== '')
+  return list.length > 0 ? list : ['.COM', '.EXE', '.BAT', '.CMD']
+}
+
+/** The file names Windows tries for `name` (an explicit extension is kept as-is). */
+function windowsCandidates(name: string): string[] {
+  return extname(name) !== '' ? [name] : windowsExtensions().map(ext => name + ext)
+}
+
+/** Windows has no x bit: a program is a regular file whose extension is in PATHEXT. */
+async function isWindowsProgram(path: string): Promise<boolean> {
+  const ext = extname(path).toLowerCase()
+  if (ext === '' || !windowsExtensions().some(candidate => candidate.toLowerCase() === ext)) return false
+  try { return (await stat(path)).isFile() } catch { return false }
+}
+
+/** Windows name checks are case-insensitive, so a PATHEXT probe can match a
+ * file whose on-disk spelling differs (ffmpeg.EXE for ffmpeg.exe); report the
+ * spelling that exists. */
+async function realPathSpelling(path: string): Promise<string> {
+  const dir = dirname(path)
+  const name = basename(path).toLowerCase()
+  try {
+    const hit = (await readdir(dir)).find(entry => entry.toLowerCase() === name)
+    return hit === undefined ? path : join(dir, hit)
+  } catch {
+    return path
+  }
+}
+
+/** Windows look-up: PATH is ';'-separated and a bare name gets PATHEXT extensions. */
+async function findCommandWin32(name: string): Promise<string | undefined> {
+  const inPath = !name.includes('/') && !name.includes('\\')
+  for (const dir of inPath ? (process.env.PATH ?? '').split(';') : ['']) {
+    if (dir === '' && inPath) continue
+    for (const candidate of windowsCandidates(name)) {
+      const path = inPath ? join(dir, candidate) : candidate
+      if (await isWindowsProgram(path)) return realPathSpelling(path)
+    }
+  }
+  return undefined
+}
+
 /** Find an executable on PATH (no shell involved). */
 export async function findCommand(name: string): Promise<string | undefined> {
+  if (process.platform === 'win32') return findCommandWin32(name)
   if (name.includes('/')) {
     try { await access(name, constants.X_OK); return name } catch { return undefined }
   }
-  for (const dir of (process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':')) {
+  for (const dir of (process.env.PATH ?? '').split(':')) {
     if (dir === '') continue
     const candidate = join(dir, name)
     try {
@@ -97,9 +196,12 @@ const exists = async (path: string): Promise<boolean> => {
   try { await access(path); return true } catch { return false }
 }
 
+/** The home directory ($HOME, or %USERPROFILE% on Windows where HOME is unset). */
+const homeDir = (): string => process.env.HOME ?? homedir()
+
 /** A SenseVoice model directory: the onnx file and tokens.txt. */
 export async function findSenseVoiceModel(dir: string): Promise<{ model: string; tokens: string } | undefined> {
-  const candidates = dir !== '' ? [dir] : [join(process.env.HOME ?? '', '.cache', 'sherpa-onnx', 'sense-voice'), '/opt/sherpa-onnx/sense-voice']
+  const candidates = dir !== '' ? [dir] : [join(homeDir(), '.cache', 'sherpa-onnx', 'sense-voice'), '/opt/sherpa-onnx/sense-voice']
   for (const d of candidates) {
     const tokens = join(d, 'tokens.txt')
     if (!(await exists(tokens))) continue
@@ -112,9 +214,9 @@ export async function findSenseVoiceModel(dir: string): Promise<{ model: string;
 
 /** A whisper.cpp ggml model by path or by name (ggml-<name>.bin in the usual places). */
 export async function findWhisperModel(model: string): Promise<string | undefined> {
-  if (model.includes('/') || model.endsWith('.bin')) return (await exists(model)) ? model : undefined
+  if (model.includes('/') || model.includes('\\') || model.endsWith('.bin')) return (await exists(model)) ? model : undefined
   const name = 'ggml-' + (model === '' ? 'small' : model) + '.bin'
-  const home = process.env.HOME ?? ''
+  const home = homeDir()
   for (const dir of [join(home, '.cache', 'whisper.cpp'), join(home, 'whisper.cpp', 'models'), '/usr/local/share/whisper.cpp/models', '/opt/homebrew/share/whisper.cpp/models', '/opt/whisper.cpp/models']) {
     if (await exists(join(dir, name))) return join(dir, name)
   }

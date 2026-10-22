@@ -23,6 +23,16 @@ export interface SttConfig {
 export declare const MAX_QUEUE = 5;
 /** Transcripts longer than this are cut (characters). */
 export declare const MAX_TRANSCRIPT_CHARS = 500;
+/** One cmd.exe command line for a batch program: the program itself and every
+ * argument, without exception, are wrapped in double quotes (an empty word is
+ * `""`). Inside quotes cmd treats & | < > ( ) ^ and spaces as literal text, so
+ * an argument can never split the command or start a new one.
+ *
+ * Only " % ! and line breaks survive quoting, and %1..%9 in a batch shim is
+ * where an injected word would land, so those are rejected outright with an
+ * error naming the offending word. Pure string function, exported for tests.
+ * @throws when the program or an argument contains " % ! or a line break. */
+export declare function cmdCommandLine(program: string, args: readonly string[]): string;
 /** Run a program; resolves stdout+stderr, rejects on a non-zero exit or timeout. */
 export declare function runProcess(program: string, args: readonly string[], timeoutMs: number): Promise<{
     stdout: string;

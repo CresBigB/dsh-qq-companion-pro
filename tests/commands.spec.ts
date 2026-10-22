@@ -14,6 +14,10 @@ import { COMMANDS, helpText, packageVersion } from '../src/commands.js'
 import { MediaStore } from '../src/media.js'
 import { makeCmdHarness } from './helpers/bridge-harness.js'
 
+/** A value as it appears inside JSON.stringify(...): on Windows a path keeps
+ * its backslashes doubled there, so a raw path never matches the wire text. */
+const inJson = (value: string): string => JSON.stringify(value).slice(1, -1)
+
 describe('commands', () => {
   it('packageVersion resolves the package.json version under ESM (no "?")', async () => {
     const { readFileSync } = await import('node:fs')
@@ -689,7 +693,7 @@ describe('commands', () => {
     // /workspace pointing at a file (not a directory): numbered-list pointer.
     h.sendText('/workspace ' + notDir)
     await vi.waitFor(() => {
-      expect(text()).toContain('❌ 不是目录：' + notDir)
+      expect(text()).toContain('❌ 不是目录：' + inJson(notDir))
       expect(text()).toContain('发 /workspace 查看编号列表，或发 /workspace list 查看全部')
     })
     // /preset unknown id with no on-disk presets: still carries the usage line.
@@ -816,8 +820,8 @@ describe('commands · serial selection', () => {
     await vi.waitFor(() => {
       const text = h.outbound.map(f => JSON.stringify(f.params)).join('\n')
       expect(text).toContain('当前工作目录：')
-      expect(text).toContain('1. ' + h.mediaDir + '（1 会话） ← 当前')
-      expect(text).toContain('2. ' + otherDir + '（0 会话）')
+      expect(text).toContain('1. ' + inJson(h.mediaDir) + '（1 会话） ← 当前')
+      expect(text).toContain('2. ' + inJson(otherDir) + '（0 会话）')
       expect(text).toContain('回复 /workspace <序号> 切换')
     })
     expect(pendingOf(h)?.kind).toBe('workspace')

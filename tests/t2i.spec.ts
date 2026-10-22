@@ -68,7 +68,7 @@ describe('line breaking', () => {
 })
 
 const hasCjkFont = GlobalFonts.families.some(f => CJK_FAMILIES.some(c => c.toLowerCase() === f.family.toLowerCase()))
-const hasEmojiFont = GlobalFonts.families.some(f => /color emoji/i.test(f.family))
+const hasEmojiFont = GlobalFonts.families.some(f => /color emoji|segoe ui emoji/i.test(f.family))
 
 describe.skipIf(!hasCjkFont)('renderTextImage', () => {
   async function pixels(png: Buffer) {

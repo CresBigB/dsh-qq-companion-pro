@@ -39,6 +39,12 @@ function readTrace(mediaDir: string): Array<Record<string, unknown>> {
     .map(l => JSON.parse(l) as Record<string, unknown>)
 }
 
+/** 诊断包绝对路径：POSIX（/tmp/...）或 Windows 盘符（C:\...）。报文取到的是
+ * JSON 序列化后的 params，所以 Windows 分隔符是双写的（C:\\...）——先按 JSON
+ * 形态匹配，再解码成真实路径。 */
+const ARCHIVE_PATH = /(?:[A-Za-z]:\\\\|\/)[^"\s]*qq-diagnostics-[^"\s]*\.zip/
+const archivePathOf = (line: string): string => JSON.parse('"' + ARCHIVE_PATH.exec(line)![0] + '"') as string
+
 const stopAll = async (h: { client: WebSocket; bridge: { stop(): Promise<void> }; connection: { stop(): Promise<void> } }): Promise<void> => {
   h.client.close()
   await h.bridge.stop()
@@ -154,7 +160,7 @@ describe('消息回合故障 → MF- 号贯穿', () => {
     h.sendText('/doctor export')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('诊断包已导出'))).toBe(true))
     const archiveLine = sentTexts(h.outbound).find(t => t.includes('诊断包已导出'))!
-    const archivePath = /\/\S*qq-diagnostics-\S*\.zip/.exec(archiveLine)![0]
+    const archivePath = archivePathOf(archiveLine)
     expect(archivePath).toMatch(new RegExp('-' + ref + '\\.zip$'))
     expect(existsSync(archivePath)).toBe(true)
 
@@ -235,7 +241,7 @@ describe('正常路径零发号 + export 文件名模式', () => {
     h.sendText('/doctor export')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('诊断包已导出'))).toBe(true))
     const archiveLine = sentTexts(h.outbound).find(t => t.includes('诊断包已导出'))!
-    const archivePath = /\/\S*qq-diagnostics-\S*\.zip/.exec(archiveLine)![0]
+    const archivePath = archivePathOf(archiveLine)
     expect(archivePath).toMatch(/qq-diagnostics-\d{4,}-\d+\.zip$/)
 
     // 显式传号：合法号逐字入名；报告带「本次导出参考号」
@@ -243,7 +249,7 @@ describe('正常路径零发号 + export 文件名模式', () => {
     h.sendText('/doctor export ' + explicit)
     await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes('诊断包已导出')).length).toBe(2))
     const explicitLine = sentTexts(h.outbound).filter(t => t.includes('诊断包已导出'))[1]!
-    const explicitPath = /\/\S*qq-diagnostics-\S*\.zip/.exec(explicitLine)![0]
+    const explicitPath = archivePathOf(explicitLine)
     expect(explicitPath.endsWith('-' + explicit + '.zip')).toBe(true)
     expect(existsSync(explicitPath)).toBe(true)
 

@@ -1,7 +1,10 @@
 /**
  * Voice transcription with fake ffmpeg / engine programs on PATH (no real
  * models needed): engine selection, output parsing and cleanup, limits,
- * SILK detection, timeouts, the queue cap and temp-dir cleanup.
+ * SILK detection, timeouts, the queue cap and temp-dir cleanup. Every stub is
+ * written twice — a sh script on POSIX, a .cmd shim that runs the same logic
+ * through node on Windows, where PATH look-up is PATHEXT-driven and a .sh file
+ * cannot be executed — so both platforms exercise the same behaviour.
  * @module dsh-qq-companion/tests/stt
  */
 import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
@@ -11,23 +14,41 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { recordResult } from '../src/inbound.js'
-import { MAX_QUEUE, Transcriber, applyReplacements, cleanTranscript, parseSherpaOutput, transcriptLabel, type SttConfig } from '../src/stt.js'
+import { MAX_QUEUE, Transcriber, applyReplacements, cleanTranscript, cmdCommandLine, parseSherpaOutput, runProcess, transcriptLabel, type SttConfig } from '../src/stt.js'
+
+const WINDOWS = process.platform === 'win32'
 
 afterEach(() => { vi.unstubAllEnvs() })
 
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p))
 
-async function program(dir: string, name: string, body: string): Promise<void> {
-  await writeFile(join(dir, name), '#!/bin/sh\n' + body + '\n')
-  await chmod(join(dir, name), 0o755)
+/** Write one fake program: `sh` runs on POSIX, `js` (same stdout / exit code /
+ * hang) through node on Windows. */
+async function program(dir: string, name: string, sh: string, js: string): Promise<void> {
+  if (!WINDOWS) {
+    await writeFile(join(dir, name), '#!/bin/sh\n' + sh + '\n')
+    await chmod(join(dir, name), 0o755)
+    return
+  }
+  await writeFile(join(dir, name + '.cmd'), '@echo off\r\n"' + process.execPath + '" "%~dp0' + name + '.mjs" %*\r\n')
+  await writeFile(join(dir, name + '.mjs'), js + '\n')
 }
 
+const FFMPEG_SH = 'in=""; prev=""; for a in "$@"; do [ "$prev" = "-i" ] && in="$a"; prev="$a"; last="$a"; done; cp "$in" "$last"'
+const FFMPEG_JS = [
+  "import { copyFileSync } from 'node:fs'",
+  'const args = process.argv.slice(2)',
+  "const at = args.indexOf('-i')",
+  'const input = at >= 0 ? args[at + 1] : args[args.length - 1]',
+  'copyFileSync(input, args[args.length - 1])',
+].join('\n')
+
 /** A PATH with a fake ffmpeg (copies input → the last argument). */
-async function fakeTools(extra: Record<string, string> = {}): Promise<string> {
+async function fakeTools(extra: Record<string, readonly [string, string]> = {}): Promise<string> {
   const bin = tmp('stt-bin-')
-  await program(bin, 'ffmpeg', 'in=""; prev=""; for a in "$@"; do [ "$prev" = "-i" ] && in="$a"; prev="$a"; last="$a"; done; cp "$in" "$last"')
-  for (const [name, body] of Object.entries(extra)) await program(bin, name, body)
-  vi.stubEnv('PATH', bin + ':/usr/bin:/bin')
+  await program(bin, 'ffmpeg', FFMPEG_SH, FFMPEG_JS)
+  for (const [name, body] of Object.entries(extra)) await program(bin, name, body[0], body[1])
+  vi.stubEnv('PATH', WINDOWS ? bin : bin + ':/usr/bin:/bin')
   vi.stubEnv('HOME', tmp('stt-home-'))
   return bin
 }
@@ -43,7 +64,12 @@ const base: SttConfig = { enabled: true, engine: 'auto', command: '', args: [], 
 
 describe('engines', () => {
   it('the fix-up table corrects the transcript before she sees it', async () => {
-    await fakeTools({ 'sherpa-onnx-offline': 'echo "{\\"text\\": \\"<|zh|>大飞鱼你在做什么\\"}"' })
+    await fakeTools({
+      'sherpa-onnx-offline': [
+        'echo "{\\"text\\": \\"<|zh|>大飞鱼你在做什么\\"}"',
+        "console.log('{\"text\": \"<|zh|>大飞鱼你在做什么\"}')",
+      ],
+    })
     const dir = tmp('stt-sv-')
     writeFileSync(join(dir, 'tokens.txt'), 'x')
     writeFileSync(join(dir, 'model.int8.onnx'), 'x')
@@ -52,7 +78,18 @@ describe('engines', () => {
   })
 
   it('whisper-cpp: runs whisper-cli with the model and language, and cleans the output', async () => {
-    await fakeTools({ 'whisper-cli': 'echo "  今天吃什么 [BLANK_AUDIO] "; echo "$@" > "$(dirname "$0")/args"' })
+    await fakeTools({
+      'whisper-cli': [
+        'echo "  今天吃什么 [BLANK_AUDIO] "; echo "$@" > "$(dirname "$0")/args"',
+        [
+          "import { writeFileSync } from 'node:fs'",
+          "import { dirname, join } from 'node:path'",
+          "import { fileURLToPath } from 'node:url'",
+          "console.log('  今天吃什么 [BLANK_AUDIO] ')",
+          "writeFileSync(join(dirname(fileURLToPath(import.meta.url)), 'args'), process.argv.slice(2).join(' ') + '\\n')",
+        ].join('\n'),
+      ],
+    })
     const model = join(tmp('stt-model-'), 'ggml-small.bin')
     writeFileSync(model, 'x')
     const t = new Transcriber({ ...base, engine: 'whisper-cpp', model })
@@ -61,7 +98,15 @@ describe('engines', () => {
   })
 
   it('sherpa-onnx: finds the SenseVoice model dir and parses the JSON result line', async () => {
-    await fakeTools({ 'sherpa-onnx-offline': 'echo "loading model" >&2; echo "{\\"lang\\": \\"<|zh|>\\", \\"text\\": \\"<|zh|><|NEUTRAL|><|Speech|>主人早上好\\"}" >&2' })
+    await fakeTools({
+      'sherpa-onnx-offline': [
+        'echo "loading model" >&2; echo "{\\"lang\\": \\"<|zh|>\\", \\"text\\": \\"<|zh|><|NEUTRAL|><|Speech|>主人早上好\\"}" >&2',
+        [
+          "console.error('loading model')",
+          "console.error('{\"lang\": \"<|zh|>\", \"text\": \"<|zh|><|NEUTRAL|><|Speech|>主人早上好\"}')",
+        ].join('\n'),
+      ],
+    })
     const dir = tmp('stt-sv-')
     writeFileSync(join(dir, 'tokens.txt'), 'x')
     writeFileSync(join(dir, 'model.int8.onnx'), 'x')
@@ -70,7 +115,10 @@ describe('engines', () => {
   })
 
   it('auto prefers sherpa-onnx with a model in the default place, else whisper-cpp', async () => {
-    const bin = await fakeTools({ 'whisper-cli': 'echo whisper', 'sherpa-onnx-offline': 'echo "{\\"text\\": \\"sense\\"}"' })
+    const bin = await fakeTools({
+      'whisper-cli': ['echo whisper', "console.log('whisper')"],
+      'sherpa-onnx-offline': ['echo "{\\"text\\": \\"sense\\"}"', "console.log('{\"text\": \"sense\"}')"],
+    })
     const home = process.env.HOME!
     expect(await new Transcriber({ ...base, model: '' }).transcribe(voice()).catch(e => String(e))).toMatch(/没有可用的语音识别引擎/)
     await mkdir(join(home, '.cache', 'whisper.cpp'), { recursive: true })
@@ -85,7 +133,16 @@ describe('engines', () => {
   })
 
   it('command: substitutes the template and reads stdout; the old name "custom" still works', async () => {
-    await fakeTools({ 'my-asr': 'echo "lang=$1 wav=$(basename "$2")"' })
+    await fakeTools({
+      'my-asr': [
+        'echo "lang=$1 wav=$(basename "$2")"',
+        [
+          "import { basename } from 'node:path'",
+          'const args = process.argv.slice(2)',
+          "console.log('lang=' + args[0] + ' wav=' + basename(args[1] ?? ''))",
+        ].join('\n'),
+      ],
+    })
     const t = new Transcriber({ ...base, engine: 'custom', command: 'my-asr', args: ['{lang}', '{wav}'] })
     expect(await t.transcribe(voice())).toBe('lang=zh wav=audio.wav')
   })
@@ -93,14 +150,14 @@ describe('engines', () => {
 
 describe('limits and failures', () => {
   it('refuses SILK files with a clear reason, and an empty file transcribes to nothing', async () => {
-    await fakeTools({ 'whisper-cli': 'echo x' })
+    await fakeTools({ 'whisper-cli': ['echo x', "console.log('x')"] })
     const t = new Transcriber({ ...base, engine: 'command', command: 'whisper-cli' })
     await expect(t.transcribe(voice('\u0002#!SILK_V3 raw'))).rejects.toThrow(/SILK/)
     expect(await t.transcribe(voice(''))).toBe('')
   })
 
   it('times out a hanging engine and always removes its temp dir', async () => {
-    await fakeTools({ 'slow-asr': 'sleep 5' })
+    await fakeTools({ 'slow-asr': ['sleep 5', 'setTimeout(() => {}, 5000)'] })
     const file = voice()
     const t = new Transcriber({ ...base, engine: 'command', command: 'slow-asr', timeoutMs: 300 })
     await expect(t.transcribe(file)).rejects.toThrow(/超时/)
@@ -108,7 +165,7 @@ describe('limits and failures', () => {
   })
 
   it('runs one at a time and refuses beyond the queue cap', async () => {
-    await fakeTools({ 'asr': 'sleep 0.2; echo ok' })
+    await fakeTools({ 'asr': ['sleep 0.2; echo ok', "setTimeout(() => { console.log('ok') }, 200)"] })
     const t = new Transcriber({ ...base, engine: 'command', command: 'asr' })
     const runs = Array.from({ length: MAX_QUEUE + 2 }, () => t.transcribe(voice()).catch(e => String(e)))
     const results = await Promise.all(runs)
@@ -161,5 +218,64 @@ describe('applyReplacements', () => {
     expect(applyReplacements('abc', { '': 'x' })).toBe('abc')
     expect(applyReplacements('abc', undefined)).toBe('abc')
     expect(applyReplacements('abc', {})).toBe('abc')
+  })
+})
+
+/** A .cmd shim that hands its arguments to node untouched, so the argv node
+ * sees is exactly what cmd.exe made of the command line. */
+async function echoArgsCmd(dir: string): Promise<string> {
+  const file = join(dir, 'echo-args.cmd')
+  await writeFile(file, '@echo off\r\n"' + process.execPath + '" "%~dp0echo-args.mjs" %*\r\n')
+  await writeFile(join(dir, 'echo-args.mjs'), 'console.log(JSON.stringify(process.argv.slice(2)))\n')
+  return file
+}
+
+describe('cmd.exe command line', () => {
+  /** The refusal message (fails when nothing was thrown). */
+  const refusal = (run: () => string): string => {
+    let message = ''
+    try { run() } catch (error) { message = error instanceof Error ? error.message : String(error) }
+    expect(message).not.toBe('')
+    return message
+  }
+
+  it('wraps the program and every argument in double quotes, separators and all', () => {
+    // Nothing is ever left bare — not a harmless word, not an empty string.
+    expect(cmdCommandLine('C:\\Tools\\asr.exe', [])).toBe('"C:\\Tools\\asr.exe"')
+    expect(cmdCommandLine('asr.cmd', ['plain'])).toBe('"asr.cmd" "plain"')
+    expect(cmdCommandLine('asr.cmd', [''])).toBe('"asr.cmd" ""')
+    expect(cmdCommandLine('asr.cmd', ['a b'])).toBe('"asr.cmd" "a b"')
+    // Inside quotes cmd reads these as text, so they are passed through as-is
+    // (backslash escaping them for the C runtime would put & back outside).
+    expect(cmdCommandLine('asr.cmd', ['&', '|', '<', '>', '^', '(', ')'])).toBe('"asr.cmd" "&" "|" "<" ">" "^" "(" ")"')
+    expect(cmdCommandLine('asr.cmd', ['a&b|c<d>e^f(g)h'])).toBe('"asr.cmd" "a&b|c<d>e^f(g)h"')
+    expect(cmdCommandLine('C:\\a b\\asr.cmd', ['C:\\a b\\x&y (1).wav', '{lang}']))
+      .toBe('"C:\\a b\\asr.cmd" "C:\\a b\\x&y (1).wav" "{lang}"')
+  })
+
+  it('refuses what quoting cannot tame: " % ! and line breaks', () => {
+    for (const bad of ['"', 'a"b', '50%', 'a!b', 'a\nb', 'a\rb']) {
+      const message = refusal(() => cmdCommandLine('asr.cmd', [bad]))
+      expect(message).toContain(bad)
+      expect(message).toMatch(/不能含有 " % ! 或换行/)
+    }
+    // The program is quoted the same way and refused the same way.
+    expect(refusal(() => cmdCommandLine('C:\\tools\\a%b.cmd', []))).toContain('C:\\tools\\a%b.cmd')
+    expect(refusal(() => cmdCommandLine('C:\\my"tools\\asr.cmd', []))).toContain('C:\\my"tools\\asr.cmd')
+  })
+
+  it.runIf(WINDOWS)('a .cmd shim gets such an argument back verbatim, nothing outside the quotes runs', async () => {
+    const dir = join(tmp('stt-cmd-'), 'a b')
+    await mkdir(dir, { recursive: true })
+    const args = ['C:\\a b\\x&y (1).wav', '-t 2', 'plain', '']
+    const { stdout, stderr } = await runProcess(await echoArgsCmd(dir), args, 20_000)
+    expect(JSON.parse(stdout.trim())).toEqual(args)
+    expect(stderr.trim()).toBe('')
+  })
+
+  it.runIf(WINDOWS)('runProcess rejects instead of letting cmd run the rest of a quote', async () => {
+    const dir = join(tmp('stt-cmd-'), 'a b')
+    await mkdir(dir, { recursive: true })
+    await expect(runProcess(await echoArgsCmd(dir), ['C:\\a b\\x"y & calc'], 20_000)).rejects.toThrow(/不能含有 " % ! 或换行/)
   })
 })
