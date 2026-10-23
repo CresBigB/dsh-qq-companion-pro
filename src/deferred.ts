@@ -27,6 +27,7 @@ import type { TraceStage } from './trace.js'
 import { TRACE_REASONS } from './trace.js'
 import { OneBotActionError, OneBotNotConnectedError } from './connection.js'
 import { describeError } from './errors.js'
+import { parseReplyPass } from './output-protocol.js'
 import { failureRefSuffix } from './ref.js'
 import { parseLeadingQuote } from './reply-quote.js'
 
@@ -132,7 +133,9 @@ export function classifySendError(error: unknown): 'retryable' | 'uncertain' {
 
 /** Text-only extraction（不重放媒体/工具调用/卡片：只取 text 块）。
  * the reply-quote directive (a leading [引用:<id>]) is model-side protocol and
- * is stripped here — a 补发 must never carry the marker literally to QQ. */
+ * is stripped here — a 补发 must never carry the marker literally to QQ.
+ * 不回应标记（[不回] / [不发]）**原样保留**：它要在 buildDeferredText 里被
+ * 认出来，让这条补发什么都不发（原因也能带进日志）。 */
 function textOnly(message: DeferredAssistantMessage): string {
   try {
     const text = (message.content ?? [])
@@ -145,18 +148,42 @@ function textOnly(message: DeferredAssistantMessage): string {
   }
 }
 
-/** Build the deferred delivery text for a finished turn. an error
- * ending carries the turn's MF- reference so the补发 terminal notice and the
- * trace/log/doctor surfaces share one number. */
-export function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string {
+/** 一条补发文本的判定结果（输出协议 A 档）。 */
+export interface DeferredTextDecision {
+  /** true = 她这次选择不回：这条补发一条也不发（但留痕，绝不静默吞掉）。 */
+  pass: boolean
+  /** 她写的原因（'' = 没写）。 */
+  passReason: string
+  /** 真正要发出去的文本；pass 时恒为 ''。 */
+  text: string
+}
+
+/**
+ * 组装补发文本并识别不回应标记。
+ * an error ending carries the turn's MF- reference so the补发 terminal notice and
+ * the trace/log/doctor surfaces share one number.
+ * @param entry - the tracked entry (its resultText is the captured final text).
+ * @param reason - the turn/end reason.
+ * @returns pass / passReason / text（见 {@link DeferredTextDecision}）。
+ */
+export function decideDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): DeferredTextDecision {
   if (reason?.kind === 'error') {
-    return DEFERRED_PREFIX + '任务已结束：运行出错：' + (reason.error?.message ?? '未知错误') + failureRefSuffix(entry.ref)
+    return { pass: false, passReason: '', text: DEFERRED_PREFIX + '任务已结束：运行出错：' + (reason.error?.message ?? '未知错误') + failureRefSuffix(entry.ref) }
   }
   // strip any reply-quote directive still sitting in a restored/recorded
   // text — the marker is protocol, never message content.
   const text = parseLeadingQuote(entry.resultText ?? '').body.trim()
-  if (text === '') return DEFERRED_PREFIX + '任务已完成，但没有产生文字结果。'
-  return DEFERRED_PREFIX + text
+  // 整条就是 [不回] / [不回:原因] / [不发] → 这条补发什么都不发。
+  const replyPass = parseReplyPass(text)
+  if (replyPass.pass) return { pass: true, passReason: replyPass.reason, text: '' }
+  if (text === '') return { pass: false, passReason: '', text: DEFERRED_PREFIX + '任务已完成，但没有产生文字结果。' }
+  return { pass: false, passReason: '', text: DEFERRED_PREFIX + text }
+}
+
+/** Build the deferred delivery text for a finished turn ('' = 她选择不回，
+ * 这条补发不发；调用方据此留痕并停止投递)。 */
+export function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string {
+  return decideDeferredText(entry, reason).text
 }
 
 /** Strict-ish loader validation: a line that is not a usable entry is skipped
@@ -269,9 +296,19 @@ export class DeferredDelivery {
       entry.updatedAt = this.now()
       return reason === undefined || reason.kind === 'completed'
     }
-    const text = buildDeferredText(entry, reason)
+    const decision = decideDeferredText(entry, reason)
     entry.updatedAt = this.now()
-    void this.deliverWithRetry(entry, text)
+    if (decision.pass) {
+      // 她这次选择不回：补发一条也不发，但留痕（日志 + trace，绝不静默吞掉）。
+      const described = decision.passReason === '' ? '未说明原因' : decision.passReason
+      entry.state = 'cancelled'
+      entry.reason = '她选择不回（' + described + '），这条超时补发不发送'
+      this.ctx.log('info', '她选择不回，超时补发不发送: chat=' + entry.chatId + ' session=' + entry.sessionId + '（' + described + '）')
+      this.ctx.trace?.(entry.chatId, { stage: 'reply', ok: true, reason: TRACE_REASONS.replyPass + '：' + described, data: { sessionId: entry.sessionId, deferred: true } })
+      void this.save()
+      return reason === undefined || reason.kind === 'completed'
+    }
+    void this.deliverWithRetry(entry, decision.text)
     return true
   }
 

@@ -132,9 +132,11 @@ describe('buildCompanionStatusSnapshot — 全量字段（§4.14）', () => {
     expect(snapshot.sessions!.list.every(chat => chat.workspaceAttached === null)).toBe(true)
   })
 
-  it('今天：sendCounter 的 today', async () => {
+  it('今天：sendCounter 的 today 与不回次数（passCount）', async () => {
     const snapshot = await buildCompanionStatusSnapshot(fullDeps())
-    expect(snapshot.today).toEqual({ sent: 12 })
+    expect(snapshot.today).toEqual({ sent: 12, passCount: 0 })
+    const withPass = await buildCompanionStatusSnapshot(fullDeps({ sendCounter: () => ({ lastMinute: 1, lastHour: 2, today: 12, passToday: 4 }) }))
+    expect(withPass.today).toEqual({ sent: 12, passCount: 4 })
   })
 
   it('主动聊天：enabled / 今日已执行 / 今日计划（已执行 + 剩余）/ 下一次', async () => {

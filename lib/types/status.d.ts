@@ -102,8 +102,10 @@ export type CompanionStatusCapabilities = CapabilitySummary;
 export interface CompanionStatusSnapshot {
     connection: CompanionStatusConnection | null;
     sessions: CompanionStatusSessions | null;
+    /** 今天：发出去了多少条（sent）与她选择不回几次（passCount）。 */
     today: {
         sent: number;
+        passCount: number;
     } | null;
     proactive: CompanionStatusProactive | null;
     stickers: CompanionStatusStickers | null;
@@ -144,7 +146,7 @@ export interface CompanionStatusDeps {
     workspaceSessionIds?: () => ReadonlySet<string> | undefined;
     /** 宿主 sessionTitle 的当前标题（没有 = undefined）。 */
     titleOf?: (chatId: string, sessionId: string) => string | undefined;
-    /** 发送计数器（今天已发送条数）。 */
+    /** 发送计数器（今天已发送条数与不回条数）。 */
     sendCounter?: () => SendCounterSnapshot;
     /** 每日定时任务的执行状态（DailyScheduler.snapshot）。 */
     scheduler?: () => Array<{

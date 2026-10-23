@@ -216,6 +216,16 @@ describe('概览子页 — 六格状态（§4.14）', () => {
     expect(textOf(byClass(statOf(stats, 'scheduled'), 'qqc-stat-sub')[0])).toBe('下一次 23:00')
   })
 
+  it('「今天」格的副文带上今天不回条数（today.passCount）', () => {
+    const withPass = renderOverview(stubReact, overviewProps({ status: demoStatus({ today: { sent: 12, passCount: 3 } }) }))
+    const today = statOf(byClass(withPass, 'qqc-stats')[0], 'today')
+    expect(textOf(byClass(today, 'qqc-stat-value')[0])).toBe('12')
+    expect(textOf(byClass(today, 'qqc-stat-sub')[0])).toBe('条已发送 · 今天 3 条不回')
+    // 0 次也照实说（这是可观测的决定，不是隐藏字段）。
+    const zero = renderOverview(stubReact, overviewProps({ status: demoStatus({ today: { sent: 4, passCount: 0 } }) }))
+    expect(textOf(byClass(statOf(byClass(zero, 'qqc-stats')[0], 'today'), 'qqc-stat-sub')[0])).toBe('条已发送 · 今天 0 条不回')
+  })
+
   it('连接格三态：离线 → warn、未连接 → error、未知 → idle', () => {
     const cases: Array<[Record<string, unknown>, string]> = [
       [{ connected: true, online: false, selfId: '1' }, 'warn'],

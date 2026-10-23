@@ -28,6 +28,7 @@ import { exportDiagnostics, healthReport, type HealthDeps } from './health.js'
 import { InboundPipeline, normalizeOneBot11 } from './inbound.js'
 import { InterimTracker } from './interim.js'
 import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outbound.js'
+import { parseReplyPass } from './output-protocol.js'
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
 import { ChatRegistry, type ChatAgent } from './registry.js'
@@ -305,31 +306,61 @@ export class ChatBridge {
    * Send plain text to a chat with the full outbound pipeline (forward
    * blocks, Markdown strip, sentence splitting).
    *
-   * The final gate for reply quoting (引用回复): a leading [引用:<id>] marker
-   * is always stripped — it is a model-side directive and must never reach QQ
-   * (the deferred 补发 path runs through here too) — and for a FINAL reply
-   * (humanize) it becomes the reply segment of the first split message.
-   * '[引用:这条]' means the turn's own trigger message. An unknown id drops
-   * the marker and sends without a quote. When she wrote no marker, the group
-   * auto-quote config decides (groupAutoQuote: off / busy / always).
+   * 统一出站闸门，顺序确定：
+   * 1. cleanOutgoing —— 剪掉模仿聊天记录的编造内容；
+   * 2. parseLeadingQuote —— [引用:<id>] 永远不发给 QQ（它可能变成一个 reply 段）；
+   * 3. parseReplyPass —— 整条只有一个 [不回] / [不回:原因] / [不发] 标记时什么都
+   *    不发，但留痕（日志 / trace / 今日计数 / 活动记录）。这道判定对**所有**
+   *    出站文本生效（最终回复、中间消息、超时补发），不只 humanize；
+   * 4. 空正文不发；
+   * 5. 发送（最终回复才附带台词记账与群里「刚说过话」的标记）。
+   *
+   * For a FINAL reply (humanize) the quote marker becomes the reply segment of
+   * the first split message. '[引用:这条]' means the turn's own trigger
+   * message. An unknown id drops the marker and sends without a quote. When she
+   * wrote no marker, the group auto-quote config decides (groupAutoQuote: off /
+   * busy / always).
    * @param chatId - target chat.
    * @param text - model-produced text.
    * @param options - optional reply target.
    * @returns the sent message ids.
    */
   sendToChat(chatId: ChatId, text: string, options: SendOptions = {}): Promise<string[]> {
-    // a fabricated transcript continuation never reaches QQ.
+    // ① a fabricated transcript continuation never reaches QQ.
     const clean = this.companion.cleanOutgoing(chatId, text)
-    // the quote directive never reaches QQ; it may become a reply segment.
+    // ② the quote directive never reaches QQ; it may become a reply segment.
     const quoted = parseLeadingQuote(clean)
+    // ③ 输出协议 A 档：整条就是不回应标记 → 不发，但留下痕迹。
+    const replyPass = parseReplyPass(quoted.body)
+    if (replyPass.pass) {
+      this.recordReplyPass(chatId, replyPass.reason)
+      return Promise.resolve([])
+    }
     const body = quoted.body
+    // ④ empty text: nothing to send.
     if (body.trim() === '') return Promise.resolve([])
     const replyTo = options.replyTo ?? this.resolveReplyTarget(chatId, quoted.marker, options.humanize === true)
     const next: SendOptions = replyTo === undefined ? options : { ...options, replyTo }
-    // a skipped proactive wake-up sends nothing; final replies are recorded.
-    if (options.humanize === true && !this.companion.beforeFinalReply(chatId, body)) return Promise.resolve([])
+    // ⑤ a final reply is recorded for the handoff/diary (non-final texts,
+    //    e.g. interim or a deferred 补发, are not chat lines).
+    if (options.humanize === true) this.companion.recordFinalReply(chatId, body)
     if (options.humanize === true && chatId.startsWith('group:')) this.deps.groupChatter?.noteSpoke(chatId.slice('group:'.length))
     return this.outbound.sendToChat(chatId, body, next)
+  }
+
+  /**
+   * 记一条「她选择不回」：日志（带原因）、决策 trace（stage='reply'）、今日计数、
+   * 活动记录。四处都尽力而为，任何一处缺席都不影响「不发」这个结果。
+   * @param chatId - the chat she chose not to answer in.
+   * @param reason - 她写的原因（'' = 没说原因）。
+   */
+  private recordReplyPass(chatId: ChatId, reason: string): void {
+    const described = reason === '' ? '未说明原因' : reason
+    this.deps.log('info', '她选择不回（' + described + '）：' + chatId)
+    // trace 未开启时 traceChat 直接返回，零开销。
+    this.traceChat(chatId, { stage: 'reply', ok: true, reason: TRACE_REASONS.replyPass + '：' + described })
+    this.deps.sendCounter?.recordPass?.()
+    this.companion.recordReplyPass(chatId, reason)
   }
 
   /**

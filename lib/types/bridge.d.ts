@@ -99,19 +99,33 @@ export declare class ChatBridge {
      * Send plain text to a chat with the full outbound pipeline (forward
      * blocks, Markdown strip, sentence splitting).
      *
-     * The final gate for reply quoting (引用回复): a leading [引用:<id>] marker
-     * is always stripped — it is a model-side directive and must never reach QQ
-     * (the deferred 补发 path runs through here too) — and for a FINAL reply
-     * (humanize) it becomes the reply segment of the first split message.
-     * '[引用:这条]' means the turn's own trigger message. An unknown id drops
-     * the marker and sends without a quote. When she wrote no marker, the group
-     * auto-quote config decides (groupAutoQuote: off / busy / always).
+     * 统一出站闸门，顺序确定：
+     * 1. cleanOutgoing —— 剪掉模仿聊天记录的编造内容；
+     * 2. parseLeadingQuote —— [引用:<id>] 永远不发给 QQ（它可能变成一个 reply 段）；
+     * 3. parseReplyPass —— 整条只有一个 [不回] / [不回:原因] / [不发] 标记时什么都
+     *    不发，但留痕（日志 / trace / 今日计数 / 活动记录）。这道判定对**所有**
+     *    出站文本生效（最终回复、中间消息、超时补发），不只 humanize；
+     * 4. 空正文不发；
+     * 5. 发送（最终回复才附带台词记账与群里「刚说过话」的标记）。
+     *
+     * For a FINAL reply (humanize) the quote marker becomes the reply segment of
+     * the first split message. '[引用:这条]' means the turn's own trigger
+     * message. An unknown id drops the marker and sends without a quote. When she
+     * wrote no marker, the group auto-quote config decides (groupAutoQuote: off /
+     * busy / always).
      * @param chatId - target chat.
      * @param text - model-produced text.
      * @param options - optional reply target.
      * @returns the sent message ids.
      */
     sendToChat(chatId: ChatId, text: string, options?: SendOptions): Promise<string[]>;
+    /**
+     * 记一条「她选择不回」：日志（带原因）、决策 trace（stage='reply'）、今日计数、
+     * 活动记录。四处都尽力而为，任何一处缺席都不影响「不发」这个结果。
+     * @param chatId - the chat she chose not to answer in.
+     * @param reason - 她写的原因（'' = 没说原因）。
+     */
+    private recordReplyPass;
     /**
      * Resolve the message id this send should quote, or undefined for no quote.
      * An explicit marker wins (and only counts for a final reply); otherwise the

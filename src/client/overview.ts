@@ -76,7 +76,7 @@ export interface OverviewCapabilitiesLike {
 export interface OverviewStatusLike {
   connection?: OverviewConnectionLike | null
   sessions?: { private?: unknown; group?: unknown; list?: OverviewChatLike[] | null } | null
-  today?: { sent?: unknown } | null
+  today?: { sent?: unknown; passCount?: unknown } | null
   proactive?: { enabled?: unknown; doneToday?: unknown; plannedToday?: unknown; nextAt?: unknown } | null
   stickers?: { enabled?: unknown; count?: unknown; maxCount?: unknown; today?: unknown; dailyMax?: unknown } | null
   memory?: OverviewMemoryLike[] | null
@@ -245,10 +245,16 @@ function statsOf(ReactImpl: ReactLike, t: Translate, status: OverviewStatusLike 
     : format(t('overview.scheduledCount'), { n: String(scheduled.length) })
   const scheduledSub = nextSchedule === '' ? '' : format(t('overview.nextAt'), { time: nextSchedule })
 
+  // 「今天」格的副文：发送量之后接一条「今天 N 条不回」（她选择不回也是可观测的决定）。
+  const todayPassSub = today != null && typeof today.passCount === 'number'
+    ? ' · ' + format(t('overview.passToday'), { n: numberText(today.passCount) })
+    : ''
+  const todaySub = t('overview.sentUnit') + todayPassSub
+
   return h(ReactImpl, 'div', { className: 'qqc-stats', 'data-role': 'overview-stats', key: 'stats' },
     stat(ReactImpl, { key: 'connection', label: t('overview.connection'), value: connectionValue, sub: connectionId, dot: connectionDotState(connection) }),
     stat(ReactImpl, { key: 'sessions', label: t('overview.sessions'), value: sessionValue }),
-    stat(ReactImpl, { key: 'today', label: t('overview.today'), value: today == null ? OVERVIEW_MISSING : numberText(today.sent), sub: t('overview.sentUnit') }),
+    stat(ReactImpl, { key: 'today', label: t('overview.today'), value: today == null ? OVERVIEW_MISSING : numberText(today.sent), sub: todaySub }),
     stat(ReactImpl, { key: 'proactive', label: t('overview.proactive'), value: proactiveValue, sub: proactiveSub }),
     stat(ReactImpl, { key: 'stickers', label: t('overview.stickers'), value: stickersValue, sub: stickersSub, action: enableButton }),
     stat(ReactImpl, { key: 'scheduled', label: t('overview.scheduled'), value: scheduledValue, sub: scheduledSub }))

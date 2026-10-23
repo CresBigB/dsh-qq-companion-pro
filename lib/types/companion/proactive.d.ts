@@ -16,9 +16,17 @@ export interface ProactiveConfig {
     /** Stop for the day after this many unanswered proactive messages. */
     maxUnanswered: number;
 }
-/** The reply that means "nothing to say this time" — never sent to QQ. */
+/** The reply that means "nothing to say this time" — never sent to QQ.
+ * The literal lives in output-protocol.ts ({@link PASS_MARKER}) so the outbound
+ * gate and this marker can never drift apart. */
 export declare const PROACTIVE_PASS = "[\u4E0D\u53D1]";
-/** True when a final reply is the pass marker (whitespace / brackets tolerant). */
+/**
+ * True when a final reply is the pass marker (whitespace / brackets tolerant).
+ *
+ * ⚠ 判定已统一到 `output-protocol.ts` 的 `parseReplyPass`（它同时认 `[不回:原因]`，
+ * 且在 `bridge.sendToChat` 的出站闸门里对所有出站文本生效）。这个函数只为兼容
+ * 保留：新代码请用 parseReplyPass，别再在这里加第三种判定。
+ */
 export declare function isProactivePass(text: string): boolean;
 /**
  * Pick `count` minutes-of-day in [start, end) at least `gap` apart, at

@@ -30,9 +30,20 @@ describe('SendCounter', () => {
     for (let i = 0; i < 3; i++) c.record()
     t += 2 * 60_000
     c.record()
-    expect(c.snapshot()).toEqual({ lastMinute: 1, lastHour: 4, today: 4 })
+    expect(c.snapshot()).toEqual({ lastMinute: 1, lastHour: 4, today: 4, passToday: 0 })
     t += 2 * 3_600_000 // past midnight
-    expect(c.snapshot()).toEqual({ lastMinute: 0, lastHour: 0, today: 0 })
+    expect(c.snapshot()).toEqual({ lastMinute: 0, lastHour: 0, today: 0, passToday: 0 })
+  })
+
+  it('counts today\'s「她选择不回」decisions without touching the send count', () => {
+    let t = new Date(2026, 9, 20, 23, 0).getTime()
+    const c = new SendCounter({ now: () => t })
+    c.record()
+    c.recordPass()
+    c.recordPass()
+    expect(c.snapshot()).toEqual({ lastMinute: 1, lastHour: 1, today: 1, passToday: 2 })
+    t += 2 * 3_600_000 // past midnight: both counts roll over
+    expect(c.snapshot()).toEqual({ lastMinute: 0, lastHour: 0, today: 0, passToday: 0 })
   })
 
   it('is shown by /doctor', async () => {

@@ -3,8 +3,9 @@
  * upstream bridge code so upstream merges stay clean:
  *  - before a user turn: idle / periodic session renewal with a handoff
  *    recap, and the activity record (idleness, handoff, diary input);
- *  - before a final reply goes out: the proactive pass marker sends nothing,
- *    and her replies are recorded;
+ *  - before a final reply goes out: her reply is recorded (the「这次不回」
+ *    output-protocol gate itself lives in bridge.sendToChat / output-protocol.ts
+ *    so it covers every outbound text, not only final replies);
  *  - the wake-up texts of scheduled prompts and proactive check-ins;
  *  - where qq_memory_note writes (a group's own file, or the public file).
  * @module dsh-qq-companion/companion/hooks
@@ -13,7 +14,7 @@ import type { ChatActivity } from './activity.js'
 import { GROUP_TODAY_MAX_LINES, HANDOFF_TODAY_LINES, formatTranscript } from './activity.js'
 import { appendMemoryNote, ensureGroupMemory, groupMemoryPaths } from './memory.js'
 import type { NoteResult } from './memory.js'
-import { PROACTIVE_PASS, isProactivePass } from './proactive.js'
+import { PROACTIVE_PASS } from './proactive.js'
 import { cutFabricatedContext } from './sanitize.js'
 import type { ScheduledPrompt } from './scheduler.js'
 import type { Log } from './time.js'
@@ -97,16 +98,20 @@ export class CompanionHooks {
   }
 
   /**
-   * Before a final (humanized) reply is sent.
-   * @returns false when nothing should be sent (the pass marker).
+   * Before a final (humanized) reply goes out: record her line for the handoff
+   * recap and the nightly diary. 不回应标记（[不回] / [不发]）在出站闸门里
+   * 就已经拦掉了（见 output-protocol.ts），走不到这里。
    */
-  beforeFinalReply(chatId: string, text: string): boolean {
-    if (isProactivePass(text)) {
-      this.log('info', '她这次选择不主动发消息: ' + chatId)
-      return false
-    }
+  recordFinalReply(chatId: string, text: string): void {
     this.activity?.record(chatId, 'bot', text)
-    return true
+  }
+
+  /**
+   * 她这次选择不回：把这条决定记进活动记录（交接与日记能看到她刚没回）。
+   * 不塑造成她说了一句话，也不计入 bot 台词统计。
+   */
+  recordReplyPass(chatId: string, reason: string): void {
+    this.activity?.recordPass(chatId, reason)
   }
 
   /**

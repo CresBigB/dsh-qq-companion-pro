@@ -30,7 +30,9 @@ export const GROUP_TODAY_MAX_LINES = 80
 export interface ActivityLine {
   /** Epoch ms. */
   t: number
-  who: 'user' | 'bot'
+  /** user = 对方说的；bot = 她说的（算台词）；system = 记录她自己的决定
+   * （例如「这次选择不回」），不是一句台词，不进 bot 统计。 */
+  who: 'user' | 'bot' | 'system'
   /** Sender label for user lines (nickname), empty for the bot. */
   name?: string
   text: string
@@ -105,12 +107,31 @@ export class ChatActivity {
     if (body === '') return
     const rec = this.chats[chatId] ?? (this.chats[chatId] = { lastAt: this.now(), sessionStartedAt: this.now(), recent: [], today: [], ...this.promptOf(chatId) })
     const line: ActivityLine = { t: this.now(), who, text: body, ...(name !== '' ? { name } : {}) }
+    this.pushLine(rec, line)
+    if (who === 'user') rec.lastAt = this.now()
+    this.scheduleSave()
+  }
+
+  /**
+   * 记一条「她这次选择不回」（输出协议 A 档）：进 recent 与 today，让下次交接
+   * 与当天的日记知道她刚没回；**不塑造成她说了一句话**（who='system'），因此
+   * 不计入 bot 台词统计（{@link botLinesSinceUser}），也不移动空闲时钟。
+   * 从没见过的聊天没有可交接的上下文，直接不记（日志/计数/trace 仍在）。
+   */
+  recordPass(chatId: string, reason = ''): void {
+    const rec = this.chats[chatId]
+    if (rec === undefined) return
+    const text = reason === '' ? '（这次选择不回：没说原因）' : '（这次选择不回：' + reason + '）'
+    this.pushLine(rec, { t: this.now(), who: 'system', text: clip(text) })
+    this.scheduleSave()
+  }
+
+  /** Append one line to recent + today, trimming both to their caps. */
+  private pushLine(rec: ChatRecord, line: ActivityLine): void {
     rec.recent.push(line)
     if (rec.recent.length > HANDOFF_LINES) rec.recent.splice(0, rec.recent.length - HANDOFF_LINES)
     rec.today.push(line)
     if (rec.today.length > TODAY_MAX_LINES) rec.today.splice(0, rec.today.length - TODAY_MAX_LINES)
-    if (who === 'user') rec.lastAt = this.now()
-    this.scheduleSave()
   }
 
   /** Mark that the chat's session starts now (/new, idle or age reset). */
@@ -144,12 +165,13 @@ export class ChatActivity {
   }
 
   /** How many of her replies came after the chat's last user line (an
-   * unanswered proactive message makes this ≥ 2). */
+   * unanswered proactive message makes this ≥ 2). 只有 who='bot' 算台词：
+   * 「这次选择不回」的 system 行不占这个计数。 */
   botLinesSinceUser(chatId: string): number {
     const lines = this.chats[chatId]?.today ?? []
     let count = 0
     for (let i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].who === 'user') break
+      if (lines[i].who !== 'bot') break
       count += 1
     }
     return count
@@ -159,7 +181,7 @@ export class ChatActivity {
   handoff(chatId: string): string {
     const lines = this.chats[chatId]?.recent ?? []
     if (lines.length === 0) return ''
-    return lines.map(l => (l.who === 'bot' ? '你' : (l.name ?? '对方')) + '：' + l.text).join('\n')
+    return lines.map(l => speakerPrefix(l) + l.text).join('\n')
   }
 
   /** The handoff for a fresh session: today's lines (at most
@@ -224,7 +246,13 @@ export class ChatActivity {
 
 /** Format today's excerpt for the diary prompt. */
 export function formatTranscript(lines: readonly ActivityLine[]): string {
-  return lines.map(l => {
-    return '[' + hhmm(minutesOfDay(l.t)) + '] ' + (l.who === 'bot' ? '你' : (l.name ?? '对方')) + '：' + l.text
-  }).join('\n')
+  return lines.map(l => '[' + hhmm(minutesOfDay(l.t)) + '] ' + speakerPrefix(l) + l.text).join('\n')
+}
+
+/** The speaker prefix of one line: '你：' for her, the nickname for a user,
+ * '' for a system record (its text already reads as a parenthetical). */
+function speakerPrefix(line: ActivityLine): string {
+  if (line.who === 'bot') return '你：'
+  if (line.who === 'system') return ''
+  return (line.name ?? '对方') + '：'
 }

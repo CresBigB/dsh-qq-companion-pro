@@ -297,7 +297,7 @@ export const statusSnapshotSchema: Schema<Record<string, unknown>> = vObject({
       workspaceAttached: vOptional(vBoolean()),
     }))),
   })),
-  today: vOptional(vObject({ sent: vOptional(vNumber(0)) })),
+  today: vOptional(vObject({ sent: vOptional(vNumber(0)), passCount: vOptional(vNumber(0)) })),
   proactive: vOptional(vObject({
     enabled: vOptional(vBoolean()),
     doneToday: vOptional(vNumber(0)),

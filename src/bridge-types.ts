@@ -237,8 +237,9 @@ export interface BridgeDeps {
   companionStatus?: () => Promise<string[]>
   /** The companion guide for one chat (how her features work, from the live config). */
   companionGuide?: (chatId: string) => string
-  /** Counts every message that went out (for /doctor). */
-  sendCounter?: { record(): void }
+  /** Counts every message that went out (for /doctor), plus today's
+   * 「她选择不回」decisions (recordPass; absent = the pass is not counted). */
+  sendCounter?: { record(): void; recordPass?(): void }
   /** The account-wide typing pacer (absent = the outbound pipeline builds one). */
   typingPacer?: { wait(text: string): Promise<void> }
   /** per-chat activity (idle reset, handoff recap, diary input). */

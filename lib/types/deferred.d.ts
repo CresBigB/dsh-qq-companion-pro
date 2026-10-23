@@ -91,9 +91,26 @@ export interface DeferredOptions {
  * action timed out or failed outside the gateway — the message may still
  * have arrived, so the record is kept and auto-retry stops（防重复消息）. */
 export declare function classifySendError(error: unknown): 'retryable' | 'uncertain';
-/** Build the deferred delivery text for a finished turn. an error
- * ending carries the turn's MF- reference so the补发 terminal notice and the
- * trace/log/doctor surfaces share one number. */
+/** 一条补发文本的判定结果（输出协议 A 档）。 */
+export interface DeferredTextDecision {
+    /** true = 她这次选择不回：这条补发一条也不发（但留痕，绝不静默吞掉）。 */
+    pass: boolean;
+    /** 她写的原因（'' = 没写）。 */
+    passReason: string;
+    /** 真正要发出去的文本；pass 时恒为 ''。 */
+    text: string;
+}
+/**
+ * 组装补发文本并识别不回应标记。
+ * an error ending carries the turn's MF- reference so the补发 terminal notice and
+ * the trace/log/doctor surfaces share one number.
+ * @param entry - the tracked entry (its resultText is the captured final text).
+ * @param reason - the turn/end reason.
+ * @returns pass / passReason / text（见 {@link DeferredTextDecision}）。
+ */
+export declare function decideDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): DeferredTextDecision;
+/** Build the deferred delivery text for a finished turn ('' = 她选择不回，
+ * 这条补发不发；调用方据此留痕并停止投递)。 */
 export declare function buildDeferredText(entry: DeferredEntry, reason: DeferredTurnReason | undefined): string;
 /**
  * The deferred-delivery tracker: timeout timers, the JSONL registry, bounded

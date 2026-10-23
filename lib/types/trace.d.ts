@@ -34,6 +34,7 @@ export declare const TRACE_STAGES: {
     readonly dispatch: "交给模型";
     readonly agent: "模型回合";
     readonly outbound: "出站发送";
+    readonly reply: "不回应";
     readonly queue: "离线队列";
     readonly interim: "中间消息";
     readonly notice: "通知";
@@ -69,6 +70,7 @@ export declare const TRACE_REASONS: {
     readonly outboundSensitive: "出站内容命中敏感词审计";
     readonly outboundCardTooLarge: "文字图卡片超过大小上限，已降级为文本";
     readonly outboundEmptyText: "正文为空，未发送";
+    readonly replyPass: "她选择不回";
     readonly noticeErrorSendFailed: "错误通知发送失败";
     readonly deferredRegistered: "等待模型回复超时，已登记超时补发跟踪";
     readonly deferredDelivered: "超时补发：回合完成，最终结果已补发";
