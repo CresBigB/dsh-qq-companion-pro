@@ -17,9 +17,13 @@ export interface StickerToolHost {
     }>;
     /** Claim this reply's one sticker; false when one already went out this turn. */
     takeStickerSlot(chatId: string): boolean;
+    /** Whether this chat has actually seen a message id (the reply_to gate). */
+    hasSeenMessage?(chatId: string, messageId: string): boolean;
     sendSegments(chatId: string, segments: Array<{
         type: string;
         data: Record<string, unknown>;
-    }>): Promise<string | undefined>;
+    }>, options?: {
+        replyTo?: string;
+    }): Promise<string | undefined>;
 }
 export declare function registerStickerTools(ctx: Context, host: StickerToolHost, library: StickerLibrary): () => void;

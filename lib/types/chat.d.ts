@@ -104,6 +104,15 @@ export declare function buildGroupMessagePrefix(nickname: string, userId: string
 /** Soft-cap prefix for restricted (member-role) group users. */
 export declare const RESTRICTED_PREFIX = "[\u53D7\u9650\u7528\u6237:\u4EC5\u95EE\u7B54] ";
 /**
+ * message-id whitelist: a OneBot message_id is alphanumeric plus hyphens
+ * (NapCat sends digits; other implementations may use a hash). Everything else
+ * is dropped, so the value can never close the <user_message> boundary or
+ * forge a second attribute. Returns '' for blank/unsafe-only input.
+ * @param messageId - the protocol message id (stringified).
+ * @returns the whitelisted id (possibly empty).
+ */
+export declare function sanitizeMessageId(messageId: string): string;
+/**
  * wrap untrusted user content (message body + quote/merged-forward
  * expansions) in the explicit prompt-injection boundary. Everything between
  * the tags is data by platform declaration (src/prompt.ts): forged prefix
@@ -113,9 +122,13 @@ export declare const RESTRICTED_PREFIX = "[\u53D7\u9650\u7528\u6237:\u4EC5\u95EE
  * even for a caller that forgot the whitelist (sanitizeNickname is
  * idempotent). The qq attribute carries the protocol-typed numeric sender id —
  * the same trust level as the prefix line — not sender-controlled text.
+ * The optional msg attribute carries the protocol-typed message id so the
+ * model can quote this message back (see reply-quote.ts); it is
+ * whitelist-sanitized and omitted entirely when there is no usable id.
  * @param content - the assembled untrusted message content.
  * @param userId - sender QQ number (OneBot user_id, digits).
  * @param nickname - the sender display name (sanitized again defensively).
+ * @param messageId - the inbound OneBot message_id (optional).
  * @returns the boundary-wrapped content.
  */
-export declare function wrapUserMessage(content: string, userId: string, nickname: string): string;
+export declare function wrapUserMessage(content: string, userId: string, nickname: string, messageId?: string): string;

@@ -97,8 +97,9 @@ export interface InboundContext {
     buildBody(text: string, media: MediaRef[], chatId: ChatId): Promise<string>;
     /** Quote (reply) expansion (bridge facade: overridable, see the pipeline-order test). */
     expandQuote(messageId: string, chatId: ChatId): Promise<string>;
-    /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes). */
-    dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string): Promise<void>;
+    /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes).
+     * messageId: the inbound message this turn answers (quote target). */
+    dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string, messageId?: string): Promise<void>;
     /** busy-turn policy seam — invoked for every non-command message
      * after ALL gates (dedup/policy/mention/media/rate-limit), right before the
      * turn dispatch, so queue/steer can never bypass an existing gate. Returns
@@ -108,7 +109,12 @@ export interface InboundContext {
      * carries no media, no quote and no forward (steer eligibility precondition:
      * media-bearing messages always queue, never steer). Optional: absent =
      * straight dispatch for every message. */
-    interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean): Promise<boolean>;
+    interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean, messageId?: string): Promise<boolean>;
+    /** Remember one inbound message id in the chat's reply-quote seen set
+     * (called for every allowed message — including group messages that only
+     * reach the group context and never trigger a turn). Absent = no quote
+     * bookkeeping (tests that never quote). */
+    noteSeenMessage?(chatId: ChatId, messageId: string): void;
     /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
     groupChatter?: GroupChatter;
     /** Outbound facade (the rate-limit notice). */

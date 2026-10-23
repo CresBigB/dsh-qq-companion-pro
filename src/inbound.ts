@@ -151,8 +151,9 @@ export interface InboundContext {
   buildBody(text: string, media: MediaRef[], chatId: ChatId): Promise<string>
   /** Quote (reply) expansion (bridge facade: overridable, see the pipeline-order test). */
   expandQuote(messageId: string, chatId: ChatId): Promise<string>
-  /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes). */
-  dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string): Promise<void>
+  /** Turn dispatch — bridge-owned orchestration (ensureChat + per-turn prefixes).
+   * messageId: the inbound message this turn answers (quote target). */
+  dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string, messageId?: string): Promise<void>
   /** busy-turn policy seam — invoked for every non-command message
    * after ALL gates (dedup/policy/mention/media/rate-limit), right before the
    * turn dispatch, so queue/steer can never bypass an existing gate. Returns
@@ -162,7 +163,12 @@ export interface InboundContext {
    * carries no media, no quote and no forward (steer eligibility precondition:
    * media-bearing messages always queue, never steer). Optional: absent =
    * straight dispatch for every message. */
-  interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean): Promise<boolean>
+  interceptBusyTurn?(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean, messageId?: string): Promise<boolean>
+  /** Remember one inbound message id in the chat's reply-quote seen set
+   * (called for every allowed message — including group messages that only
+   * reach the group context and never trigger a turn). Absent = no quote
+   * bookkeeping (tests that never quote). */
+  noteSeenMessage?(chatId: ChatId, messageId: string): void
   /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
   groupChatter?: GroupChatter
   /** Outbound facade (the rate-limit notice). */
@@ -259,6 +265,12 @@ export class InboundPipeline {
       }
     }
 
+    // reply-quote bookkeeping: every allowed message id is remembered — the
+    // ones only feeding the group context below and never triggering a turn
+    // included, so she can quote them later (reply-quote.ts).
+    const messageId = inbound.messageId !== undefined && inbound.messageId !== '' ? inbound.messageId : undefined
+    if (messageId !== undefined) this.ctx.noteSeenMessage?.(chatId, messageId)
+
     const chatter = kind === 'group' ? this.ctx.groupChatter : undefined
     // Every allowed group message is kept (in memory only) so a later call
     // can show her what the group was talking about.
@@ -349,7 +361,7 @@ export class InboundPipeline {
       currentTrace()?.emit('dispatch', { ok: false, reason: TRACE_REASONS.inboundEmptyContent })
       return
     }
-    let final = wrapUserMessage(content, userId, nickname)
+    let final = wrapUserMessage(content, userId, nickname, messageId)
     if (kind === 'group') {
       final = buildGroupMessagePrefix(nickname, userId, mentioned) + final
       if (chatter !== undefined) {
@@ -371,10 +383,10 @@ export class InboundPipeline {
     // turn). Seam absent = straight dispatch.
     const plain = inbound.media.length === 0 && inbound.replyId === undefined && inbound.forwardId === undefined
     if (this.ctx.interceptBusyTurn !== undefined
-      && await this.ctx.interceptBusyTurn(chatId, final, role, nickname, plain)) {
+      && await this.ctx.interceptBusyTurn(chatId, final, role, nickname, plain, messageId)) {
       return
     }
-    await this.ctx.dispatchFollowup(chatId, final, role, nickname)
+    await this.ctx.dispatchFollowup(chatId, final, role, nickname, messageId)
   }
 
   /** (chatId, message_id) sliding-window dedup against OneBot

@@ -68,6 +68,9 @@ export interface OutboundContext {
   isStopping(): boolean
   /** Called after each message went out (send counting for /doctor). */
   onSent?: (chatId: ChatId) => void
+  /** Remember one message id this bot sent (reply-quote seen set; the id then
+   * counts as "her own message", never as someone else speaking). */
+  noteSentId?: (chatId: ChatId, messageId: string) => void
   /** The account-wide typing pacer (absent = one built from the config). */
   typingPacer?: { wait(text: string): Promise<void> }
   /** Bridge log line callback. */
@@ -107,6 +110,21 @@ const PENDING_SEND_MAX = 20
 
 /** tool-send audit file name, appended under mediaDir (jsonl). */
 export const ACTION_AUDIT_FILE = 'qq-actions.log'
+
+/** Whether a send failure proves the message never reached QQ — the only case
+ * where the reply-segment send may be retried without duplicating anything.
+ * OneBotActionError carrying a gateway retcode means an explicit rejection; a
+ * timeout (the action was accepted but no reply came back) may already have
+ * delivered, so it is NOT a rejection. A disconnect (OneBotNotConnectedError)
+ * is also NOT retried here: the resend would fail the same way and would hide
+ * the original error type from the deferred-delivery classification
+ * (deferred.classifySendError treats a disconnect as 'retryable', a timeout as
+ * 'uncertain'), which is why this predicate deliberately mirrors only the
+ * gateway-reject half of it instead of importing deferred (that would be a
+ * cycle: deferred → outbound). */
+function isGatewayReject(error: unknown): boolean {
+  return error instanceof OneBotActionError && !/timed out/i.test(error.message)
+}
 
 /**
  * The outbound pipeline. Owns the pendingSends state; the bridge keeps
@@ -344,12 +362,13 @@ export class OutboundPipeline {
    * Send raw OneBot segments (used by the media tools); audited.
    * @param chatId - target chat.
    * @param segments - outbound segments.
+   * @param options - optional reply target (the qq_send_* reply_to argument).
    * @returns the sent message id.
    */
-  sendSegments(chatId: ChatId, segments: OutboundSegment[]): Promise<string | undefined> {
+  sendSegments(chatId: ChatId, segments: OutboundSegment[], options: SendOptions = {}): Promise<string | undefined> {
     return this.enqueue(chatId, async () => {
       try {
-        const id = await this.sendMsg(chatId, segments, {})
+        const id = await this.sendMsg(chatId, segments, options)
         this.auditWrite(chatId, 'send_msg', true, '发送成功')
         return id
       } catch (error) {
@@ -384,7 +403,15 @@ export class OutboundPipeline {
     return this.sendChains.get(chatId) ?? Promise.resolve()
   }
 
-  /** Send one message to a chat and return its message id. */
+  /** Send one message to a chat and return its message id.
+   * A reply segment (引用回复) is best-effort: NapCat refuses a reply to a
+   * recalled/expired message, so a reply send the GATEWAY explicitly rejected
+   * (OneBotActionError that is not a timeout) is retried ONCE without the reply
+   * segment — that error proves the message never left, so the retry cannot
+   * duplicate it, and the text still reaches the chat; only when that retry
+   * fails too does the send count as failed. Every other failure is rethrown
+   * unchanged and never retried (see isGatewayReject). The forward attempt is
+   * never repeated on success — exactly one message goes out. */
   async sendMsg(chatId: ChatId, segments: OutboundSegment[], options: SendOptions): Promise<string | undefined> {
     const ref = splitChatId(chatId)
     const params: Record<string, unknown> = {}
@@ -393,15 +420,34 @@ export class OutboundPipeline {
     if (ref.kind === 'group') params.group_id = target
     else params.user_id = target
     params.message = segments
-    if (options.replyTo !== undefined) {
+    const quoted = options.replyTo !== undefined
+    if (quoted) {
       params.message = [{ type: 'reply', data: { id: options.replyTo } }, ...segments]
     }
     if (this.paceEveryMessage) {
       await this.pacer.wait(segments.map(s => (s.type === 'text' ? String((s.data as { text?: unknown }).text ?? '') : '')).join(''))
     }
-    const data = await this.ctx.call('send_msg', params) as { message_id?: number | string }
+    let data: { message_id?: number | string }
+    if (quoted) {
+      try {
+        data = await this.ctx.call('send_msg', params) as { message_id?: number | string }
+      } catch (error) {
+        // 只有「网关明确拒绝」才确定消息没发出去：此时去掉 reply 段重发一次，
+        // 绝不放弃正文。超时（消息可能已送达，再发一次会在 QQ 里留下两条）与
+        // 断连（重发必然也失败，还会把 OneBotNotConnectedError 换成别的错误，
+        // 打乱 deferred 补发按 classifySendError 做的分类）一律原样上抛。
+        if (!isGatewayReject(error)) throw error
+        this.ctx.log('debug', '带引用发送被网关拒绝，去掉引用段重发一次: ' + chatId + ': ' + describeError(error))
+        this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: '带引用发送被网关拒绝，已改为不引用重发: ' + describeError(error) })
+        data = await this.ctx.call('send_msg', { ...params, message: segments }) as { message_id?: number | string }
+      }
+    } else {
+      data = await this.ctx.call('send_msg', params) as { message_id?: number | string }
+    }
     this.ctx.onSent?.(chatId)
-    return data.message_id !== undefined ? String(data.message_id) : undefined
+    const id = data.message_id !== undefined ? String(data.message_id) : undefined
+    if (id !== undefined) this.ctx.noteSentId?.(chatId, id)
+    return id
   }
 
   /** Send [[qq_forward]] nodes as a merged-forward message (the

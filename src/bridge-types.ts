@@ -122,6 +122,11 @@ export interface BridgeConfig {
    * 最终文字（「（超时补发）」前缀，走既有 outbound 管线）；absent →
    * 600000（保守 10 分钟），0 = 关闭超时补发。 */
   deferredTimeoutMs?: number
+  /** 群里回复时是否自动引用叫她的那条消息：'off'（absent/默认）=
+   * 不自动引用（她仍可自己写 [引用:…]）；'busy' = 从触发消息到她回复之间
+   * 群里又有别人说了话才引用；'always' = 每次都引用。只作用于群聊的最终回复，
+   * 私聊不自动引用。 */
+  groupAutoQuote?: 'off' | 'busy' | 'always'
   /** inbound (chatId, message_id) dedup window in seconds; absent → 300, 0 disables. */
   dedupWindowSeconds?: number
   /** tool-send audit (mediaDir/qq-actions.log); absent → on. */

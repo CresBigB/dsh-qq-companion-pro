@@ -211,6 +211,8 @@ export async function makeCmdHarness(opts?: {
   groupSplitLines?: boolean
   groupReasoningEffort?: '' | 'off' | 'low' | 'high' | 'max'
   groupChatter?: unknown
+  /** 群聊自动引用（reply-quote）：absent = 'off'（现状）。 */
+  groupAutoQuote?: 'off' | 'busy' | 'always'
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -277,6 +279,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.groupSplitLines !== undefined ? { groupSplitLines: opts.groupSplitLines } : {}),
       ...(opts?.typingPacer !== undefined ? { humanTypingPace: true } : {}),
       ...(opts?.groupReasoningEffort !== undefined ? { groupReasoningEffort: opts.groupReasoningEffort } : {}),
+      ...(opts?.groupAutoQuote !== undefined ? { groupAutoQuote: opts.groupAutoQuote } : {}),
     },
     ...(opts?.typingPacer !== undefined ? { typingPacer: opts.typingPacer } : {}),
     ...(opts?.sendCounter !== undefined ? { sendCounter: opts.sendCounter } : {}),

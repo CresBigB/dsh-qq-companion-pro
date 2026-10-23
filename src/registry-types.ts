@@ -138,9 +138,20 @@ export interface ChatAgent {
   lastNickname: string
   /** Roles of dispatched turns not yet opened (FIFO, consumed at turn/start). */
   pendingTurnRoles: UserRole[]
-  /** Role of the currently running turn; stays 'member' (fail-closed) until a
+  /** Roles of the currently running turn; stays 'member' (fail-closed) until a
    * turn/start assigns the head of pendingTurnRoles. */
   activeTurnRole: UserRole
+  /** Inbound message ids of dispatched turns not yet opened (FIFO, same
+   * alignment as pendingTurnRoles): the message each queued turn answers.
+   * consumed at turn/start into activeTurnMessageId. */
+  pendingTurnMessageIds: Array<string | undefined>
+  /** The message id the currently running turn answers (turn/start freeze of
+   * pendingTurnMessageIds); undefined for turns the plugin did not dispatch. */
+  activeTurnMessageId: string | undefined
+  /** The message id the last ENDED turn answered — the final reply is sent
+   * after turn/end, so it reads this instead of activeTurnMessageId (a queued
+   * next turn may already have replaced that one). */
+  finalTurnMessageId: string | undefined
   /** The last user message text actually fed to the agent (for /retry). */
   lastFollowup: string | undefined
   /** Mutable per-agent model selection (installModelSelection-bound); the

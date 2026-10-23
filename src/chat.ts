@@ -154,6 +154,19 @@ export function buildGroupMessagePrefix(nickname: string, userId: string, mentio
 export const RESTRICTED_PREFIX = '[受限用户:仅问答] '
 
 /**
+ * message-id whitelist: a OneBot message_id is alphanumeric plus hyphens
+ * (NapCat sends digits; other implementations may use a hash). Everything else
+ * is dropped, so the value can never close the <user_message> boundary or
+ * forge a second attribute. Returns '' for blank/unsafe-only input.
+ * @param messageId - the protocol message id (stringified).
+ * @returns the whitelisted id (possibly empty).
+ */
+export function sanitizeMessageId(messageId: string): string {
+  const kept = messageId.replace(/[^0-9A-Za-z-]/g, '')
+  return kept.length <= 64 ? kept : kept.slice(0, 64)
+}
+
+/**
  * wrap untrusted user content (message body + quote/merged-forward
  * expansions) in the explicit prompt-injection boundary. Everything between
  * the tags is data by platform declaration (src/prompt.ts): forged prefix
@@ -163,11 +176,17 @@ export const RESTRICTED_PREFIX = '[受限用户:仅问答] '
  * even for a caller that forgot the whitelist (sanitizeNickname is
  * idempotent). The qq attribute carries the protocol-typed numeric sender id —
  * the same trust level as the prefix line — not sender-controlled text.
+ * The optional msg attribute carries the protocol-typed message id so the
+ * model can quote this message back (see reply-quote.ts); it is
+ * whitelist-sanitized and omitted entirely when there is no usable id.
  * @param content - the assembled untrusted message content.
  * @param userId - sender QQ number (OneBot user_id, digits).
  * @param nickname - the sender display name (sanitized again defensively).
+ * @param messageId - the inbound OneBot message_id (optional).
  * @returns the boundary-wrapped content.
  */
-export function wrapUserMessage(content: string, userId: string, nickname: string): string {
-  return '<user_message qq="' + userId + '" nickname="' + sanitizeNickname(nickname) + '">\n' + content + '\n</user_message>'
+export function wrapUserMessage(content: string, userId: string, nickname: string, messageId?: string): string {
+  const id = sanitizeMessageId(messageId ?? '')
+  const msg = id === '' ? '' : ' msg="' + id + '"'
+  return '<user_message qq="' + userId + '" nickname="' + sanitizeNickname(nickname) + '"' + msg + '>\n' + content + '\n</user_message>'
 }

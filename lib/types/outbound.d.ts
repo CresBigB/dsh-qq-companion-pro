@@ -44,6 +44,9 @@ export interface OutboundContext {
     isStopping(): boolean;
     /** Called after each message went out (send counting for /doctor). */
     onSent?: (chatId: ChatId) => void;
+    /** Remember one message id this bot sent (reply-quote seen set; the id then
+     * counts as "her own message", never as someone else speaking). */
+    noteSentId?: (chatId: ChatId, messageId: string) => void;
     /** The account-wide typing pacer (absent = one built from the config). */
     typingPacer?: {
         wait(text: string): Promise<void>;
@@ -146,9 +149,10 @@ export declare class OutboundPipeline {
      * Send raw OneBot segments (used by the media tools); audited.
      * @param chatId - target chat.
      * @param segments - outbound segments.
+     * @param options - optional reply target (the qq_send_* reply_to argument).
      * @returns the sent message id.
      */
-    sendSegments(chatId: ChatId, segments: OutboundSegment[]): Promise<string | undefined>;
+    sendSegments(chatId: ChatId, segments: OutboundSegment[], options?: SendOptions): Promise<string | undefined>;
     /** per-chat send chains owned by the pipeline (decoupled from the
      * registry's chat lifecycle — unregistered chats serialize too, the
      * original ask). Entries clean themselves up once settled so evicted
@@ -159,7 +163,15 @@ export declare class OutboundPipeline {
     /** The chat's send-chain tail; resolves once every queued send has settled
      * (settleLoop snapshots the interim trail after it, preserving order). */
     chainTail(chatId: ChatId): Promise<unknown>;
-    /** Send one message to a chat and return its message id. */
+    /** Send one message to a chat and return its message id.
+     * A reply segment (引用回复) is best-effort: NapCat refuses a reply to a
+     * recalled/expired message, so a reply send the GATEWAY explicitly rejected
+     * (OneBotActionError that is not a timeout) is retried ONCE without the reply
+     * segment — that error proves the message never left, so the retry cannot
+     * duplicate it, and the text still reaches the chat; only when that retry
+     * fails too does the send count as failed. Every other failure is rethrown
+     * unchanged and never retried (see isGatewayReject). The forward attempt is
+     * never repeated on success — exactly one message goes out. */
     sendMsg(chatId: ChatId, segments: OutboundSegment[], options: SendOptions): Promise<string | undefined>;
     /** Send [[qq_forward]] nodes as a merged-forward message (the
      * qq_send_forward tool); audited. [[qq_forward]] blocks inside a reply go

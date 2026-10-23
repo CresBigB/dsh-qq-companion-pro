@@ -130,6 +130,8 @@ export interface Config {
   groupPeekQuietMinutes: number
   groupPeekWindowStart: string
   groupPeekWindowEnd: string
+  /** 群里回复时是否自动引用叫她的那条消息：off（默认，不自动）/ busy（中间有别人插话时才引用）/ always（总是引用）。 */
+  groupAutoQuote: 'off' | 'busy' | 'always'
   /** Escape hatch: skip the download private-address check (local reverse proxy). */
   allowPrivateHosts: boolean
   /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */
@@ -372,6 +374,8 @@ export const Config: Z<Config> = z.object({
     .description('每天几点开始可以看一眼（HH:MM）'),
   groupPeekWindowEnd: z.string().default('24:00')
     .description('每天几点以后不再看一眼（HH:MM，可以写 24:00）'),
+  groupAutoQuote: z.union([z.const('off'), z.const('busy'), z.const('always')]).default('off')
+    .description('群里回复时是否自动引用叫她的那条消息：off（默认）= 不自动（她仍可以自己决定引用）；busy = 中间有别人插话时才引用；always = 总是引用。只作用于群聊的最终回复，模型自己写 [引用:消息 id] 时始终以模型为准；私聊不自动引用'),
   chatIdleEvictDays: z.number().default(7)
     .description('会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用'),
   dedupWindowSeconds: z.number().default(300)

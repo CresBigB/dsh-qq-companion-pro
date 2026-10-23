@@ -117,6 +117,8 @@ export interface Config {
     groupPeekQuietMinutes: number;
     groupPeekWindowStart: string;
     groupPeekWindowEnd: string;
+    /** 群里回复时是否自动引用叫她的那条消息：off（默认，不自动）/ busy（中间有别人插话时才引用）/ always（总是引用）。 */
+    groupAutoQuote: 'off' | 'busy' | 'always';
     /** Escape hatch: skip the download private-address check (local reverse proxy). */
     allowPrivateHosts: boolean;
     /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */

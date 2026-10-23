@@ -21,8 +21,13 @@ export interface StickerToolHost {
   mediaSendRoots(sessionId: string | undefined): Promise<{ roots: string[] }>
   /** Claim this reply's one sticker; false when one already went out this turn. */
   takeStickerSlot(chatId: string): boolean
-  sendSegments(chatId: string, segments: Array<{ type: string; data: Record<string, unknown> }>): Promise<string | undefined>
+  /** Whether this chat has actually seen a message id (the reply_to gate). */
+  hasSeenMessage?(chatId: string, messageId: string): boolean
+  sendSegments(chatId: string, segments: Array<{ type: string; data: Record<string, unknown> }>, options?: { replyTo?: string }): Promise<string | undefined>
 }
+
+/** The reply_to parameter description (引用回复), shared by the sticker send. */
+const REPLY_TO_DESCRIPTION = '要引用的消息 id，取自 <user_message msg="…"> 或 qq_group_history 行尾的 〔id …〕；不引用就不传'
 
 const brief = (s: Sticker): { id: string; tags: string[]; description: string; uses: number } =>
   ({ id: s.id, tags: s.tags, description: s.description, uses: s.uses })
@@ -89,21 +94,32 @@ export function registerStickerTools(ctx: Context, host: StickerToolHost, librar
       description: '发一张表情包库里的表情包到当前会话（id 来自 qq_sticker_search）。每次回复最多发 1 张。',
       parameters: {
         id: { type: 'string', required: true, description: '表情包编号，例如 s0012' },
+        reply_to: { type: 'string', description: REPLY_TO_DESCRIPTION },
       },
       output: json(value => {
-        const v = value as { sent?: boolean; reason?: string }
-        return v.sent === true ? '已发送' : '没发：' + String(v.reason ?? '')
+        const v = value as { sent?: boolean; reason?: string; quoteIgnored?: boolean }
+        const note = v.quoteIgnored === true ? '（引用的消息 id 无效，已按不引用发送）' : ''
+        return v.sent === true ? '已发送' + note : '没发：' + String(v.reason ?? '')
       }),
       execute: async (args, exec) => {
-        const a = args as { id?: unknown }
+        const a = args as { id?: unknown; reply_to?: unknown }
         const { chatId } = callerChat(host, exec)
         const sticker = typeof a.id === 'string' ? library.get(a.id.trim()) : undefined
         if (sticker === undefined) return { sent: false, reason: '没有这个编号的表情包' } as JsonValue
         if (!host.takeStickerSlot(chatId)) return { sent: false, reason: '这次回复已经发过一张表情包了' } as JsonValue
+        // 引用目标必须是这个聊天真见过的消息 id；不认识的丢弃，照常发送。
+        const rawReplyTo = typeof a.reply_to === 'string' ? a.reply_to : typeof a.reply_to === 'number' ? String(a.reply_to) : ''
+        const wanted = rawReplyTo.trim()
+        const replyTo = wanted !== '' && host.hasSeenMessage?.(chatId, wanted) === true ? wanted : undefined
+        const quoteIgnored = wanted !== '' && replyTo === undefined
         const file = await fileToBase64(library.pathOf(sticker), Number.MAX_SAFE_INTEGER, [library.dir])
-        const messageId = await host.sendSegments(chatId, [{ type: 'image', data: { file, sub_type: 1, summary: '[动画表情]' } }])
+        const messageId = await host.sendSegments(
+          chatId,
+          [{ type: 'image', data: { file, sub_type: 1, summary: '[动画表情]' } }],
+          replyTo !== undefined ? { replyTo } : {},
+        )
         await library.markUsed(sticker.id)
-        return { sent: true, messageId: messageId ?? null } as JsonValue
+        return { sent: true, messageId: messageId ?? null, quoteIgnored } as JsonValue
       },
     })),
 

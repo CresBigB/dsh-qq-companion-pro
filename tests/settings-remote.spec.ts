@@ -486,7 +486,7 @@ describe('onebotSettings remote — P1/newMessagePolicy 白名单扩展（behavi
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.newMessagePolicy).toBe('queue')
     expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs',
+      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
     ])
     expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
     expect(snapshot.config.newMessagePolicy).toBe('queue')
@@ -529,7 +529,7 @@ describe('onebotSettings remote — autoSteerPolicy 白名单扩展（behavior �
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.autoSteerPolicy).toBe('admin')
     expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs',
+      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
     ])
     expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
     expect(snapshot.config.autoSteerPolicy).toBe('admin')
@@ -572,11 +572,11 @@ describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（behavior
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.deferredTimeoutMs).toBe(600_000)
     expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs',
+      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
     ])
     expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
     expect(snapshot.config.deferredTimeoutMs).toBe(600_000)
-    expect(snapshot.effect).toBe('restart') // 与全部 29 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 30 键同粒度：热重启生效
   })
 
   it('deferredTimeoutMs 写入走数字通道（≥0）：合法值进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -597,5 +597,39 @@ describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（behavior
     expect(editor.editCalls).toBe(writes) // 拒写绝不触达宿主 edit
     expect(getSettings(editor, state).revision).toBe(1)
     expect(getSettings(editor, state).config.deferredTimeoutMs).toBe(300_000) // 拒写不改生效值
+  })
+})
+
+describe('onebotSettings remote — groupAutoQuote 白名单扩展（behavior 组 29→30 键，用户待办 8）', () => {
+  it("groupAutoQuote 入快照：默认 'off'、behavior 组尾追加（deferredTimeoutMs 之后）、ALL_KEYS 29→30", () => {
+    const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
+    expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
+    expect(SCHEMA_DEFAULTS.groupAutoQuote).toBe('off')
+    expect(SETTINGS_GROUPS.behavior).toEqual([
+      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
+    ])
+    expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
+    expect(snapshot.config.groupAutoQuote).toBe('off')
+    expect(snapshot.effect).toBe('restart') // 与全部 30 键同粒度：热重启生效
+  })
+
+  it("groupAutoQuote 写入走枚举通道：'busy'/'always' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用", async () => {
+    const editor = new FakeConfigEditor()
+    const state = createRevisionState()
+    const written = await updateSettings(editor, state, { groupAutoQuote: 'busy' })
+    expect(written.revision).toBe(1)
+    expect(written.config.groupAutoQuote).toBe('busy')
+    expect(editor.writeCount).toBe(1)
+    expect(editor.rows[0].config.groupAutoQuote).toBe('busy')
+
+    const writes = editor.editCalls
+    for (const value of ['off ', 'ON', 'true', 1, null, true]) {
+      await expect(updateSettings(editor, state, { groupAutoQuote: value })).rejects.toMatchObject({
+        code: 'onebot-settings/bad-request',
+      })
+    }
+    expect(editor.editCalls).toBe(writes) // 拒写绝不触达宿主 edit
+    expect(getSettings(editor, state).revision).toBe(1)
+    expect(getSettings(editor, state).config.groupAutoQuote).toBe('busy') // 拒写不改生效值
   })
 })

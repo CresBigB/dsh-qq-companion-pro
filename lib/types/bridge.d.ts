@@ -56,6 +56,10 @@ export declare class ChatBridge {
     /** chats that already sent their one sticker in the running turn
      * (cleared at turn/start and on chat removal). */
     private readonly stickerSentChats;
+    /** 最近见过的消息 id（每 chat 一个内存 LRU，见 reply-quote.ts）：
+     * 入站消息（含只进群上下文、没 @ 她的）与她自己的发送 id 都在里面；
+     * 引用标记与 qq_send_* 的 reply_to 只能引用集合里的 id。 */
+    private readonly seenMessageIds;
     private stopping;
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
@@ -93,12 +97,33 @@ export declare class ChatBridge {
     /**
      * Send plain text to a chat with the full outbound pipeline (forward
      * blocks, Markdown strip, sentence splitting).
+     *
+     * The final gate for reply quoting (引用回复): a leading [引用:<id>] marker
+     * is always stripped — it is a model-side directive and must never reach QQ
+     * (the deferred 补发 path runs through here too) — and for a FINAL reply
+     * (humanize) it becomes the reply segment of the first split message.
+     * '[引用:这条]' means the turn's own trigger message. An unknown id drops
+     * the marker and sends without a quote. When she wrote no marker, the group
+     * auto-quote config decides (groupAutoQuote: off / busy / always).
      * @param chatId - target chat.
      * @param text - model-produced text.
      * @param options - optional reply target.
      * @returns the sent message ids.
      */
     sendToChat(chatId: ChatId, text: string, options?: SendOptions): Promise<string[]>;
+    /**
+     * Resolve the message id this send should quote, or undefined for no quote.
+     * An explicit marker wins (and only counts for a final reply); otherwise the
+     * group auto-quote setting may quote the turn's trigger message. An id the
+     * chat has never seen is dropped (the marker is stripped, nothing quoted).
+     * @param chatId - target chat.
+     * @param marker - the parsed leading marker (null = the model wrote none).
+     * @param humanize - whether this is a model final reply.
+     */
+    private resolveReplyTarget;
+    /** Whether this chat has actually seen a message id (the reply-quote gate
+     * for the qq_send_* reply_to argument). */
+    hasSeenMessage(chatId: string, messageId: string): boolean;
     /** A group left the allowlist: retire its session so that, if it is ever
      * allowed again, it starts fresh under the current preset. */
     retireGroup(groupId: string): Promise<void>;
@@ -127,9 +152,10 @@ export declare class ChatBridge {
      * Send raw OneBot segments (used by the media tools).
      * @param chatId - target chat.
      * @param segments - outbound segments.
+     * @param options - optional reply target (the tool's reply_to argument).
      * @returns the sent message id.
      */
-    sendSegments(chatId: ChatId, segments: OutboundSegment[]): Promise<string | undefined>;
+    sendSegments(chatId: ChatId, segments: OutboundSegment[], options?: SendOptions): Promise<string | undefined>;
     /**
      * Inbound OneBot message event → agent turn. All policy and media work is
      * contained: a failure here logs and drops the message, never the host.
@@ -142,8 +168,8 @@ export declare class ChatBridge {
      * event; undefined when tracing is off. */
     private beginInboundTrace;
     /** Feed one user message into a chat's agent (create on demand). Records
-     * the base text for /retry, queues the initiator's turn role, and applies
-     * per-chat /goal + /plan prefixes. */
+     * the base text for /retry, queues the initiator's turn role and the
+     * message that triggered it, and applies per-chat /goal + /plan prefixes. */
     private dispatchFollowup;
     /** Prepend per-chat context directives (/goal reminder) to a turn's user
      * text. Plan mode is host-owned now (/plan forwards to the host command),

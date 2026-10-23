@@ -156,6 +156,9 @@ export class ChatRegistry {
       lastNickname: nickname,
       pendingTurnRoles: [],
       activeTurnRole: 'member',
+      pendingTurnMessageIds: [],
+      activeTurnMessageId: undefined,
+      finalTurnMessageId: undefined,
       lastFollowup: undefined,
       selectionRef,
     }

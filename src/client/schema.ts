@@ -167,6 +167,7 @@ export const configSchema: Schema<Record<string, unknown>> = vObject({
   proactiveMinGapMinutes: vNumber(),
   proactiveSkipIfActiveMinutes: vNumber(),
   proactiveMaxUnanswered: vNumber(),
+  groupAutoQuote: vEnum(['off', 'busy', 'always']),
 })
 
 /** getSettings / updateSettings 返回值（OnebotSettingsSnapshot）。 */
@@ -246,6 +247,7 @@ export const patchSchema: Schema<Record<string, unknown>> = vObject({
   proactiveMinGapMinutes: vOptional(vNumber(0)),
   proactiveSkipIfActiveMinutes: vOptional(vNumber(0)),
   proactiveMaxUnanswered: vOptional(vNumber(0)),
+  groupAutoQuote: vOptional(vEnum(['off', 'busy', 'always'])),
 })
 
 /** listWorkspaces 返回值（host WorkspaceListResult 同构）。 */

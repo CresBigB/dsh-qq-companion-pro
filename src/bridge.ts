@@ -15,7 +15,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { BridgeDeps } from './bridge-types.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
-import { buildChatId, classifyUserRole, groupAllowed, splitChatId } from './chat.js'
+import { buildChatId, classifyUserRole, groupAllowed, sanitizeMessageId, splitChatId } from './chat.js'
 import { STEER_ACCEPTED_NOTICE, tryHandleCommand as routeCommand, type CommandContext } from './commands.js'
 import type { ScheduledPrompt } from './companion/index.js'
 import { CompanionHooks, PROACTIVE_PASS } from './companion/index.js'
@@ -30,6 +30,7 @@ import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outb
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
 import { ChatRegistry, type ChatAgent } from './registry.js'
+import { parseLeadingQuote, SELF_QUOTE_TOKEN, SeenMessageIds, type QuoteMarker } from './reply-quote.js'
 import { registerStickerTools } from './sticker-tools.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope, type TraceStage } from './trace.js'
@@ -88,6 +89,10 @@ export class ChatBridge {
   /** chats that already sent their one sticker in the running turn
    * (cleared at turn/start and on chat removal). */
   private readonly stickerSentChats = new Set<string>()
+  /** 最近见过的消息 id（每 chat 一个内存 LRU，见 reply-quote.ts）：
+   * 入站消息（含只进群上下文、没 @ 她的）与她自己的发送 id 都在里面；
+   * 引用标记与 qq_send_* 的 reply_to 只能引用集合里的 id。 */
+  private readonly seenMessageIds = new SeenMessageIds()
   private stopping = false
 
   /** companion behavior (session renewal, pass marker, wake-up texts). */
@@ -112,6 +117,7 @@ export class ChatBridge {
         this.traceByChat.delete(chat.chatId)
         this.queueNoticeChats.delete(chat.chatId)
         this.stickerSentChats.delete(chat.chatId)
+        this.seenMessageIds.forget(chat.chatId)
       },
       installChannelScope: (agentCtx, chatId) => this.installChannelScope(agentCtx, chatId),
       isAdminPrivate: chatId => this.isAdminPrivate(chatId),
@@ -133,6 +139,8 @@ export class ChatBridge {
       log: (level, message) => this.deps.log(level, message),
       config: deps.config,
       ...(deps.sendCounter !== undefined ? { onSent: () => deps.sendCounter?.record() } : {}),
+      // her own sends join the reply-quote seen set (never "someone else talking").
+      noteSentId: (chatId, messageId) => { this.seenMessageIds.noteSelf(chatId, messageId) },
       ...(deps.typingPacer !== undefined ? { typingPacer: deps.typingPacer } : {}),
       // outbound decision events ride the chat's initiating traceId; a
       // write with no mapped trace (proactive tool sends) starts a fresh one.
@@ -149,8 +157,9 @@ export class ChatBridge {
       tryHandleCommand: (chatId, text, userId, nickname) => this.tryHandleCommand(chatId, text, userId, nickname),
       buildBody: (text, media, chatId) => this.buildBody(text, media, chatId),
       expandQuote: (messageId, chatId) => this.expandQuote(messageId, chatId),
-      dispatchFollowup: (chatId, text, role, nickname) => this.dispatchFollowup(chatId, text, role, nickname),
-      interceptBusyTurn: (chatId, text, role, nickname, plain) => this.interceptBusyTurn(chatId, text, role, nickname, plain),
+      noteSeenMessage: (chatId, messageId) => { this.seenMessageIds.noteInbound(chatId, messageId) },
+      dispatchFollowup: (chatId, text, role, nickname, messageId) => this.dispatchFollowup(chatId, text, role, nickname, { messageId }),
+      interceptBusyTurn: (chatId, text, role, nickname, plain, messageId) => this.interceptBusyTurn(chatId, text, role, nickname, plain, messageId),
       ...(deps.groupChatter !== undefined ? { groupChatter: deps.groupChatter } : {}),
       sendToChat: (chatId, text) => this.sendToChat(chatId, text),
       log: (level, message) => this.deps.log(level, message),
@@ -293,6 +302,14 @@ export class ChatBridge {
   /**
    * Send plain text to a chat with the full outbound pipeline (forward
    * blocks, Markdown strip, sentence splitting).
+   *
+   * The final gate for reply quoting (引用回复): a leading [引用:<id>] marker
+   * is always stripped — it is a model-side directive and must never reach QQ
+   * (the deferred 补发 path runs through here too) — and for a FINAL reply
+   * (humanize) it becomes the reply segment of the first split message.
+   * '[引用:这条]' means the turn's own trigger message. An unknown id drops
+   * the marker and sends without a quote. When she wrote no marker, the group
+   * auto-quote config decides (groupAutoQuote: off / busy / always).
    * @param chatId - target chat.
    * @param text - model-produced text.
    * @param options - optional reply target.
@@ -301,11 +318,54 @@ export class ChatBridge {
   sendToChat(chatId: ChatId, text: string, options: SendOptions = {}): Promise<string[]> {
     // a fabricated transcript continuation never reaches QQ.
     const clean = this.companion.cleanOutgoing(chatId, text)
-    if (clean.trim() === '') return Promise.resolve([])
+    // the quote directive never reaches QQ; it may become a reply segment.
+    const quoted = parseLeadingQuote(clean)
+    const body = quoted.body
+    if (body.trim() === '') return Promise.resolve([])
+    const replyTo = options.replyTo ?? this.resolveReplyTarget(chatId, quoted.marker, options.humanize === true)
+    const next: SendOptions = replyTo === undefined ? options : { ...options, replyTo }
     // a skipped proactive wake-up sends nothing; final replies are recorded.
-    if (options.humanize === true && !this.companion.beforeFinalReply(chatId, clean)) return Promise.resolve([])
+    if (options.humanize === true && !this.companion.beforeFinalReply(chatId, body)) return Promise.resolve([])
     if (options.humanize === true && chatId.startsWith('group:')) this.deps.groupChatter?.noteSpoke(chatId.slice('group:'.length))
-    return this.outbound.sendToChat(chatId, clean, options)
+    return this.outbound.sendToChat(chatId, body, next)
+  }
+
+  /**
+   * Resolve the message id this send should quote, or undefined for no quote.
+   * An explicit marker wins (and only counts for a final reply); otherwise the
+   * group auto-quote setting may quote the turn's trigger message. An id the
+   * chat has never seen is dropped (the marker is stripped, nothing quoted).
+   * @param chatId - target chat.
+   * @param marker - the parsed leading marker (null = the model wrote none).
+   * @param humanize - whether this is a model final reply.
+   */
+  private resolveReplyTarget(chatId: ChatId, marker: QuoteMarker | null, humanize: boolean): string | undefined {
+    const chat = this.chats.get(chatId)
+    if (marker !== null) {
+      if (!humanize) return undefined
+      const wanted = marker.target === SELF_QUOTE_TOKEN ? (chat?.finalTurnMessageId ?? chat?.activeTurnMessageId) : marker.target
+      if (wanted === undefined || wanted === '' || !this.seenMessageIds.has(chatId, wanted)) {
+        this.deps.log('debug', '引用标记里的消息 id 无效，已按不引用发送: ' + chatId + ' id=' + marker.target)
+        return undefined
+      }
+      return wanted
+    }
+    if (!humanize || !chatId.startsWith('group:')) return undefined
+    const mode = this.deps.config.groupAutoQuote ?? 'off'
+    if (mode === 'off') return undefined
+    const trigger = chat?.finalTurnMessageId ?? chat?.activeTurnMessageId
+    if (trigger === undefined || trigger === '') return undefined
+    const seq = this.seenMessageIds.seqOf(chatId, trigger)
+    if (seq === undefined) return undefined
+    // busy: 从触发消息到她回复之间群里又有别人说了话才引用（像真人在热闹群里）。
+    if (mode === 'busy' && !this.seenMessageIds.hasInboundAfter(chatId, seq)) return undefined
+    return trigger
+  }
+
+  /** Whether this chat has actually seen a message id (the reply-quote gate
+   * for the qq_send_* reply_to argument). */
+  hasSeenMessage(chatId: string, messageId: string): boolean {
+    return this.seenMessageIds.has(chatId as ChatId, messageId)
   }
 
   /** A group left the allowlist: retire its session so that, if it is ever
@@ -371,10 +431,11 @@ export class ChatBridge {
    * Send raw OneBot segments (used by the media tools).
    * @param chatId - target chat.
    * @param segments - outbound segments.
+   * @param options - optional reply target (the tool's reply_to argument).
    * @returns the sent message id.
    */
-  sendSegments(chatId: ChatId, segments: OutboundSegment[]): Promise<string | undefined> {
-    return this.outbound.sendSegments(chatId, segments)
+  sendSegments(chatId: ChatId, segments: OutboundSegment[], options: SendOptions = {}): Promise<string | undefined> {
+    return this.outbound.sendSegments(chatId, segments, options)
   }
 
   // ------------------------------------------------------------ inbound
@@ -426,9 +487,9 @@ export class ChatBridge {
   }
 
   /** Feed one user message into a chat's agent (create on demand). Records
-   * the base text for /retry, queues the initiator's turn role, and applies
-   * per-chat /goal + /plan prefixes. */
-  private async dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string, internal?: { scheduled?: boolean }): Promise<void> {
+   * the base text for /retry, queues the initiator's turn role and the
+   * message that triggered it, and applies per-chat /goal + /plan prefixes. */
+  private async dispatchFollowup(chatId: ChatId, text: string, role: UserRole, nickname?: string, internal?: { scheduled?: boolean; messageId?: string }): Promise<void> {
     // companion: idle / periodic session renewal + handoff, activity record.
     text = await this.companion.beforeUserTurn(chatId, text, plainUserText(text), nickname ?? '', internal?.scheduled === true)
     const final = this.prefixTurn(chatId, text)
@@ -444,6 +505,10 @@ export class ChatBridge {
     // the running turn's role. Push and followup happen synchronously,
     // so the role cannot interleave with another dispatch.
     chat.pendingTurnRoles.push(role)
+    // The triggering inbound message id rides the same FIFO: turn/start
+    // freezes it as this turn's quote target (see reply-quote.ts).
+    const triggerId = internal?.messageId !== undefined ? sanitizeMessageId(internal.messageId) : ''
+    chat.pendingTurnMessageIds.push(triggerId === '' ? undefined : triggerId)
     // no message text in the host log (it is the system journal).
     this.deps.log('info', 'followup from ' + chatId + ' (' + final.length + ' chars)')
     // Plugin-originated user message: the session log attributes QQ inbound
@@ -607,7 +672,7 @@ export class ChatBridge {
    * authoritative signal /stop uses; chat.busy (turn/start..turn/end view)
    * can lag the host driver and is deliberately NOT consulted.
    */
-  private async interceptBusyTurn(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean): Promise<boolean> {
+  private async interceptBusyTurn(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean, messageId?: string): Promise<boolean> {
     const chat = this.chats.get(chatId)
     if (chat === undefined || chat.agent.status !== 'running') return false
     // The restricted-member soft limit ([受限用户:仅问答]) is never widened by
@@ -629,7 +694,7 @@ export class ChatBridge {
       })
       return true
     }
-    await this.dispatchFollowup(chatId, text, role, nickname)
+    await this.dispatchFollowup(chatId, text, role, nickname, { messageId })
     currentTrace()?.emit('dispatch', { ok: true, reason: TRACE_REASONS.busyTurnQueued })
     if (!this.queueNoticeChats.has(chatId)) {
       this.queueNoticeChats.add(chatId)
@@ -740,6 +805,10 @@ export class ChatBridge {
       //: turns the plugin did not dispatch (host/web input) find an
       // empty queue and fail closed as member.
       chat.activeTurnRole = chat.pendingTurnRoles.shift() ?? 'member'
+      // the message this turn answers becomes its quote target for the final
+      // reply (auto-quote / [引用:这条]); turns with no plugin dispatch leave
+      // it undefined and never auto-quote.
+      chat.activeTurnMessageId = chat.pendingTurnMessageIds.shift()
       chat.lastActivityAt = Date.now()
       chat.busy = true
       this.stickerSentChats.delete(chatId)
@@ -758,6 +827,10 @@ export class ChatBridge {
     }
     if (event.type === 'turn/end') {
       const reason = event.data.reason
+      // the final reply of this turn goes out AFTER turn/end (and possibly
+      // after the next turn already started): freeze this turn's quote target
+      // now so a queued next turn cannot steal it.
+      chat.finalTurnMessageId = chat.activeTurnMessageId
       // a message-turn fault mints ONE MF- reference before any
       // consumer runs — the trace event (data.ref), the structured log line,
       // the ⚠️ notice tail and the deferred terminal text all carry the same

@@ -13,7 +13,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ChatBridge } from './bridge.js'
 import type { OneBotConnection } from './connection.js'
 import { fileToBase64, isUrl } from './media.js'
-import { splitChatId } from './chat.js'
+import { sanitizeMessageId, splitChatId } from './chat.js'
 import type { OneBotSegment } from './cq.js'
 import { parseMessage, cqUnescape } from './cq.js'
 
@@ -41,10 +41,31 @@ function sendOutput() {
   return {
     schema: { type: 'json' as const },
     render: (_args: unknown, value: unknown) => {
-      const v = value as { messageId?: string | null }
-      return [{ type: 'text' as const, text: v.messageId != null ? '已发送（message_id=' + v.messageId + '）' : '已发送' }]
+      const v = value as { messageId?: string | null; quoteIgnored?: boolean }
+      // an unusable reply_to is dropped but never fails the send — say so.
+      const note = v.quoteIgnored === true ? '；引用的消息 id 无效，已按不引用发送' : ''
+      return [{ type: 'text' as const, text: (v.messageId != null ? '已发送（message_id=' + v.messageId + '）' : '已发送') + note }]
     },
   }
+}
+
+/** The shared reply_to parameter description (引用回复). */
+const REPLY_TO_DESCRIPTION = '要引用的消息 id，取自 <user_message msg="…"> 或 qq_group_history 行尾的 〔id …〕；不引用就不传'
+
+/** Resolve one tool's optional reply_to: only an id this chat has actually
+ * seen may be quoted (the model can otherwise only guess); an unknown id is
+ * dropped and reported back instead of failing the send. */
+function resolveReplyTo(bridge: ChatBridge, chatId: string, replyToArg: unknown): { replyTo?: string; ignored: boolean } {
+  const raw = typeof replyToArg === 'string' ? replyToArg : typeof replyToArg === 'number' ? String(replyToArg) : ''
+  if (raw.trim() === '') return { ignored: false }
+  const id = sanitizeMessageId(raw.trim())
+  if (id === '' || !bridge.hasSeenMessage(chatId, id)) return { ignored: true }
+  return { replyTo: id, ignored: false }
+}
+
+/** The send options one tool call's reply_to produces. */
+function sendOptions(quote: { replyTo?: string }): { replyTo?: string } {
+  return quote.replyTo === undefined ? {} : { replyTo: quote.replyTo }
 }
 
 /** Resolve the target chat for a tool call. */
@@ -123,11 +144,12 @@ export function registerTools(
         type: 'string',
         description: '图片说明文字（可选，作为图片前的文本发送）',
       },
+      reply_to: { type: 'string', description: REPLY_TO_DESCRIPTION },
     },
     output: sendOutput(),
     isConcurrencySafe: () => true,
     execute: async (args, exec) => {
-      const a = args as { sources?: unknown; chat_id?: unknown; caption?: unknown }
+      const a = args as { sources?: unknown; chat_id?: unknown; caption?: unknown; reply_to?: unknown }
       const sources = Array.isArray(a.sources) ? a.sources.filter((s): s is string => typeof s === 'string') : []
       if (sources.length === 0) throw new Error('qq_send_image: sources 不能为空')
       if (sources.length > 9) throw new Error('qq_send_image: 一次最多 9 张图片')
@@ -144,8 +166,9 @@ export function registerTools(
           segments.push({ type: 'image', data: { file: await fencedMediaFile(source, limits.maxImageBytes, allowedRoots) } })
         }
       }
-      const messageId = await bridge.sendSegments(chatId, segments)
-      return { sent: true, messageId: messageId ?? null }
+      const quote = resolveReplyTo(bridge, chatId, a.reply_to)
+      const messageId = await bridge.sendSegments(chatId, segments, sendOptions(quote))
+      return { sent: true, messageId: messageId ?? null, quoteIgnored: quote.ignored }
     },
   }))
 
@@ -155,18 +178,20 @@ export function registerTools(
     parameters: {
       path: { type: 'string', required: true, description: '本地音频文件绝对路径' },
       chat_id: { type: 'string', description: '目标会话；省略时默认当前会话' },
+      reply_to: { type: 'string', description: REPLY_TO_DESCRIPTION },
     },
     output: sendOutput(),
     isConcurrencySafe: () => true,
     execute: async (args, exec) => {
-      const a = args as { path?: unknown; chat_id?: unknown }
+      const a = args as { path?: unknown; chat_id?: unknown; reply_to?: unknown }
       if (typeof a.path !== 'string' || a.path === '') throw new Error('qq_send_voice: path 必填')
       const chatId = resolveChat(bridge, exec, a.chat_id)
       const allowedRoots = await mediaRoots(bridge, exec)
+      const quote = resolveReplyTo(bridge, chatId, a.reply_to)
       const messageId = await bridge.sendSegments(chatId, [
         { type: 'record', data: { file: await fencedMediaFile(a.path, limits.maxVoiceBytes, allowedRoots) } },
-      ])
-      return { sent: true, messageId: messageId ?? null }
+      ], sendOptions(quote))
+      return { sent: true, messageId: messageId ?? null, quoteIgnored: quote.ignored }
     },
   }))
 
@@ -176,18 +201,20 @@ export function registerTools(
     parameters: {
       path: { type: 'string', required: true, description: '本地视频文件绝对路径' },
       chat_id: { type: 'string', description: '目标会话；省略时默认当前会话' },
+      reply_to: { type: 'string', description: REPLY_TO_DESCRIPTION },
     },
     output: sendOutput(),
     isConcurrencySafe: () => true,
     execute: async (args, exec) => {
-      const a = args as { path?: unknown; chat_id?: unknown }
+      const a = args as { path?: unknown; chat_id?: unknown; reply_to?: unknown }
       if (typeof a.path !== 'string' || a.path === '') throw new Error('qq_send_video: path 必填')
       const chatId = resolveChat(bridge, exec, a.chat_id)
       const allowedRoots = await mediaRoots(bridge, exec)
+      const quote = resolveReplyTo(bridge, chatId, a.reply_to)
       const messageId = await bridge.sendSegments(chatId, [
         { type: 'video', data: { file: await fencedMediaFile(a.path, limits.maxFileBytes, allowedRoots) } },
-      ])
-      return { sent: true, messageId: messageId ?? null }
+      ], sendOptions(quote))
+      return { sent: true, messageId: messageId ?? null, quoteIgnored: quote.ignored }
     },
   }))
 
@@ -198,19 +225,21 @@ export function registerTools(
       path: { type: 'string', required: true, description: '本地文件绝对路径' },
       name: { type: 'string', description: '文件名（默认取路径文件名）' },
       chat_id: { type: 'string', description: '目标会话；省略时默认当前会话' },
+      reply_to: { type: 'string', description: REPLY_TO_DESCRIPTION },
     },
     output: sendOutput(),
     isConcurrencySafe: () => true,
     execute: async (args, exec) => {
-      const a = args as { path?: unknown; name?: unknown; chat_id?: unknown }
+      const a = args as { path?: unknown; name?: unknown; chat_id?: unknown; reply_to?: unknown }
       if (typeof a.path !== 'string' || a.path === '') throw new Error('qq_send_file: path 必填')
       const chatId = resolveChat(bridge, exec, a.chat_id)
       const allowedRoots = await mediaRoots(bridge, exec)
       const name = typeof a.name === 'string' && a.name !== '' ? a.name : a.path.split('/').pop() ?? 'file'
+      const quote = resolveReplyTo(bridge, chatId, a.reply_to)
       const messageId = await bridge.sendSegments(chatId, [
         { type: 'file', data: { file: await fencedMediaFile(a.path, limits.maxFileBytes, allowedRoots), name } },
-      ])
-      return { sent: true, messageId: messageId ?? null }
+      ], sendOptions(quote))
+      return { sent: true, messageId: messageId ?? null, quoteIgnored: quote.ignored }
     },
   }))
 

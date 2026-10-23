@@ -104,6 +104,7 @@
 | `groupPeekQuietMinutes` | number | `10` | 她在这个群里说过话后这么多分钟内不看一眼（正在聊或刚聊完） |
 | `groupPeekWindowStart` | string | `"09:00"` | 每天几点开始可以看一眼（HH:MM） |
 | `groupPeekWindowEnd` | string | `"24:00"` | 每天几点以后不再看一眼（HH:MM，可以写 24:00） |
+| `groupAutoQuote` | "off" / "busy" / "always" | `"off"` | 群里回复时是否自动引用叫她的那条消息：off（默认）= 不自动（她仍可以自己决定引用）；busy = 中间有别人插话时才引用；always = 总是引用。只作用于群聊的最终回复，模型自己写 [引用:消息 id] 时始终以模型为准；私聊不自动引用 |
 | `chatIdleEvictDays` | number | `7` | 会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用 |
 | `dedupWindowSeconds` | number | `300` | 入站消息去重窗口（秒）：同一会话内相同 message_id 在该窗口内重投（断线重连重放等）只处理第一条，后续静默跳过并记 debug；仅对会触发回复处理的消息事件生效（notice/meta 类不经过此闸）；0 = 禁用去重 |
 | `actionAuditEnabled` | boolean | `true` | 工具发送审计：她用 qq_send_image/voice/video/file/segments、qq_send_forward 等工具主动发出的每条消息（成功或失败）追加一行 JSON 到 mediaDir/qq-actions.log（含 ts/chatId/action/ok/reason）；写失败只记 warn，不影响发送 |
