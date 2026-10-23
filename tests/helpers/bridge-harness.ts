@@ -23,7 +23,7 @@ import { TraceSink } from '../../src/trace.js'
 /** A fake agent handle for the bridge. */
 export function makeFakeAgents(
   sessionIds: string[],
-  captured: { followups: Array<{ text: string; sessionId: string }>; steers?: Array<{ text: string; sessionId: string }>; createdMeta?: Array<{ cwd?: string; agentPreset?: string }> },
+  captured: { followups: Array<{ text: string; sessionId: string }>; steers?: Array<{ text: string; sessionId: string }>; createdMeta?: Array<{ cwd?: string; agentPreset?: string }>; channelTools?: string[]; channelSections?: string[] },
   opts?: { failCreateFor?: string; resumeOk?: boolean; createDelayMs?: number },
 ) {
   const disposed: string[] = []
@@ -219,13 +219,25 @@ export async function makeCmdHarness(opts?: {
   groupAutoQuote?: 'off' | 'busy' | 'always'
   /** 表情包库（absent = 未开启，入站表情包不带收藏标注）。 */
   stickers?: unknown
+  /** 公开记忆文件（absent = 不注册 qq_memory_note；能力矩阵测试用）。 */
+  publicMemoryFile?: string
+  /** 全局关闭的能力 id（absent = 全部开启；能力矩阵测试用）。 */
+  capabilitiesDeny?: string[]
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
   const capturedMeta: Array<{ cwd?: string; agentPreset?: string }> = []
   // steers are captured alongside followups so the /steer and
   // 'steer'-policy tests can assert the exact steered text.
-  const captured = { followups: [] as Array<{ text: string; sessionId: string }>, steers: [] as Array<{ text: string; sessionId: string }>, createdMeta: capturedMeta }
+  const captured = {
+    followups: [] as Array<{ text: string; sessionId: string }>,
+    steers: [] as Array<{ text: string; sessionId: string }>,
+    createdMeta: capturedMeta,
+    /** names of the tools registered on an agent's own scope (installChannelScope). */
+    channelTools: [] as string[],
+    /** names of the system-prompt sections registered on that scope. */
+    channelSections: [] as string[],
+  }
   const agents = makeFakeAgents(sessionIds, captured, opts?.resumeOk !== undefined ? { resumeOk: opts.resumeOk } : undefined)
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
@@ -274,6 +286,8 @@ export async function makeCmdHarness(opts?: {
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
       textImageThreshold: 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
       agentPreset: 'standard', workspacePath: mediaDir,
+      ...(opts?.publicMemoryFile !== undefined ? { publicMemoryFile: opts.publicMemoryFile } : {}),
+      ...(opts?.capabilitiesDeny !== undefined ? { capabilitiesDeny: opts.capabilitiesDeny } : {}),
       ...(opts?.adminPreset !== undefined ? { adminPreset: opts.adminPreset } : {}),
       ...(opts?.adminPermission !== undefined ? { adminPermission: opts.adminPermission } : {}),
       ...(opts?.memberPermission !== undefined ? { memberPermission: opts.memberPermission } : {}),

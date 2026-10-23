@@ -13,6 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 
 import type { BridgeDeps } from './bridge-types.js'
+import { resolveCapabilities, summarizeCapabilities, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
 import { buildChatId, classifyUserRole, groupAllowed, sanitizeMessageId, splitChatId } from './chat.js'
@@ -787,6 +788,8 @@ export class ChatBridge {
         admin: this.deps.config.adminPermission ?? '',
         member: this.deps.config.memberPermission ?? '',
       },
+      // /doctor 能力行：哪几项功能被关掉了（按管理员私聊视角算）。
+      capabilities: () => this.capabilitySummary(),
       configSnapshot: this.deps.configSnapshot?.() ?? {},
       // the recent fault references for the report section.
       failureRefs: () => this.failureRefs.recent(),
@@ -1037,6 +1040,10 @@ export class ChatBridge {
    * own scope) instead of the plugin context, so Web/local sessions never see
    * the channel instructions or the media tools — they cannot (and should
    * not) push messages to QQ.
+   *
+   * 工具注册由能力注册表驱动（src/capabilities.ts）：先按配置 / 运行时依赖 /
+   * 会话类型算出这个聊天能有哪些能力，再只注册这些能力对应的工具。工具 execute
+   * 里既有的回合级判定（例如表情包改删的 canEditFiles）保持不变。
    */
   private installChannelScope(agentCtx: Context, chatId: ChatId): void {
     agentCtx.systemPrompt.section({
@@ -1047,14 +1054,46 @@ export class ChatBridge {
     // How her companion features work in this chat, from the live config.
     const guide = this.deps.companionGuide?.(chatId) ?? ''
     if (guide !== '') agentCtx.systemPrompt.section({ name: 'channel:qq-companion-guide', order: 91, text: guide })
+    const writeNote = this.companion.memoryNoteWriter()
+    const resolved = this.resolveChatCapabilities(chatId)
+    const allowedTools = new Set(resolved.tools)
+    const allow = (toolName: string): boolean => allowedTools.has(toolName)
     registerTools(agentCtx, this, this.deps.connection, {
       maxImageBytes: this.deps.config.maxImageBytes,
       maxVoiceBytes: this.deps.config.maxVoiceBytes,
       maxFileBytes: this.deps.config.maxFileBytes,
+    }, allow)
+    if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote, allow)
+    if (this.deps.stickers !== undefined) registerStickerTools(agentCtx, this, this.deps.stickers, allow)
+  }
+
+  /** 按一个聊天算能力（会话类型 + 管理员私聊 + 当前进程的运行时依赖）。 */
+  private resolveChatCapabilities(chatId: ChatId): ResolveCapabilitiesResult {
+    return resolveCapabilities({
+      config: { capabilitiesDeny: this.deps.config.capabilitiesDeny ?? [] },
+      deps: this.availableCapabilityDeps(),
+      chat: { kind: splitChatId(chatId).kind, adminPrivate: this.isAdminPrivate(chatId) },
     })
-    const writeNote = this.companion.memoryNoteWriter()
-    if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote)
-    if (this.deps.stickers !== undefined) registerStickerTools(agentCtx, this, this.deps.stickers)
+  }
+
+  /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件）。 */
+  private availableCapabilityDeps(): CapabilityDependency[] {
+    const deps: CapabilityDependency[] = []
+    if (this.deps.stickers !== undefined) deps.push('stickerLib')
+    if (this.companion.memoryNoteWriter() !== undefined) deps.push('memoryNote')
+    return deps
+  }
+
+  /**
+   * 能力摘要（/doctor 与设置页概览共用）：按**管理员私聊**视角计算——主人自己
+   * 的私聊已经是权限最高的一类会话，缺什么就是配置层真的关了什么。
+   */
+  capabilitySummary(): CapabilitySummary {
+    return summarizeCapabilities(resolveCapabilities({
+      config: { capabilitiesDeny: this.deps.config.capabilitiesDeny ?? [] },
+      deps: this.availableCapabilityDeps(),
+      chat: { kind: 'private', adminPrivate: true },
+    }))
   }
 
   // ------------------------------------------------------------ typing

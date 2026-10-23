@@ -29,6 +29,7 @@ import { join } from 'node:path'
 import { ACTION_AUDIT_FILE } from './outbound.js'
 import { TRACE_FILE, traceRotatedFile } from './trace.js'
 import type { FailureRefRecord } from './ref.js'
+import { formatCapabilityLine, type CapabilitySummary } from './capabilities.js'
 
 /** How many recent ok:false events the report lists. */
 export const HEALTH_RECENT_FAILURES = 5
@@ -48,6 +49,9 @@ export interface HealthDeps {
   /** /doctor 权限行：管理员私聊与其他会话各自自动切换的宿主权限预设
    * （'' = 宿主默认预设）；absent = 报告省略该行。 */
   permissions?: { admin: string; member: string }
+  /** /doctor 能力行（`capabilitySummary()`，按管理员私聊视角）；
+   *  absent = 报告省略该行。 */
+  capabilities?: () => CapabilitySummary
   /** Write-gate snapshot. */
   /** The already-redacted config snapshot (see redactSnapshot). */
   configSnapshot: Record<string, unknown>
@@ -124,6 +128,14 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
     const admin = deps.permissions.admin !== '' ? deps.permissions.admin : '宿主默认'
     const member = deps.permissions.member !== '' ? deps.permissions.member : '宿主默认（⚠ 未收窄）'
     lines.push('权限：管理员私聊 ' + admin + '，其他会话 ' + member)
+  }
+  // 能力行：哪几项功能被关掉了（关闭项带上中文原因，直接可读）。
+  if (deps.capabilities !== undefined) {
+    try {
+      lines.push(formatCapabilityLine(deps.capabilities()))
+    } catch (error) {
+      lines.push('能力：读取失败（' + (error instanceof Error ? error.message : String(error)) + '）')
+    }
   }
   const files: string[] = []
   for (const [name, rotated] of [[TRACE_FILE, traceRotatedFile]] as const) {

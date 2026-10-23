@@ -65,7 +65,14 @@
         "qq_send_file",
         "qq_send_forward",
         "qq_napcat_api",
-        "qq_group_history"
+        "qq_group_history",
+        "qq_open_message",
+        "qq_memory_note",
+        "qq_sticker_save",
+        "qq_sticker_search",
+        "qq_sticker_send",
+        "qq_sticker_edit",
+        "qq_sticker_delete"
       ],
       "skills": []
     }

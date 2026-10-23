@@ -18,6 +18,7 @@
  *   （记忆文件清单与 /doctor 同源）。
  * @module dsh-qq-companion/status
  */
+import type { CapabilitySummary } from './capabilities.js'
 import { fileSize, memoryFileSpecs } from './companion/doctor.js'
 import type { LivenessSnapshot } from './liveness.js'
 import type { SendCounterSnapshot } from './companion/send-counter.js'
@@ -106,6 +107,9 @@ export interface CompanionStatusPermissions {
   member: string
 }
 
+/** 概览页「功能」卡片：能力开关摘要（与 /doctor 的能力行同源，按管理员私聊视角）。 */
+export type CompanionStatusCapabilities = CapabilitySummary
+
 /** 设置页概览的完整状态快照（纯 JSON）。 */
 export interface CompanionStatusSnapshot {
   connection: CompanionStatusConnection | null
@@ -116,6 +120,8 @@ export interface CompanionStatusSnapshot {
   memory: CompanionStatusMemory[] | null
   scheduled: CompanionStatusScheduled[] | null
   permissions: CompanionStatusPermissions | null
+  /** 能力开关摘要（主插件未提供 = null，概览显示「—」）。 */
+  capabilities: CompanionStatusCapabilities | null
   /** 快照生成时刻（epoch ms）。 */
   generatedAt: number
 }
@@ -158,6 +164,8 @@ export interface CompanionStatusDeps {
   groupMemoryMaxBytes?: number
   /** /doctor 的权限行（'' = 宿主默认）。 */
   permissions?: { admin: string; member: string }
+  /** 能力开关摘要（bridge.capabilitySummary；缺席 = null）。 */
+  capabilities?: () => CompanionStatusCapabilities
   now?: () => number
 }
 
@@ -272,6 +280,22 @@ async function memoryOf(deps: CompanionStatusDeps): Promise<CompanionStatusMemor
   return out
 }
 
+/** 「功能」卡片：能力开关摘要（缺席 = null；只保留纯 JSON 字段）。 */
+function capabilitiesOf(deps: CompanionStatusDeps): CompanionStatusCapabilities | null {
+  if (deps.capabilities === undefined) return null
+  const summary = deps.capabilities()
+  const disabled: CompanionStatusCapabilities['disabled'] = []
+  for (const item of Array.isArray(summary.disabled) ? summary.disabled : []) {
+    if (item == null) continue
+    disabled.push({
+      id: typeof item.id === 'string' ? item.id : '',
+      title: typeof item.title === 'string' ? item.title : '',
+      reason: typeof item.reason === 'string' ? item.reason : '',
+    })
+  }
+  return { enabled: countOf(summary.enabled), total: countOf(summary.total), disabled }
+}
+
 function scheduledOf(deps: CompanionStatusDeps): CompanionStatusScheduled[] | null {
   const states = deps.scheduler === undefined ? [] : deps.scheduler()
   const prompts = deps.scheduledPrompts
@@ -323,6 +347,7 @@ export async function buildCompanionStatusSnapshot(deps: CompanionStatusDeps = {
       if (deps.permissions === undefined) return null
       return { admin: String(deps.permissions.admin ?? ''), member: String(deps.permissions.member ?? '') }
     }),
+    capabilities: readSafely(() => capabilitiesOf(deps)),
     generatedAt: now(),
   }
   try {

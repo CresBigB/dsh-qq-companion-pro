@@ -67,6 +67,9 @@ export interface BridgeConfig {
      * admin's private chat (non-admin private chats and all group chats),
      * e.g. 'read-only' ('' = leave the host default untouched). */
     memberPermission?: string;
+    /** 全局关闭的能力 id（见 src/capabilities.ts；absent = 全部开启）。能力注册表
+     *  据此决定这个聊天注册哪些 qq_* 工具（主人私聊也关）。 */
+    capabilitiesDeny?: readonly string[];
     /** cwd of an admin's private chat ('' = workspacePath). */
     adminWorkspacePath?: string;
     /** hours of silence after which the next message starts a

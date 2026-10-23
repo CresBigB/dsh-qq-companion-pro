@@ -1,3 +1,24 @@
+/**
+ * 设置页概览用的**只读状态快照**（《前端设计规范》§1.2 overview / §4.14）。
+ *
+ * 为什么单独一个模块：设置页的数据接口 `src/settings-remote.ts` 是独立的插件
+ * 条目（`cordis.patch.yml` 的 `onebot-settings-remote` 行），只注入
+ * configEditor / profileContext，拿不到主插件 `apply()` 里的 bridge 运行态。
+ * 主插件在 apply 里把一个只读服务挂到 cordis（服务名 {@link STATUS_SERVICE}），
+ * settings-remote 惰性 `ctx.get()` 取到就调 {@link CompanionStatusSnapshot.snapshot}
+ * ——与 settings-remote 惰性解析 `workspaceRegistry` 同一套可选依赖姿态。
+ *
+ * 纪律：
+ * - 快照是**纯 JSON**，可以直接过 Typert codec / Remote；
+ * - **不含任何密钥**（accessToken 等一律不读）与**聊天正文**（只报会话 id /
+ *   宿主标题 / 大小 / 计数）；
+ * - 任何一部分取数失败只让该字段为 null，整个快照仍然返回——概览页把 null
+ *   渲染成「—」，绝不因为一处读不到就整页报错；
+ * - 字段取数尽量复用 health.ts / companion/doctor.ts 的既有读取函数
+ *   （记忆文件清单与 /doctor 同源）。
+ * @module dsh-qq-companion/status
+ */
+import type { CapabilitySummary } from './capabilities.js';
 import type { LivenessSnapshot } from './liveness.js';
 import type { SendCounterSnapshot } from './companion/send-counter.js';
 /** 主插件挂到 cordis 上的只读状态服务名。 */
@@ -75,6 +96,8 @@ export interface CompanionStatusPermissions {
     admin: string;
     member: string;
 }
+/** 概览页「功能」卡片：能力开关摘要（与 /doctor 的能力行同源，按管理员私聊视角）。 */
+export type CompanionStatusCapabilities = CapabilitySummary;
 /** 设置页概览的完整状态快照（纯 JSON）。 */
 export interface CompanionStatusSnapshot {
     connection: CompanionStatusConnection | null;
@@ -87,6 +110,8 @@ export interface CompanionStatusSnapshot {
     memory: CompanionStatusMemory[] | null;
     scheduled: CompanionStatusScheduled[] | null;
     permissions: CompanionStatusPermissions | null;
+    /** 能力开关摘要（主插件未提供 = null，概览显示「—」）。 */
+    capabilities: CompanionStatusCapabilities | null;
     /** 快照生成时刻（epoch ms）。 */
     generatedAt: number;
 }
@@ -160,6 +185,8 @@ export interface CompanionStatusDeps {
         admin: string;
         member: string;
     };
+    /** 能力开关摘要（bridge.capabilitySummary；缺席 = null）。 */
+    capabilities?: () => CompanionStatusCapabilities;
     now?: () => number;
 }
 /**

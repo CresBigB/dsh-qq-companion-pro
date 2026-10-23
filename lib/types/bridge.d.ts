@@ -1,4 +1,5 @@
 import type { BridgeDeps } from './bridge-types.js';
+import { type CapabilitySummary } from './capabilities.js';
 import type { ChatId } from './chat.js';
 import type { ScheduledPrompt } from './companion/index.js';
 import type { OneBotEvent } from './connection.js';
@@ -312,8 +313,21 @@ export declare class ChatBridge {
      * own scope) instead of the plugin context, so Web/local sessions never see
      * the channel instructions or the media tools — they cannot (and should
      * not) push messages to QQ.
+     *
+     * 工具注册由能力注册表驱动（src/capabilities.ts）：先按配置 / 运行时依赖 /
+     * 会话类型算出这个聊天能有哪些能力，再只注册这些能力对应的工具。工具 execute
+     * 里既有的回合级判定（例如表情包改删的 canEditFiles）保持不变。
      */
     private installChannelScope;
+    /** 按一个聊天算能力（会话类型 + 管理员私聊 + 当前进程的运行时依赖）。 */
+    private resolveChatCapabilities;
+    /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件）。 */
+    private availableCapabilityDeps;
+    /**
+     * 能力摘要（/doctor 与设置页概览共用）：按**管理员私聊**视角计算——主人自己
+     * 的私聊已经是权限最高的一类会话，缺什么就是配置层真的关了什么。
+     */
+    capabilitySummary(): CapabilitySummary;
     /** Start the NapCat typing indicator (private chats only). */
     private startTyping;
     /** Stop the typing indicator. */

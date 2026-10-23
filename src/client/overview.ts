@@ -58,6 +58,20 @@ export interface OverviewScheduledLike {
   nextAt?: unknown
 }
 
+/** 概览页看到的一条被关闭的能力。 */
+export interface OverviewDisabledCapabilityLike {
+  id?: unknown
+  title?: unknown
+  reason?: unknown
+}
+
+/** 概览页看到的「功能」摘要（/doctor 的能力行同源，按管理员私聊视角）。 */
+export interface OverviewCapabilitiesLike {
+  enabled?: unknown
+  total?: unknown
+  disabled?: OverviewDisabledCapabilityLike[] | null
+}
+
 /** 主插件快照的宽松投影（只声明概览真正读的字段）。 */
 export interface OverviewStatusLike {
   connection?: OverviewConnectionLike | null
@@ -68,6 +82,7 @@ export interface OverviewStatusLike {
   memory?: OverviewMemoryLike[] | null
   scheduled?: OverviewScheduledLike[] | null
   permissions?: { admin?: unknown; member?: unknown } | null
+  capabilities?: OverviewCapabilitiesLike | null
   generatedAt?: unknown
 }
 
@@ -335,9 +350,44 @@ function sessionsCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatus
 }
 
 /**
+ * 「功能」卡片（T6 能力开关）：已开 N / 共 M，加列出被关闭的能力（id（中文名）+ 原因）。
+ * 快照里没有 capabilities（主插件未提供 / 取数失败）= 显示「—」，与其余卡片同一纪律。
+ */
+function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatusLike | null): ReactElement {
+  const summary = status == null || status.capabilities == null ? null : status.capabilities
+  const disabled = summary == null || !Array.isArray(summary.disabled) ? [] : summary.disabled
+  const rows: ReactElement[] = []
+  for (const item of disabled) {
+    if (item == null) continue
+    const id = typeof item.id === 'string' && item.id !== '' ? item.id : OVERVIEW_MISSING
+    const title = typeof item.title === 'string' && item.title !== '' ? item.title : ''
+    const reason = typeof item.reason === 'string' && item.reason !== '' ? item.reason : OVERVIEW_MISSING
+    rows.push(h(ReactImpl, 'li', { className: 'qqc-list-row', key: 'capability-' + rows.length, 'data-key': id },
+      h(ReactImpl, 'div', { className: 'qqc-row-meta' },
+        h(ReactImpl, 'span', { className: 'qqc-label', title: id }, title === '' ? id : id + '（' + title + '）'),
+        h(ReactImpl, 'span', { className: 'qqc-list-path', title: reason }, reason)),
+      h(ReactImpl, 'span', { className: 'qqc-unit', key: 'state' }, t('overview.off'))))
+  }
+  const body: unknown[] = summary == null
+    ? [h(ReactImpl, 'div', { className: 'qqc-empty', key: 'missing' }, OVERVIEW_MISSING)]
+    : [
+      h(ReactImpl, 'div', { className: 'qqc-hint', key: 'count', 'data-role': 'overview-capabilities-count' },
+        format(t('overview.capabilitiesCount'), { on: numberText(summary.enabled), total: numberText(summary.total) })
+        + ' · ' + t('overview.capabilitiesHint')),
+      ...(rows.length === 0
+        ? [h(ReactImpl, 'div', { className: 'qqc-empty', key: 'all-on', 'data-role': 'overview-capabilities-all-on' }, t('overview.capabilitiesAllOn'))]
+        : [h(ReactImpl, 'ul', { className: 'qqc-list', key: 'list' }, rows)]),
+    ]
+  return h(ReactImpl, 'section', { className: 'qqc-card', 'data-section': t('overview.capabilities'), 'data-role': 'overview-capabilities', key: 'capabilities-card' },
+    h(ReactImpl, 'div', { className: 'qqc-card-head' },
+      h(ReactImpl, 'h3', { className: 'qqc-card-title' }, t('overview.capabilities'))),
+    ...body)
+}
+
+/**
  * 概览子页的完整内容（作为 `.qqc-main` 的直接子项返回）：
  * 页头（标题 / 副标题 / 右上「刷新」）→ 横幅（不可用 / 取数错误）→ 六格状态
- * →「记忆用量」→「定时任务」→「会话」。
+ * →「记忆用量」→「定时任务」→「会话」→「功能」。
  */
 export function renderOverview(ReactImpl: ReactLike, opts?: RenderOverviewOptions): ReactElement[] {
   const options: RenderOverviewOptions = opts == null ? {} : opts
@@ -393,5 +443,6 @@ export function renderOverview(ReactImpl: ReactLike, opts?: RenderOverviewOption
   nodes.push(memoryCard(ReactImpl, t, status))
   nodes.push(scheduledCard(ReactImpl, t, status))
   nodes.push(sessionsCard(ReactImpl, t, status))
+  nodes.push(capabilitiesCard(ReactImpl, t, status))
   return nodes
 }

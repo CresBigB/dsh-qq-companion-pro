@@ -14,13 +14,14 @@ import type { OneBotConnection } from './connection.js';
  * @param bridge - the chat bridge.
  * @param connection - the OneBot connection.
  * @param limits - media size caps.
+ * @param allow - optional per-tool gate (能力注册表用)：返回 false 的工具不注册。
  * @returns the disposer.
  */
 export declare function registerTools(ctx: Context, bridge: ChatBridge, connection: OneBotConnection, limits: {
     maxImageBytes: number;
     maxVoiceBytes: number;
     maxFileBytes: number;
-}): () => void;
+}, allow?: (toolName: string) => boolean): () => void;
 /** What the model reads from qq_group_history: one line per message
  * ("[HH:MM] 昵称（QQ）：内容"); the count alone left her with nothing. */
 export declare function renderGroupHistory(list: readonly unknown[]): string;
@@ -36,4 +37,4 @@ export declare function registerMemoryNoteTool(ctx: Context, bridge: ChatBridge,
 } | {
     ok: false;
     reason: string;
-}>): () => void;
+}>, allow?: (toolName: string) => boolean): () => void;

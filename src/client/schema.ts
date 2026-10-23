@@ -116,7 +116,7 @@ export function vEnum(values: string[]): Schema<string> {
   }
 }
 
-/** 设置页上页 102 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
+/** 设置页上页 103 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
  *  出现一次，patchSchema 由同一份 shape 逐键派生，两侧键集天然一致）。
  *  类型与宿主 Config 一致；数字区间与宿主 numberRange 一致：port 1–65535，
  *  其余（时长 / 次数 / 字节数 / 像素）≥ 0。 */
@@ -139,6 +139,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   restrictedMemberPrefix: vBoolean(),
   autoAcceptAdminRequests: vBoolean(),
   autoAllowInvitedGroups: vBoolean(),
+  capabilitiesDeny: vArray(vString(0, 64)),
   // persona（7）
   ownerTitle: vString(0, 1024),
   agentPreset: vString(0, 1024),
@@ -235,7 +236,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   sensitivePatterns: vArray(vString(0, 1024)),
 }
 
-/** 102 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
+/** 103 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
 export const configSchema: ObjectSchema = vObject(CONFIG_SHAPE)
 
 /** getSettings / updateSettings 返回值（OnebotSettingsSnapshot）。 */
@@ -256,10 +257,10 @@ export const snapshotSchema: Schema<Record<string, unknown>> = vObject({
     media: vArray(vString(1, 64)),
     diagnostics: vArray(vString(1, 64)),
   }),
-  effect: vEnum(['restart']), // 102 键统一插件级热重启
+  effect: vEnum(['restart']), // 103 键统一插件级热重启
 })
 
-/** updateSettings 入参（任意 102 键子集；未出现的键 = 不修改）。 */
+/** updateSettings 入参（任意 103 键子集；未出现的键 = 不修改）。 */
 export const patchSchema: Schema<Record<string, unknown>> = vObject(
   Object.fromEntries(Object.entries(CONFIG_SHAPE).map(([key, schema]) => [key, vOptional(schema)])),
 )
@@ -326,6 +327,15 @@ export const statusSnapshotSchema: Schema<Record<string, unknown>> = vObject({
   permissions: vOptional(vObject({
     admin: vOptional(vString(0, 256)),
     member: vOptional(vString(0, 256)),
+  })),
+  capabilities: vOptional(vObject({
+    enabled: vOptional(vNumber(0)),
+    total: vOptional(vNumber(0)),
+    disabled: vOptional(vArray(vObject({
+      id: vOptional(vString(0, 256)),
+      title: vOptional(vString(0, 256)),
+      reason: vOptional(vString(0, 1024)),
+    }))),
   })),
   generatedAt: vOptional(vNumber(0)),
 })

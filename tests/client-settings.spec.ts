@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 102 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 103 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -469,10 +469,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(102)
+    expect(ALL_KEYS).toHaveLength(103)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 102 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 103 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -581,8 +581,8 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
     expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
     expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
-    expect(configSchemaKeys).toHaveLength(102)
-    expect(patchSchemaKeys).toHaveLength(102)
+    expect(configSchemaKeys).toHaveLength(103)
+    expect(patchSchemaKeys).toHaveLength(103)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {
@@ -1056,8 +1056,13 @@ describe('搜索与高亮切分纯函数（§5.3）', () => {
 
   it('搜索「表情」命中表情包卡片 4 键并带卡片名维度；空查询返回空结果', () => {
     const matches = searchFields('表情')
-    expect(matches.map(match => match.field.key)).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
-    expect(matches[1].hits).toContain('section')
+    // 媒体子页的表情包库 4 键（顺序即键序）。
+    expect(matches.filter(match => match.groupId === 'media').map(match => match.field.key))
+      .toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
+    // T6 的能力开关（access 子页）hint 里也写着表情包能力 id，所以它同样是命中项。
+    expect(matches.filter(match => match.groupId === 'access').map(match => match.field.key)).toEqual(['capabilitiesDeny'])
+    const stickerDir = matches.find(match => match.field.key === 'stickerDir')!
+    expect(stickerDir.hits).toContain('section')
     expect(searchFields('')).toEqual([])
     expect(searchFields('   ')).toEqual([])
     expect(searchFields('没有这个设置项')).toEqual([])
@@ -1312,13 +1317,14 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const view = SettingsView(viewProps({ query: '表情', onPageChange: (next: string) => { changes.push(next) } }))
     expect(textOf(byClass(view, 'qqc-page-title')[0])).toBe('搜索结果')
     const resultGroups = byClass(view, 'qqc-result-group')
-    expect(resultGroups).toHaveLength(1)
-    expect(resultGroups[0].props['data-group']).toBe('media')
-    expect(byClass(resultGroups[0], 'qqc-row')).toHaveLength(4)
-    const marks = byClass(resultGroups[0], 'qqc-mark')
+    // T6：「功能开关」的 hint 里也列着表情包能力 id，所以命中两个子页（access + media）。
+    expect(resultGroups.map(group => group.props['data-group'])).toEqual(['access', 'media'])
+    const mediaGroup = resultGroups[1]
+    expect(byClass(mediaGroup, 'qqc-row')).toHaveLength(4)
+    const marks = byClass(mediaGroup, 'qqc-mark')
     expect(marks.length).toBeGreaterThan(0)
     expect(marks.every(mark => textOf(mark) === '表情')).toBe(true)
-    const link = byClass(resultGroups[0], 'qqc-link')[0]
+    const link = byClass(mediaGroup, 'qqc-link')[0]
     expect(textOf(link)).toBe('媒体与语音')
     link.props.onClick()
     expect(changes).toEqual(['media'])
@@ -1455,7 +1461,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（102 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（103 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

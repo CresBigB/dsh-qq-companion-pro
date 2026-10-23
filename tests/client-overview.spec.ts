@@ -111,6 +111,7 @@ function demoStatus(overrides: Record<string, unknown> = {}): Record<string, unk
     memory: [{ label: '公开', path: 'E:\\To DeepSeek\\AGENTS.md', bytes: 5000, maxBytes: 6144 }],
     scheduled: [{ id: 'diary', time: '23:00', chatId: 'private:2824149798', doneToday: false, nextAt: '23:00' }],
     permissions: { admin: 'danger-full-access', member: 'read-only' },
+    capabilities: { enabled: 11, total: 11, disabled: [] },
     generatedAt: 1_700_000_000_000,
   }, overrides)
 }
@@ -322,6 +323,41 @@ describe('概览子页 — 记忆用量 / 定时任务 / 会话卡片（§4.14�
       status: demoStatus({ sessions: { private: 1, group: 0, list: [{ chatId: 'private:1', sessionId: 's', workspaceAttached: null }] } }),
     }))
     expect(textOf(byClass(byRole(unknown, 'overview-sessions')[0], 'qqc-list-row')[0])).toContain('—')
+  })
+
+  it('功能卡片（T6 能力开关）：已开 N / 共 M；关闭项逐行给出 id（中文名）与原因；全开给空态', () => {
+    const allOn = renderOverview(stubReact, overviewProps())
+    const card = byRole(allOn, 'overview-capabilities')[0]
+    expect(textOf(card)).toContain('已开 11 / 共 11')
+    expect(textOf(byRole(card, 'overview-capabilities-all-on')[0])).toBe('全部开启')
+
+    const someOff = renderOverview(stubReact, overviewProps({
+      status: demoStatus({
+        capabilities: {
+          enabled: 9,
+          total: 11,
+          disabled: [
+            { id: 'qq.send.image', title: '发图片', reason: '已在 capabilitiesDeny 里关闭' },
+            { id: 'qq.sticker.use', title: '表情包（存 / 搜 / 发）', reason: '表情包库未开启（stickerDir 为空）' },
+          ],
+        },
+      }),
+    }))
+    const offCard = byRole(someOff, 'overview-capabilities')[0]
+    expect(textOf(offCard)).toContain('已开 9 / 共 11')
+    const rows = byClass(offCard, 'qqc-list-row')
+    expect(rows).toHaveLength(2)
+    expect(textOf(rows[0])).toContain('qq.send.image（发图片）')
+    expect(textOf(rows[0])).toContain('已在 capabilitiesDeny 里关闭')
+    expect(textOf(rows[1])).toContain('表情包库未开启')
+    // 每一行都标「未开启」，与其余卡片的用词一致。
+    expect(textOf(rows[0])).toContain('未开启')
+  })
+
+  it('功能卡片：快照里没有 capabilities 时显示「—」（不整页报错）', () => {
+    const missing = renderOverview(stubReact, overviewProps({ status: demoStatus({ capabilities: undefined }) }))
+    const card = byRole(missing, 'overview-capabilities')[0]
+    expect(textOf(byClass(card, 'qqc-empty')[0])).toBe('—')
   })
 })
 

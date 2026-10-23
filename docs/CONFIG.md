@@ -63,6 +63,7 @@
 | `adminPreset` | string | `""` | 管理员私聊默认使用的 agent preset（留空=同 agentPreset；/preset 覆盖优先） |
 | `adminPermission` | string | `""` | 管理员私聊每个新会话自动切换的宿主权限预设，如 danger-full-access（留空=宿主默认） |
 | `memberPermission` | string | `""` | 非管理员的私聊与所有群聊，每个新会话自动切换的宿主权限预设，建议 read-only（留空=宿主默认预设；如果宿主默认是完整权限，群友和陆生人也会拿到完整权限）。群聊里管理员发言也使用该群会话的权限（一个群只有一个会话） |
+| `capabilitiesDeny` | string[] | `[]` | 全局关闭的能力 id 列表（主人私聊也关；留空 = 全部开启）。每项是一个能力，对应一组模型工具：可用能力 id：qq.send.image（发图片）、qq.send.voice（发语音）、qq.send.video（发视频）、qq.send.file（发文件）、qq.send.forward（合并转发）、qq.napcat.api（NapCat 接口）、qq.group.history（群历史消息）、qq.message.open（打开消息）、qq.memory.note（群记忆笔记）、qq.sticker.use（表情包（存 / 搜 / 发））、qq.sticker.manage（表情包整理（改 / 删）） |
 | `adminWorkspacePath` | string | `""` | 管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。管理员私聊设置后覆盖 workspacePath（这类会话用本目录）；群聊用 workspacePath，读不到这里的 AGENTS.md |
 | `idleResetHours` | number | `0` | 超过这么多小时没说话，下一条消息开新会话，并附上最后几句作交接（0=关闭） |
 | `sessionTitleTemplate` | string | `"{kind} {target} · {date}"` | 新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 2824149798 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名 |

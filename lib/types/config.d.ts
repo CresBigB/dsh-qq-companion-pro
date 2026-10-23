@@ -71,6 +71,8 @@ export interface Config {
     adminPermission: string;
     /** 非管理员私聊与所有群聊的新会话自动切换的宿主权限预设（空 = 不动）。 */
     memberPermission: string;
+    /** 全局关闭的能力 id（见 src/capabilities.ts；主人私聊也关）。 */
+    capabilitiesDeny: string[];
     adminWorkspacePath: string;
     idleResetHours: number;
     /** Automatic session-title template for new (and untitled resumed) QQ

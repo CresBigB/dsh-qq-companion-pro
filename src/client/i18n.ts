@@ -128,6 +128,10 @@ export const zh: Record<string, string> = {
   'overview.noMemory': '还没有记忆文件',
   'overview.noScheduled': '没有定时任务',
   'overview.noSessions': '还没有会话',
+  'overview.capabilities': '功能',
+  'overview.capabilitiesCount': '已开 {on} / 共 {total}',
+  'overview.capabilitiesAllOn': '全部开启',
+  'overview.capabilitiesHint': '在「谁能找她 · 功能开关」里填能力 id 可以关闭',
 }
 
 /** 英文词条（逐 key 对齐 zh）。 */
@@ -245,6 +249,10 @@ export const en: Record<string, string> = {
   'overview.noMemory': 'No memory file yet',
   'overview.noScheduled': 'No scheduled task',
   'overview.noSessions': 'No chat yet',
+  'overview.capabilities': 'Features',
+  'overview.capabilitiesCount': '{on} of {total} on',
+  'overview.capabilitiesAllOn': 'All on',
+  'overview.capabilitiesHint': 'Turn a feature off by adding its id under Access → Feature switches',
 }
 
 /** 双语 key 集一致性自检：缺漏仅告警不致崩溃。 */

@@ -8,6 +8,8 @@
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 
+import { capabilityCatalogText, unknownCapabilityIds } from './capabilities.js'
+
 export interface SelfCheckInput {
   host: string
   accessToken: string
@@ -36,6 +38,8 @@ export interface SelfCheckInput {
   humanTypingPace?: boolean
   typingDelayMinMs?: number
   typingDelayMaxMs?: number
+  /** 全局关闭的能力 id（未知 id 在这里告警：写错了不会关掉任何东西）。 */
+  capabilitiesDeny?: readonly string[]
 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -85,5 +89,9 @@ export function selfCheck(c: SelfCheckInput): string[] {
   }
   if (c.humanTypingPace === true && (c.typingDelayMinMs ?? 0) > (c.typingDelayMaxMs ?? 0)) problems.push('按真人打字速度已开启，但 typingDelayMinMs 大于 typingDelayMaxMs：每条消息都会按最长时间等')
   if (c.splitLines && c.splitMaxMessages <= 1) problems.push('splitLines 已开启但 splitMaxMessages ≤ 1：实际不会拆分')
+  // 能力开关写错 id 时不会关掉任何功能（静默无效），启动时点出来。
+  for (const id of unknownCapabilityIds(c.capabilitiesDeny)) {
+    problems.push('capabilitiesDeny 里的「' + id + '」不是已知能力 id，不会关掉任何功能（' + capabilityCatalogText() + '）')
+  }
   return problems
 }

@@ -84,6 +84,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'adminUsers', 'dmPolicy', 'allowFrom', 'allowAllUsers',
     'groupPolicy', 'groupAllowFrom', 'requireMention', 'restrictedMemberPrefix',
     'autoAcceptAdminRequests', 'autoAllowInvitedGroups',
+    'capabilitiesDeny',
   ],
   persona: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'memberPermission', 'adminWorkspacePath', 'groupReasoningEffort'],
   messaging: [

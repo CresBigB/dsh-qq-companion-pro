@@ -1,4 +1,5 @@
 import type { FailureRefRecord } from './ref.js';
+import { type CapabilitySummary } from './capabilities.js';
 /** How many recent ok:false events the report lists. */
 export declare const HEALTH_RECENT_FAILURES = 5;
 export interface HealthDeps {
@@ -30,6 +31,9 @@ export interface HealthDeps {
         admin: string;
         member: string;
     };
+    /** /doctor 能力行（`capabilitySummary()`，按管理员私聊视角）；
+     *  absent = 报告省略该行。 */
+    capabilities?: () => CapabilitySummary;
     /** Write-gate snapshot. */
     /** The already-redacted config snapshot (see redactSnapshot). */
     configSnapshot: Record<string, unknown>;

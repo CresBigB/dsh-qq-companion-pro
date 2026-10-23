@@ -10,7 +10,7 @@
  *   dependsOnText 是 §3 表格的静态投影；函数型元数据 dependsOn（F2a）与
  *   danger（F2b，§5.5 危险判定）直接写在字段上，由 validate.ts 的
  *   collectRisks 统一按「草稿 ≠ 生效值」把关；
- * - DEFAULTS 全量覆盖上页的 102 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
+ * - DEFAULTS 全量覆盖上页的 103 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
  * - 不上页的 5 个键（imageMaxSize / maxImageBytes / maxInboundFileBytes /
  *   scheduledPrompts / sttReplacements）见宿主的 EXCLUDED_KEYS。
  */
@@ -113,7 +113,7 @@ export function draftText(draft: Record<string, unknown> | null | undefined, key
   return raw === undefined || raw === null ? '' : String(raw)
 }
 
-/** 10 组 102 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
+/** 10 组 103 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
 export const GROUPS: GroupMeta[] = [
   {
     id: 'connection',
@@ -147,6 +147,7 @@ export const GROUPS: GroupMeta[] = [
       { key: 'restrictedMemberPrefix', label: '群友消息加"受限用户"标记', type: 'boolean', hint: '群里非管理员的消息前加 [受限用户:仅问答]，提示她只回答问题、不做文件和终端操作。关掉后提示词里群友和主人没有区别。', section: '群聊', danger: next => (next === false ? 'risk.restrictedPrefixOff' : null) },
       { key: 'autoAcceptAdminRequests', label: '自动同意管理员的好友/拉群请求', type: 'boolean', hint: '别人的请求不同意，会私聊告诉管理员。', section: '自动处理请求' },
       { key: 'autoAllowInvitedGroups', label: '管理员拉进的群自动加白名单', type: 'boolean', hint: '管理员把机器人拉进的群自动加入群白名单，保存在 mediaDir/group-allowlist.json。', section: '自动处理请求' },
+      { key: 'capabilitiesDeny', label: '关闭的功能', type: 'stringArray', hint: '每行一个能力 id，关掉的功能在主人私聊里也不再提供（对应工具不注册给模型）。可填：qq.send.image（发图片）、qq.send.voice（发语音）、qq.send.video（发视频）、qq.send.file（发文件）、qq.send.forward（合并转发）、qq.napcat.api（NapCat 接口）、qq.group.history（群历史消息）、qq.message.open（打开消息）、qq.memory.note（群记忆笔记）、qq.sticker.use（表情包存/搜/发）、qq.sticker.manage（表情包改/删）；留空 = 全部开启。', section: '功能开关' },
     ],
   },
   {
@@ -294,7 +295,7 @@ export const GROUPS: GroupMeta[] = [
   },
 ]
 
-/** 全部 102 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
+/** 全部 103 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
 export const ALL_FIELDS: FieldMeta[] = []
 for (const group of GROUPS) {
   for (const field of group.fields) ALL_FIELDS.push(field)
@@ -319,6 +320,7 @@ export const DEFAULTS: Record<string, unknown> = {
   restrictedMemberPrefix: true,
   autoAcceptAdminRequests: false,
   autoAllowInvitedGroups: false,
+  capabilitiesDeny: [],
   ownerTitle: '管理员',
   agentPreset: '',
   adminPreset: '',

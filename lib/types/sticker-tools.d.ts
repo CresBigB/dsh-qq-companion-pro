@@ -26,4 +26,4 @@ export interface StickerToolHost {
         replyTo?: string;
     }): Promise<string | undefined>;
 }
-export declare function registerStickerTools(ctx: Context, host: StickerToolHost, library: StickerLibrary): () => void;
+export declare function registerStickerTools(ctx: Context, host: StickerToolHost, library: StickerLibrary, allow?: (toolName: string) => boolean): () => void;

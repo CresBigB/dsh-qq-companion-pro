@@ -457,6 +457,8 @@ export function apply(ctx: Context, config: Config): void {
       groupMemoryDir: config.groupMemoryDir,
       groupMemoryMaxBytes: config.groupMemoryMaxBytes,
       permissions: { admin: config.adminPermission ?? '', member: config.memberPermission ?? '' },
+      // 能力开关摘要（与 /doctor 的能力行同源，按管理员私聊视角）。
+      capabilities: () => bridge.capabilitySummary(),
     }),
   })
 

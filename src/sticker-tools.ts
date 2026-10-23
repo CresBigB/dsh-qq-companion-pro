@@ -44,9 +44,22 @@ function callerChat(host: StickerToolHost, exec: ToolRunContext): { sessionId: s
   return { sessionId: String(sessionId), chatId }
 }
 
-export function registerStickerTools(ctx: Context, host: StickerToolHost, library: StickerLibrary): () => void {
+export function registerStickerTools(
+  ctx: Context,
+  host: StickerToolHost,
+  library: StickerLibrary,
+  allow?: (toolName: string) => boolean,
+): () => void {
+  /** 注册一个工具；能力层关掉的工具不注册（disposer 退化为空操作，签名不变）。 */
+  const registerIfAllowed = (tool: Parameters<typeof ctx.tools.register>[0]): (() => void) => {
+    if (allow !== undefined) {
+      const name = (tool as { name?: unknown }).name
+      if (typeof name !== 'string' || !allow(name)) return () => undefined
+    }
+    return ctx.tools.register(tool)
+  }
   const disposers = [
-    ctx.tools.register(defineTool({
+    registerIfAllowed(defineTool({
       name: 'qq_sticker_save',
       description: '把聊天里收到的一张表情包或图片存进你的表情包库，以后可以用 qq_sticker_send 发。path 用消息里 [表情包:路径] 或 [图片:路径] 的路径；必须给 1～8 个标签（情绪、动作、场合，例如：摸头、安慰、可爱），再用一句话描述画面。同一张图存过会只合并标签。',
       parameters: {
@@ -70,7 +83,7 @@ export function registerStickerTools(ctx: Context, host: StickerToolHost, librar
       },
     })),
 
-    ctx.tools.register(defineTool({
+    registerIfAllowed(defineTool({
       name: 'qq_sticker_search',
       description: '在你的表情包库里按情绪、动作或场合找表情包（多个关键词用空格隔开），最多返回 5 张，被发过次数少的排前面。不知道搜什么、想先看看库里有什么，就留空 query（返回常用的和最近新存的）。today=true 时改为列出今天新存的（夜里整理用）。',
       parameters: {
@@ -89,7 +102,7 @@ export function registerStickerTools(ctx: Context, host: StickerToolHost, librar
       },
     })),
 
-    ctx.tools.register(defineTool({
+    registerIfAllowed(defineTool({
       name: 'qq_sticker_send',
       description: '发一张表情包库里的表情包到当前会话（id 来自 qq_sticker_search）。每次回复最多发 1 张。',
       parameters: {
@@ -123,7 +136,7 @@ export function registerStickerTools(ctx: Context, host: StickerToolHost, librar
       },
     })),
 
-    ctx.tools.register(defineTool({
+    registerIfAllowed(defineTool({
       name: 'qq_sticker_edit',
       description: '修改一张表情包的标签或描述。只有主人本人发起的这一轮（或夜里的定时整理）能用。',
       parameters: {
@@ -149,7 +162,7 @@ export function registerStickerTools(ctx: Context, host: StickerToolHost, librar
       },
     })),
 
-    ctx.tools.register(defineTool({
+    registerIfAllowed(defineTool({
       name: 'qq_sticker_delete',
       description: '从表情包库里删掉一张表情包（重复的、不合适的、很久不用的）。只有主人本人发起的这一轮（或夜里的定时整理）能用。',
       parameters: {
