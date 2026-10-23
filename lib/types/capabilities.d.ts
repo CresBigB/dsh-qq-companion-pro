@@ -18,20 +18,24 @@
  * - 本模块是纯函数 + 常量：除了同层的纯函数模块 src/relation.ts（关系名 / 顺序 /
  *   Relation 类型，纯到没有一行 I/O）不 import 任何运行时模块——config.ts /
  *   health.ts / status.ts / bridge.ts / 设置页前端都能安全引用，不会成环；
- * - 默认位（`memberDefault` / `groupDefault`）当前**全部为 true**：改造前的行为
- *   就是「每个聊天都注册全部工具」，本任务要求零行为变化，所以矩阵测试
+ * - 默认位（`memberDefault` / `groupDefault`）：改造前的 11 项能力**全部为 true**
+ *   ——改造前的行为就是「每个聊天都注册全部工具」，T6 要求零行为变化，所以矩阵测试
  *   （tests/capabilities.spec.ts）把「deny 与 grant 都为空时每种会话组合注册到的
- *   工具集合」与改造前的集合逐字对齐。grant 只能把默认关闭的能力**加开**，
- *   改不了默认位。
- * - 推论（T11 r1 的存在理由）：默认位既然全开，**grant 在当前默认下是空转的**
- *   （写了也不会改变任何东西）；用户「某一档人不许用某项功能」的需求只能靠三个
- *   deny 表达——deny 是「减」，与默认位无关，永远生效。grant 继续留着，是为了
- *   以后把某些能力的默认位改成 false 时不必重做这一层。
+ *   工具集合」与改造前的集合逐字对齐（新增的三个隐私能力按下面的例外处理）。
+ *   grant 只能把默认关闭的能力**加开**，改不了默认位。
+ * - **例外（T12）**：`qq.list.groups` / `qq.list.friends` / `qq.history.private`
+ *   三个隐私能力的两个默认位**都是 false**——群列表、好友列表、私聊历史是主人账号
+ *   的社交关系与私聊记录，群友一句「列一下你的好友」就能把它们发到群里。默认只给
+ *   主人私聊（owner 档不看默认位，恒开），需要时由主人在 `memberGrant` /
+ *   `friendGrant` / `strangerGrant` 里显式授权。
+ * - 推论（T11 r1 的存在理由）：对默认位为 true 的能力，**grant 是空转的**（写了也
+ *   不会改变任何东西），所以「某一档人不许用某项功能」只能靠三个 deny 表达——deny
+ *   是「减」，与默认位无关，永远生效。对 T12 的三个隐私能力，grant 才是唯一入口。
  * @module dsh-qq-companion/capabilities
  */
 import type { Relation } from './relation.js';
 /** 一个能力 id（也是 `capabilitiesDeny` 里能填的值）。 */
-export type CapabilityId = 'qq.send.image' | 'qq.send.voice' | 'qq.send.video' | 'qq.send.file' | 'qq.send.forward' | 'qq.napcat.api' | 'qq.group.history' | 'qq.message.open' | 'qq.memory.note' | 'qq.sticker.use' | 'qq.sticker.manage';
+export type CapabilityId = 'qq.send.image' | 'qq.send.voice' | 'qq.send.video' | 'qq.send.file' | 'qq.send.forward' | 'qq.napcat.api' | 'qq.group.history' | 'qq.message.open' | 'qq.memory.note' | 'qq.sticker.use' | 'qq.sticker.manage' | 'qq.list.groups' | 'qq.list.friends' | 'qq.history.private';
 /** 能力的运行时依赖键：对应能力只有在依赖具备时才可能开启。 */
 export type CapabilityDependency = 'stickerLib' | 'memoryNote';
 /** 一条能力定义。 */
@@ -54,7 +58,8 @@ export interface CapabilityDef {
 /**
  * 全部能力（顺序即工具清单顺序）。
  *
- * 默认位全为 true 的理由见文件头：这是改造前「一律注册」的等价表达。
+ * 默认位的来历见文件头：改造前的 11 项全为 true（零行为变化的等价表达），
+ * T12 新增的三个隐私能力（群列表 / 好友列表 / 私聊历史）两个默认位都是 false。
  */
 export declare const CAPABILITIES: readonly CapabilityDef[];
 /** 全部能力 id（顺序同注册表）。 */

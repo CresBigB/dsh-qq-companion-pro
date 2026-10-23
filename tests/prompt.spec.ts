@@ -178,7 +178,7 @@ async function scopeOf(
 }
 
 describe('bridge 集成 — 实际注册的工具 ≡ 平台段里提到的工具（核心不变量）', () => {
-  it('依赖全开的管理员私聊：14 个工具全部既注册、也在提示词里', async () => {
+  it('依赖全开的管理员私聊：全部工具（18 个）既注册、也在提示词里', async () => {
     const { platform, tools } = await scopeOf(allDepsConfig(), 'admin')
     expect(tools).toEqual([...allToolNames()].sort())
     expect(mentionedTools(platform)).toEqual(tools)

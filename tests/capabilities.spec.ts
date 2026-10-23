@@ -3,14 +3,14 @@
  * 以及 T11 · 按关系授权（grant）的判定顺序与矩阵。
  *
  *   ① 注册表结构自洽：每个工具恰好属于一个能力、id 唯一、中文名/说明齐全、
- *      默认位现状全开；
+ *      默认位（改造前的 11 项全开；T12 的三个隐私能力全关）；
  *   ② 两份手写工具清单（package.json dshx.contributes.tools / dsh.plugin.json
  *      contributes.tools）≡ 注册表，且注册表 ≡「依赖全开的管理员私聊」里实际
  *      注册到的工具集合（以后加工具忘了登记会被拦住）；
  *   ③ resolveCapabilities 的判定顺序与 why() 中文文案；
  *   ④ 矩阵：`capabilitiesDeny` 与三个 grant 都为空时三种会话 × 表情包库开/关 ×
  *      记忆文件开/关，注册到的工具集合与**改造前**逐字一致（见 PRE_CHANGE_TOOLS
- *      的注释）；四个关系 × 11 个能力的开启矩阵；
+ *      与 expectedTools 的注释）；四个关系 × 全部能力的开启矩阵；
  *   ⑤ deny 生效、T11 的三个 grant 各自只影响自己的档（deny / 依赖都比 grant 硬）、
  *      T11 r1 的三个按关系 deny（friendDeny / memberDeny / strangerDeny）各自只关
  *      自己那一档、deny 优先于 grant、群聊里主人也走群友档、老 adminPrivate 入参的
@@ -71,7 +71,7 @@ describe('能力注册表 — 结构自洽', () => {
     expect(capabilityOfTool('not_a_tool')).toBeUndefined()
   })
 
-  it('覆盖现在的全部模型工具（14 个）', () => {
+  it('覆盖现在的全部模型工具（18 个）', () => {
     expect(REGISTRY_TOOLS).toEqual([
       'qq_send_image',
       'qq_send_voice',
@@ -87,6 +87,10 @@ describe('能力注册表 — 结构自洽', () => {
       'qq_sticker_send',
       'qq_sticker_edit',
       'qq_sticker_delete',
+      'qq_list_groups',
+      'qq_group_info',
+      'qq_list_friends',
+      'qq_private_history',
     ])
     expect(new Set(REGISTRY_TOOLS).size).toBe(REGISTRY_TOOLS.length)
   })
@@ -103,11 +107,16 @@ describe('能力注册表 — 结构自洽', () => {
     }
   })
 
-  it('默认位现状全部为 true（改造前就是「每个聊天都注册全部工具」）', () => {
+  it('默认位：改造前的 11 项全为 true；T12 的三个隐私能力全为 false', () => {
+    /** 默认关闭的能力（T12：群列表 / 好友列表 / 私聊历史都是账号隐私）。 */
+    const OFF_BY_DEFAULT = ['qq.list.groups', 'qq.list.friends', 'qq.history.private']
     for (const capability of CAPABILITIES) {
-      expect(capability.memberDefault, capability.id).toBe(true)
-      expect(capability.groupDefault, capability.id).toBe(true)
+      const off = OFF_BY_DEFAULT.includes(capability.id)
+      expect(capability.memberDefault, capability.id).toBe(!off)
+      expect(capability.groupDefault, capability.id).toBe(!off)
     }
+    // 改造前有过的那 11 项一个都没被改成默认关。
+    expect(CAPABILITIES.filter(capability => !OFF_BY_DEFAULT.includes(capability.id))).toHaveLength(11)
   })
 
   it('配置项 capabilitiesDeny 的描述覆盖注册表里的每个 id 与中文名（改注册表忘改描述会失败）', () => {
@@ -203,6 +212,32 @@ async function waitForTools(h: Awaited<ReturnType<typeof makeCmdHarness>>): Prom
   expect(h.captured.channelTools.length).toBeGreaterThan(0)
 }
 
+/** T12 新增的四个隐私工具（默认只在管理员私聊注册）。 */
+const PRIVACY_TOOLS = ['qq_list_groups', 'qq_group_info', 'qq_list_friends', 'qq_private_history']
+
+/**
+ * 一个矩阵组合今天该注册到的工具集合 = **改造前集合 + T12 的增量**。
+ *
+ * 增量只有一条：管理员私聊默认位恒开，所以会多出四个隐私工具；群聊与非管理员
+ * 私聊的默认位是 false，集合与改造前**逐字一致**——这条断言本身就是「老工具零
+ * 行为变化」的证据（预期串是改造前原文拼出来的，不是我重抄的）。
+ */
+function expectedTools(key: string): string {
+  const legacy = PRE_CHANGE_TOOLS[key]
+  if (!key.startsWith('admin-private|')) return legacy
+  return [...legacy.split(' '), ...PRIVACY_TOOLS].sort().join(' ')
+}
+
+/**
+ * 空配置下每个关系能开几项能力：主人恒开；群聊看 `groupDefault`；
+ * 其余私聊看 `memberDefault`（T12 起三种关系不再是同一个数）。
+ */
+function defaultOpenCount(relation: 'owner' | 'friend' | 'groupMember' | 'stranger'): number {
+  if (relation === 'owner') return CAPABILITIES.length
+  const field = relation === 'groupMember' ? 'groupDefault' : 'memberDefault'
+  return CAPABILITIES.filter(capability => capability[field]).length
+}
+
 type ChatKind = 'admin-private' | 'member-private' | 'group'
 
 /** 跑一个组合：建 harness → 用对应身份发一句话 → 读出实际注册的工具（已排序）。 */
@@ -248,7 +283,7 @@ describe('矩阵 — deny 与三个 grant 都为空时与改造前完全一致�
         const key = chat + '|sticker=' + (stickers ? 'on' : 'off') + '|memory=' + (memory ? 'on' : 'off')
         it(key + ' 注册到的工具集合 = 改造前', async () => {
           const actual = await toolsOf(chat, { stickers, memory })
-          expect(actual.join(' ')).toBe(PRE_CHANGE_TOOLS[key])
+          expect(actual.join(' ')).toBe(expectedTools(key))
         })
       }
     }
@@ -288,7 +323,7 @@ describe('deny 生效 — 关掉的能力连主人私聊也不再注册工具', 
 
   it('未知 id 不会关掉任何功能（启动自检另有告警）', async () => {
     const actual = await toolsOf('admin-private', { stickers: false, memory: false, deny: ['qq.nope'] })
-    expect(actual.join(' ')).toBe(PRE_CHANGE_TOOLS['admin-private|sticker=off|memory=off'])
+    expect(actual.join(' ')).toBe(expectedTools('admin-private|sticker=off|memory=off'))
   })
 })
 
@@ -370,7 +405,7 @@ describe('T11 r1 · 按关系 deny — 只关自己那一档（默认位全开�
     )
     const owner = await toolsOf('admin-private', { stickers: false, memory: false, memberDeny: ['qq.napcat.api'] })
     expect(owner).toContain('qq_napcat_api')
-    expect(owner.join(' ')).toBe(PRE_CHANGE_TOOLS['admin-private|sticker=off|memory=off'])
+    expect(owner.join(' ')).toBe(expectedTools('admin-private|sticker=off|memory=off'))
   })
 
   it('memberDeny 只影响群聊：好友私聊、陌生人私聊都不受影响', async () => {
@@ -667,11 +702,14 @@ describe('resolveCapabilities — 判定顺序与 why 文案', () => {
 
   it('群聊 / 非管理员私聊按各自的默认位判定（why 文案区分会话类型）', () => {
     const group = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf('groupMember') })
-    expect(group.enabled.size).toBe(CAPABILITIES.length)
+    expect(group.enabled.size).toBe(defaultOpenCount('groupMember'))
     expect(group.why('qq.send.image')).toBe('群聊默认开启')
     const member = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf('stranger') })
-    expect(member.enabled.size).toBe(CAPABILITIES.length)
+    expect(member.enabled.size).toBe(defaultOpenCount('stranger'))
     expect(member.why('qq.send.image')).toBe('非管理员私聊默认开启')
+    // T12 的三个隐私能力在群聊 / 非管理员私聊里默认关。
+    expect(group.why('qq.list.groups')).toBe('群聊默认关闭')
+    expect(member.why('qq.list.friends')).toBe('非管理员私聊默认关闭')
   })
 
   it('未知 id 的 why 是可读的兜底文案；配置文件里也只看已知 id', () => {
@@ -702,23 +740,41 @@ describe('兼容 — 老调用点只给 adminPrivate 时行为不变', () => {
   })
 })
 
-describe('四个关系 × 11 个能力：空 grant 时的实际开启矩阵', () => {
-  /** 依赖全开时空 grant 的期望集合 = 注册表全部（默认位现状全开）。 */
-  const expectedAll = [...ALL_CAPABILITY_IDS].sort().join(' ')
+describe('四个关系 × 全部能力：空 grant 时的实际开启矩阵', () => {
+  /** 依赖全开时空配置的期望集合 = 该关系的默认位（主人全开；群友 / 好友 / 陌生人少三个隐私能力）。 */
+  const expectedOf = (relation: 'owner' | 'friend' | 'groupMember' | 'stranger'): string =>
+    CAPABILITIES
+      .filter(capability => relation === 'owner'
+        || (relation === 'groupMember' ? capability.groupDefault : capability.memberDefault))
+      .map(capability => capability.id)
+      .sort()
+      .join(' ')
 
   for (const relation of RELATIONS) {
-    it(RELATION_NAMES[relation] + ' 档：空 grant + 依赖全开 → 开满 ' + CAPABILITIES.length + ' 项', () => {
+    it(RELATION_NAMES[relation] + ' 档：空 grant + 依赖全开 → 开满默认位 ' + defaultOpenCount(relation) + ' 项', () => {
       const resolved = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf(relation) })
-      expect([...resolved.enabled].sort().join(' ')).toBe(expectedAll)
+      expect([...resolved.enabled].sort().join(' ')).toBe(expectedOf(relation))
     })
   }
 
-  it('依赖全缺时四个关系都少同样的 3 项（表情包 2 + 记忆 1）', () => {
-    const expected = [...ALL_CAPABILITY_IDS].filter(id =>
-      findCapability(id)?.deps === undefined).sort().join(' ')
+  it('主人私聊开满全部能力；群友 / 好友 / 陌生人各少三个隐私能力（T12 的默认关）', () => {
+    const owner = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf('owner') })
+    expect(owner.enabled.size).toBe(CAPABILITIES.length)
+    for (const relation of ['friend', 'groupMember', 'stranger'] as const) {
+      const resolved = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf(relation) })
+      expect(resolved.enabled.size, RELATION_NAMES[relation]).toBe(CAPABILITIES.length - 3)
+      for (const id of ['qq.list.groups', 'qq.list.friends', 'qq.history.private'] as const) {
+        expect(resolved.enabled.has(id), RELATION_NAMES[relation] + ' 不该开 ' + id).toBe(false)
+      }
+    }
+  })
+
+  it('依赖全缺时每个关系都少同样的 3 项（表情包 2 + 记忆 1），默认位不受依赖影响', () => {
     for (const relation of RELATIONS) {
-      const resolved = resolveCapabilities({ config: {}, deps: [], chat: chatViewOf(relation) })
-      expect([...resolved.enabled].sort().join(' '), RELATION_NAMES[relation]).toBe(expected)
+      const withDeps = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf(relation) })
+      const without = resolveCapabilities({ config: {}, deps: [], chat: chatViewOf(relation) })
+      const lost = [...withDeps.enabled].filter(id => !without.enabled.has(id)).sort()
+      expect(lost, RELATION_NAMES[relation]).toEqual(['qq.memory.note', 'qq.sticker.manage', 'qq.sticker.use'])
     }
   })
 
@@ -823,25 +879,32 @@ describe('未知能力 id 在启动自检里告警', () => {
 describe('/doctor 与状态快照', () => {
   it('summarizeCapabilities / formatCapabilityLine：四个关系各自的已开数 + 关闭项原因', () => {
     const all = summarizeCapabilities({ config: {}, deps: ALL_DEPS })
+    // 摘要的 enabled / disabled 取**主人私聊视角**：全开。
     expect(all.enabled).toBe(CAPABILITIES.length)
     expect(all.total).toBe(CAPABILITIES.length)
     expect(all.disabled).toEqual([])
     expect(all.byRelation).toEqual({
-      owner: CAPABILITIES.length,
-      friend: CAPABILITIES.length,
-      groupMember: CAPABILITIES.length,
-      stranger: CAPABILITIES.length,
+      owner: defaultOpenCount('owner'),
+      friend: defaultOpenCount('friend'),
+      groupMember: defaultOpenCount('groupMember'),
+      stranger: defaultOpenCount('stranger'),
     })
+    // 三个非主人档同时少掉三个隐私能力 → 四个数从 T12 起真的不同。
+    expect(all.byRelation.friend).toBe(CAPABILITIES.length - 3)
     expect(formatCapabilityLine(all)).toBe(
-      '能力：主人 ' + CAPABILITIES.length + ' / 好友 ' + CAPABILITIES.length
-      + ' / 群友 ' + CAPABILITIES.length + ' / 陌生人 ' + CAPABILITIES.length
+      '能力：主人 ' + defaultOpenCount('owner') + ' / 好友 ' + defaultOpenCount('friend')
+      + ' / 群友 ' + defaultOpenCount('groupMember') + ' / 陌生人 ' + defaultOpenCount('stranger')
       + '（共 ' + CAPABILITIES.length + '）',
     )
 
     const some = summarizeCapabilities({ config: { capabilitiesDeny: ['qq.send.image'] }, deps: [] })
     const line = formatCapabilityLine(some)
-    expect(line).toContain('能力：主人 ' + (CAPABILITIES.length - 4) + ' / 好友 ' + (CAPABILITIES.length - 4)
-      + ' / 群友 ' + (CAPABILITIES.length - 4) + ' / 陌生人 ' + (CAPABILITIES.length - 4)
+    // 每个关系统一再少 4 项：deny 1（qq.send.image）+ 依赖缺 3（表情包 2 + 记忆 1）。
+    const lost = 4
+    expect(line).toContain('能力：主人 ' + (defaultOpenCount('owner') - lost)
+      + ' / 好友 ' + (defaultOpenCount('friend') - lost)
+      + ' / 群友 ' + (defaultOpenCount('groupMember') - lost)
+      + ' / 陌生人 ' + (defaultOpenCount('stranger') - lost)
       + '（共 ' + CAPABILITIES.length + '）')
     expect(line).toContain('qq.send.image（已在 capabilitiesDeny 里关闭）')
     expect(line).toContain('qq.sticker.use（表情包库未开启（stickerDir 为空））')
@@ -850,10 +913,10 @@ describe('/doctor 与状态快照', () => {
   it('summarizeCapabilities 的 byRelation 跟着 deny 走（四个档同时少一项）', () => {
     const summary = summarizeCapabilities({ config: { capabilitiesDeny: ['qq.napcat.api'] }, deps: ALL_DEPS })
     expect(summary.byRelation).toEqual({
-      owner: CAPABILITIES.length - 1,
-      friend: CAPABILITIES.length - 1,
-      groupMember: CAPABILITIES.length - 1,
-      stranger: CAPABILITIES.length - 1,
+      owner: defaultOpenCount('owner') - 1,
+      friend: defaultOpenCount('friend') - 1,
+      groupMember: defaultOpenCount('groupMember') - 1,
+      stranger: defaultOpenCount('stranger') - 1,
     })
     expect(summary.enabled).toBe(CAPABILITIES.length - 1)
   })
@@ -862,16 +925,17 @@ describe('/doctor 与状态快照', () => {
     const summary = summarizeCapabilities({ config: { memberDeny: ['qq.napcat.api'] }, deps: ALL_DEPS })
     const total = CAPABILITIES.length
     expect(summary.byRelation).toEqual({
-      owner: total,
-      friend: total,
-      groupMember: total - 1,
-      stranger: total,
+      owner: defaultOpenCount('owner'),
+      friend: defaultOpenCount('friend'),
+      groupMember: defaultOpenCount('groupMember') - 1,
+      stranger: defaultOpenCount('stranger'),
     })
     // 主人视角的 enabled / disabled 不受按关系 deny 影响（关的不是主人这一档）。
     expect(summary.enabled).toBe(total)
     expect(summary.disabled).toEqual([])
     expect(formatCapabilityLine(summary)).toBe(
-      '能力：主人 ' + total + ' / 好友 ' + total + ' / 群友 ' + (total - 1) + ' / 陌生人 ' + total
+      '能力：主人 ' + defaultOpenCount('owner') + ' / 好友 ' + defaultOpenCount('friend')
+      + ' / 群友 ' + (defaultOpenCount('groupMember') - 1) + ' / 陌生人 ' + defaultOpenCount('stranger')
       + '（共 ' + total + '）',
     )
     // 三个 deny 各关一项 → 三档各少 1，主人不变。
@@ -879,23 +943,31 @@ describe('/doctor 与状态快照', () => {
       config: { friendDeny: ['qq.send.image'], memberDeny: ['qq.napcat.api'], strangerDeny: ['qq.send.voice'] },
       deps: ALL_DEPS,
     })
-    expect(all.byRelation).toEqual({ owner: total, friend: total - 1, groupMember: total - 1, stranger: total - 1 })
-    expect(formatCapabilityLine(all)).toContain('能力：主人 ' + total + ' / 好友 ' + (total - 1)
-      + ' / 群友 ' + (total - 1) + ' / 陌生人 ' + (total - 1))
+    expect(all.byRelation).toEqual({
+      owner: defaultOpenCount('owner'),
+      friend: defaultOpenCount('friend') - 1,
+      groupMember: defaultOpenCount('groupMember') - 1,
+      stranger: defaultOpenCount('stranger') - 1,
+    })
+    expect(formatCapabilityLine(all)).toContain('能力：主人 ' + defaultOpenCount('owner')
+      + ' / 好友 ' + (defaultOpenCount('friend') - 1)
+      + ' / 群友 ' + (defaultOpenCount('groupMember') - 1)
+      + ' / 陌生人 ' + (defaultOpenCount('stranger') - 1))
   })
 
-  it('四个关系 × 依赖全开时按关系 deny 后的工具数（只有群聊少 1，其余三档满额）', async () => {
+  it('四个关系 × 依赖全开时按关系 deny 后的工具数（群聊少 1，另三档只少三个隐私能力的工具）', async () => {
     const base = { stickers: true, memory: true, memberDeny: ['qq.napcat.api'] }
     const owner = (await toolsOf('admin-private', base)).length
     const stranger = (await toolsOf('member-private', base)).length
     const friend = (await toolsOf('member-private', { ...base, friendUsers: ['20002'] })).length
     const group = (await toolsOf('group', base)).length
-    // qq.napcat.api 只对应一个工具（qq_napcat_api），所以群聊只少 1。
+    // qq.napcat.api 只对应一个工具（qq_napcat_api）；三个隐私能力的四个工具默认只在
+    // 主人私聊注册，所以群聊 = 全量 - 4（隐私工具）- 1（deny 掉的 qq_napcat_api）。
     expect({ owner, friend, group, stranger }).toEqual({
       owner: REGISTRY_TOOLS.length,
-      friend: REGISTRY_TOOLS.length,
-      group: REGISTRY_TOOLS.length - 1,
-      stranger: REGISTRY_TOOLS.length,
+      friend: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length,
+      group: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length - 1,
+      stranger: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length,
     })
   })
 
@@ -911,8 +983,8 @@ describe('/doctor 与状态快照', () => {
       capabilities: () => summarizeCapabilities({ config: { capabilitiesDeny: ['qq.send.image'] }, deps: ALL_DEPS }),
       log: () => undefined,
     })
-    expect(report).toContain('能力：主人 ' + (CAPABILITIES.length - 1))
-    expect(report).toContain('陌生人 ' + (CAPABILITIES.length - 1) + '（共 ' + CAPABILITIES.length + '）')
+    expect(report).toContain('能力：主人 ' + (defaultOpenCount('owner') - 1))
+    expect(report).toContain('陌生人 ' + (defaultOpenCount('stranger') - 1) + '（共 ' + CAPABILITIES.length + '）')
     expect(report).toContain('qq.send.image（已在 capabilitiesDeny 里关闭）')
   })
 
@@ -950,10 +1022,10 @@ describe('/doctor 与状态快照', () => {
       total: CAPABILITIES.length,
       disabled: [],
       byRelation: {
-        owner: CAPABILITIES.length,
-        friend: CAPABILITIES.length,
-        groupMember: CAPABILITIES.length,
-        stranger: CAPABILITIES.length,
+        owner: defaultOpenCount('owner'),
+        friend: defaultOpenCount('friend'),
+        groupMember: defaultOpenCount('groupMember'),
+        stranger: defaultOpenCount('stranger'),
       },
     })
   })
@@ -963,7 +1035,12 @@ describe('/doctor 与状态快照', () => {
     const summary = h.bridge.capabilitySummary()
     h.client.close()
     const total = CAPABILITIES.length
-    expect(summary.byRelation).toEqual({ owner: total, friend: total, groupMember: total - 1, stranger: total })
+    expect(summary.byRelation).toEqual({
+      owner: defaultOpenCount('owner'),
+      friend: defaultOpenCount('friend'),
+      groupMember: defaultOpenCount('groupMember') - 1,
+      stranger: defaultOpenCount('stranger'),
+    })
     expect(summary.enabled).toBe(total)
     expect(summary.disabled).toEqual([])
   })
@@ -979,10 +1056,11 @@ describe('/doctor 与状态快照', () => {
     expect(summary.disabled[1].reason).toBe('已在 capabilitiesDeny 里关闭')
     // 没被 deny 的那一项仍按依赖说明原因。
     expect(summary.disabled[2].reason).toBe('表情包库未开启（stickerDir 为空）')
+    // 主人视角：11 项老能力里少这 3 项，三个隐私能力照开（默认位异常见前）。
     expect(summary.enabled).toBe(CAPABILITIES.length - 3)
-    // 四个关系都少这 3 项（deny / 依赖对所有档一致）。
+    // deny / 依赖对所有档一致：每个关系都在自己的默认位上少 3 项。
     for (const relation of RELATIONS) {
-      expect(summary.byRelation[relation], RELATION_NAMES[relation]).toBe(CAPABILITIES.length - 3)
+      expect(summary.byRelation[relation], RELATION_NAMES[relation]).toBe(defaultOpenCount(relation) - 3)
     }
   })
 })

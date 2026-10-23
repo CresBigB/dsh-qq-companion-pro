@@ -21,7 +21,11 @@
       "qq_sticker_search",
       "qq_sticker_send",
       "qq_sticker_edit",
-      "qq_sticker_delete"
+      "qq_sticker_delete",
+      "qq_list_groups",
+      "qq_group_info",
+      "qq_list_friends",
+      "qq_private_history"
     ],
     "skills": []
   }
