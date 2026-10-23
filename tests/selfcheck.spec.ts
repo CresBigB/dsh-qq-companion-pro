@@ -33,6 +33,17 @@ describe('selfCheck', () => {
   it('warns when proactive chat targets a non-admin', () => {
     expect(selfCheck({ ...good, proactiveChatId: 'private:999999' }).join()).toContain('不是管理员的私聊')
   })
+
+  it('output protocol: a greylist without the switch, and malformed chat ids', () => {
+    // 协议没开却填了灰度名单：名单不会生效。
+    expect(selfCheck({ ...good, protocolChats: ['group:888000001'] }).join('\n')).toContain('protocolChats 填了 1 个聊天，但输出协议没开启')
+    // 开着协议但名单里格式不对：那个聊天不会启用。
+    expect(selfCheck({ ...good, protocolMode: 'on', protocolChats: ['888000001', 'group:888000001'] }).join('\n'))
+      .toContain('protocolChats 里的「888000001」格式不对')
+    // 正常组合不告警。
+    expect(selfCheck({ ...good, protocolMode: 'on', protocolChats: ['group:888000001'] })).toEqual([])
+    expect(selfCheck({ ...good, protocolMode: 'on', protocolChats: [] })).toEqual([])
+  })
 })
 
 describe('selfCheck member permission', () => {

@@ -123,6 +123,11 @@ export interface Config {
     groupPeekWindowEnd: string;
     /** 群里回复时是否自动引用叫她的那条消息：off（默认，不自动）/ busy（中间有别人插话时才引用）/ always（总是引用）。 */
     groupAutoQuote: 'off' | 'busy' | 'always';
+    /** 输出协议 B 档总开关：on = 模型可以在回复最后一行写【控制】{json} 精确控制
+     *  是否回应 / 分几条发 / 引用哪条；默认 off（不解析、零行为变化）。 */
+    protocolMode: 'off' | 'on';
+    /** 只在哪些聊天启用输出协议（private:QQ号 / group:群号）；空 = 开启时对所有聊天生效。 */
+    protocolChats: string[];
     /** Escape hatch: skip the download private-address check (local reverse proxy). */
     allowPrivateHosts: boolean;
     /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */

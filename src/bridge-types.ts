@@ -134,6 +134,12 @@ export interface BridgeConfig {
    * 群里又有别人说了话才引用；'always' = 每次都引用。只作用于群聊的最终回复，
    * 私聊不自动引用。 */
   groupAutoQuote?: 'off' | 'busy' | 'always'
+  /** 输出协议 B 档总开关：'on' = 解析回复最后一行的【控制】{json} 控制块；
+   *  absent / 'off' = 完全不调用解析器（**零行为变化**的硬保证）。 */
+  protocolMode?: 'off' | 'on'
+  /** 只在哪些聊天启用输出协议（private:QQ号 / group:群号）；空 / 缺席 =
+   *  开启时对所有聊天生效（先灰度一个群）。 */
+  protocolChats?: readonly string[]
   /** inbound (chatId, message_id) dedup window in seconds; absent → 300, 0 disables. */
   dedupWindowSeconds?: number
   /** tool-send audit (mediaDir/qq-actions.log); absent → on. */
@@ -238,8 +244,16 @@ export interface BridgeDeps {
   /** The companion guide for one chat (how her features work, from the live config). */
   companionGuide?: (chatId: string) => string
   /** Counts every message that went out (for /doctor), plus today's
-   * 「她选择不回」decisions (recordPass; absent = the pass is not counted). */
-  sendCounter?: { record(): void; recordPass?(): void }
+   * 「她选择不回」decisions (recordPass; absent = the pass is not counted).
+   * 三个 protocol* 端口统计输出协议 B 档（协议启用聊天里的回复数 / 控制块解析
+   * 成功数 / JSON 写错数；absent = 不统计）。 */
+  sendCounter?: {
+    record(): void
+    recordPass?(): void
+    recordProtocolReply?(): void
+    recordProtocolParsed?(): void
+    recordProtocolFailed?(): void
+  }
   /** The account-wide typing pacer (absent = the outbound pipeline builds one). */
   typingPacer?: { wait(text: string): Promise<void> }
   /** per-chat activity (idle reset, handoff recap, diary input). */

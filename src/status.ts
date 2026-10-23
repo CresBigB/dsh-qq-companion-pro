@@ -20,6 +20,7 @@
  */
 import type { CapabilitySummary } from './capabilities.js'
 import { fileSize, memoryFileSpecs } from './companion/doctor.js'
+import type { ProtocolStatusView } from './companion/doctor.js'
 import type { LivenessSnapshot } from './liveness.js'
 import type { SendCounterSnapshot } from './companion/send-counter.js'
 
@@ -110,6 +111,9 @@ export interface CompanionStatusPermissions {
 /** 概览页「功能」卡片：能力开关摘要（与 /doctor 的能力行同源，按管理员私聊视角）。 */
 export type CompanionStatusCapabilities = CapabilitySummary
 
+/** 概览页「功能」卡片的输出协议（B 档）一行：开关 / 灰度聊天 / 今天的解析计数。 */
+export type CompanionStatusProtocol = ProtocolStatusView
+
 /** 设置页概览的完整状态快照（纯 JSON）。 */
 export interface CompanionStatusSnapshot {
   connection: CompanionStatusConnection | null
@@ -123,6 +127,8 @@ export interface CompanionStatusSnapshot {
   permissions: CompanionStatusPermissions | null
   /** 能力开关摘要（主插件未提供 = null，概览显示「—」）。 */
   capabilities: CompanionStatusCapabilities | null
+  /** 输出协议（B 档）状态与今天的解析计数（主插件未提供 = null，概览显示「—」）。 */
+  protocol: CompanionStatusProtocol | null
   /** 快照生成时刻（epoch ms）。 */
   generatedAt: number
 }
@@ -167,6 +173,8 @@ export interface CompanionStatusDeps {
   permissions?: { admin: string; member: string }
   /** 能力开关摘要（bridge.capabilitySummary；缺席 = null）。 */
   capabilities?: () => CompanionStatusCapabilities
+  /** 输出协议状态（protocolMode / protocolChats + 今天计数；缺席 = null）。 */
+  protocol?: () => CompanionStatusProtocol
   now?: () => number
 }
 
@@ -297,6 +305,24 @@ function capabilitiesOf(deps: CompanionStatusDeps): CompanionStatusCapabilities 
   return { enabled: countOf(summary.enabled), total: countOf(summary.total), disabled }
 }
 
+/** 「功能」卡片：输出协议状态（缺席 = null；只保留纯 JSON 字段）。 */
+function protocolOf(deps: CompanionStatusDeps): CompanionStatusProtocol | null {
+  if (deps.protocol === undefined) return null
+  const view = deps.protocol()
+  const chats: string[] = []
+  for (const chat of Array.isArray(view.chats) ? view.chats : []) {
+    if (typeof chat !== 'string' || chat === '') continue
+    chats.push(chat)
+  }
+  return {
+    enabled: view.enabled === true,
+    chats,
+    repliesToday: countOf(view.repliesToday),
+    parsedToday: countOf(view.parsedToday),
+    failedToday: countOf(view.failedToday),
+  }
+}
+
 function scheduledOf(deps: CompanionStatusDeps): CompanionStatusScheduled[] | null {
   const states = deps.scheduler === undefined ? [] : deps.scheduler()
   const prompts = deps.scheduledPrompts
@@ -350,6 +376,7 @@ export async function buildCompanionStatusSnapshot(deps: CompanionStatusDeps = {
       return { admin: String(deps.permissions.admin ?? ''), member: String(deps.permissions.member ?? '') }
     }),
     capabilities: readSafely(() => capabilitiesOf(deps)),
+    protocol: readSafely(() => protocolOf(deps)),
     generatedAt: now(),
   }
   try {

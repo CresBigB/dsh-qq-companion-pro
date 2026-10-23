@@ -235,6 +235,7 @@ describe('buildCompanionStatusSnapshot — 部分取数失败只让该字段为 
       scheduled: null,
       permissions: null,
       capabilities: null,
+      protocol: null,
       generatedAt: expect.any(Number),
     })
   })

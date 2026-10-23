@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 103 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 105 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -469,10 +469,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(103)
+    expect(ALL_KEYS).toHaveLength(105)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 103 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 105 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -581,8 +581,8 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
     expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
     expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
-    expect(configSchemaKeys).toHaveLength(103)
-    expect(patchSchemaKeys).toHaveLength(103)
+    expect(configSchemaKeys).toHaveLength(105)
+    expect(patchSchemaKeys).toHaveLength(105)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {
@@ -1461,7 +1461,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（103 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（105 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

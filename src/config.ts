@@ -137,6 +137,11 @@ export interface Config {
   groupPeekWindowEnd: string
   /** 群里回复时是否自动引用叫她的那条消息：off（默认，不自动）/ busy（中间有别人插话时才引用）/ always（总是引用）。 */
   groupAutoQuote: 'off' | 'busy' | 'always'
+  /** 输出协议 B 档总开关：on = 模型可以在回复最后一行写【控制】{json} 精确控制
+   *  是否回应 / 分几条发 / 引用哪条；默认 off（不解析、零行为变化）。 */
+  protocolMode: 'off' | 'on'
+  /** 只在哪些聊天启用输出协议（private:QQ号 / group:群号）；空 = 开启时对所有聊天生效。 */
+  protocolChats: string[]
   /** Escape hatch: skip the download private-address check (local reverse proxy). */
   allowPrivateHosts: boolean
   /** inbound (chatId, message_id) dedup window in seconds; 0 disables. */
@@ -385,6 +390,10 @@ export const Config: Z<Config> = z.object({
     .description('每天几点以后不再看一眼（HH:MM，可以写 24:00）'),
   groupAutoQuote: z.union([z.const('off'), z.const('busy'), z.const('always')]).default('off')
     .description('群里回复时是否自动引用叫她的那条消息：off（默认）= 不自动（她仍可以自己决定引用）；busy = 中间有别人插话时才引用；always = 总是引用。只作用于群聊的最终回复，模型自己写 [引用:消息 id] 时始终以模型为准；私聊不自动引用'),
+  protocolMode: z.union([z.const('off'), z.const('on')]).default('off')
+    .description('输出协议（B 档）：让模型可以在回复最后一行写【控制】{json} 精确控制是否回应、分几条发、引用哪条。默认关闭（关闭时完全不解析，行为与改造前逐字节相同）；开启前先看 /doctor 里的解析成功率，成功率 <95% 不要全局开'),
+  protocolChats: z.array(z.string()).default([])
+    .description('只在哪些聊天启用输出协议（private:QQ号 / group:群号，每行一个）；留空 = 开启时对所有聊天生效。用于先灰度一个群'),
   chatIdleEvictDays: z.number().default(7)
     .description('会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用'),
   dedupWindowSeconds: z.number().default(300)

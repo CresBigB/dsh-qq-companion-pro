@@ -133,6 +133,9 @@ export const zh: Record<string, string> = {
   'overview.capabilitiesCount': '已开 {on} / 共 {total}',
   'overview.capabilitiesAllOn': '全部开启',
   'overview.capabilitiesHint': '在「谁能找她 · 功能开关」里填能力 id 可以关闭',
+  'overview.protocolOn': '输出协议：开启',
+  'overview.protocolOff': '输出协议：关闭',
+  'overview.protocolStat': '今天 {replies} 次回复里 {parsed} 次带控制块（成功率 {rate}）',
 }
 
 /** 英文词条（逐 key 对齐 zh）。 */
@@ -255,6 +258,9 @@ export const en: Record<string, string> = {
   'overview.capabilitiesCount': '{on} of {total} on',
   'overview.capabilitiesAllOn': 'All on',
   'overview.capabilitiesHint': 'Turn a feature off by adding its id under Access → Feature switches',
+  'overview.protocolOn': 'Output protocol: on',
+  'overview.protocolOff': 'Output protocol: off',
+  'overview.protocolStat': '{parsed} of {replies} replies carried a control block today ({rate})',
 }
 
 /** 双语 key 集一致性自检：缺漏仅告警不致崩溃。 */

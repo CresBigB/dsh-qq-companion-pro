@@ -72,6 +72,15 @@ export interface OverviewCapabilitiesLike {
   disabled?: OverviewDisabledCapabilityLike[] | null
 }
 
+/** 概览「功能」卡片里的输出协议（B 档）行（缺失 = 「—」）。 */
+export interface OverviewProtocolLike {
+  enabled?: unknown
+  chats?: unknown
+  repliesToday?: unknown
+  parsedToday?: unknown
+  failedToday?: unknown
+}
+
 /** 主插件快照的宽松投影（只声明概览真正读的字段）。 */
 export interface OverviewStatusLike {
   connection?: OverviewConnectionLike | null
@@ -83,6 +92,7 @@ export interface OverviewStatusLike {
   scheduled?: OverviewScheduledLike[] | null
   permissions?: { admin?: unknown; member?: unknown } | null
   capabilities?: OverviewCapabilitiesLike | null
+  protocol?: OverviewProtocolLike | null
   generatedAt?: unknown
 }
 
@@ -144,6 +154,21 @@ export function meterTone(bytes: unknown, maxBytes: unknown): 'warn' | 'error' |
 export function meterPercent(bytes: unknown, maxBytes: unknown): number {
   if (typeof bytes !== 'number' || typeof maxBytes !== 'number' || !Number.isFinite(bytes) || !Number.isFinite(maxBytes) || maxBytes <= 0) return 0
   return Math.max(0, Math.min(100, Math.round(bytes / maxBytes * 100)))
+}
+
+/** 输出协议控制块成功率（0–100 取整；分母为 0 / 数据缺失 = null → 概览显示「—」）。 */
+export function protocolRate(protocol: OverviewProtocolLike | null | undefined): number | null {
+  if (protocol == null) return null
+  const replies = typeof protocol.repliesToday === 'number' && Number.isFinite(protocol.repliesToday) ? protocol.repliesToday : 0
+  const parsed = typeof protocol.parsedToday === 'number' && Number.isFinite(protocol.parsedToday) ? protocol.parsedToday : 0
+  if (replies <= 0) return null
+  return Math.max(0, Math.min(100, Math.round(Math.min(parsed, replies) / replies * 100)))
+}
+
+/** 成功率文案：数字 + %，算不出来就「—」（绝不显示一个编造的 0%）。 */
+export function protocolRateText(protocol: OverviewProtocolLike | null | undefined): string {
+  const rate = protocolRate(protocol)
+  return rate === null ? OVERVIEW_MISSING : rate + '%'
 }
 
 /** 在线状态点（§2 页头胶囊同款配色）。 */
@@ -358,6 +383,7 @@ function sessionsCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatus
 /**
  * 「功能」卡片（T6 能力开关）：已开 N / 共 M，加列出被关闭的能力（id（中文名）+ 原因）。
  * 快照里没有 capabilities（主插件未提供 / 取数失败）= 显示「—」，与其余卡片同一纪律。
+ * T9 起卡片顶部多一行输出协议（B 档）状态与今天的控制块成功率（缺失同样显示「—」）。
  */
 function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatusLike | null): ReactElement {
   const summary = status == null || status.capabilities == null ? null : status.capabilities
@@ -384,9 +410,28 @@ function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewSt
         ? [h(ReactImpl, 'div', { className: 'qqc-empty', key: 'all-on', 'data-role': 'overview-capabilities-all-on' }, t('overview.capabilitiesAllOn'))]
         : [h(ReactImpl, 'ul', { className: 'qqc-list', key: 'list' }, rows)]),
     ]
+  // 输出协议（B 档）一行：缺失显示「—」，开启时给成功率（今天 N 次回复里 M 次带控制块）。
+  const protocol = status == null || status.protocol == null ? null : status.protocol
+  const protocolState = protocol == null ? 'missing' : protocol.enabled === true ? 'on' : 'off'
+  const protocolText = protocol == null
+    ? OVERVIEW_MISSING
+    : protocol.enabled !== true
+      ? t('overview.protocolOff')
+      : t('overview.protocolOn') + ' · ' + format(t('overview.protocolStat'), {
+        replies: numberText(protocol.repliesToday),
+        parsed: numberText(protocol.parsedToday),
+        rate: protocolRateText(protocol),
+      })
+  const protocolRow = h(ReactImpl, 'div', {
+    className: 'qqc-hint',
+    key: 'protocol',
+    'data-role': 'overview-protocol',
+    'data-state': protocolState,
+  }, protocolText)
   return h(ReactImpl, 'section', { className: 'qqc-card', 'data-section': t('overview.capabilities'), 'data-role': 'overview-capabilities', key: 'capabilities-card' },
     h(ReactImpl, 'div', { className: 'qqc-card-head' },
       h(ReactImpl, 'h3', { className: 'qqc-card-title' }, t('overview.capabilities'))),
+    protocolRow,
     ...body)
 }
 

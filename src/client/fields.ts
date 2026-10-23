@@ -10,7 +10,7 @@
  *   dependsOnText 是 §3 表格的静态投影；函数型元数据 dependsOn（F2a）与
  *   danger（F2b，§5.5 危险判定）直接写在字段上，由 validate.ts 的
  *   collectRisks 统一按「草稿 ≠ 生效值」把关；
- * - DEFAULTS 全量覆盖上页的 103 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
+ * - DEFAULTS 全量覆盖上页的 105 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
  * - 不上页的 5 个键（imageMaxSize / maxImageBytes / maxInboundFileBytes /
  *   scheduledPrompts / sttReplacements）见宿主的 EXCLUDED_KEYS。
  */
@@ -113,7 +113,7 @@ export function draftText(draft: Record<string, unknown> | null | undefined, key
   return raw === undefined || raw === null ? '' : String(raw)
 }
 
-/** 10 组 103 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
+/** 10 组 105 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
 export const GROUPS: GroupMeta[] = [
   {
     id: 'connection',
@@ -204,6 +204,8 @@ export const GROUPS: GroupMeta[] = [
       { key: 'privateSessionKeepDays', label: '私聊旧会话保留', type: 'number', hint: '换下来的私聊旧会话超过这么多天没写入就删除；0 = 永不删。正在用的会话不会删', section: '旧会话清理', unit: 'day', min: 0, zeroMeans: '关闭' },
       { key: 'groupSessionKeepDays', label: '群聊旧会话保留', type: 'number', hint: '同上，作用于群聊', section: '旧会话清理', unit: 'day', min: 0, zeroMeans: '关闭' },
       { key: 'chatIdleEvictDays', label: '空闲会话释放', type: 'number', hint: '超过这么多天没动静的聊天先释放内存（会话已落盘，下次来消息自动恢复）；0 = 不释放', section: '旧会话清理', unit: 'day', min: 0, zeroMeans: '关闭' },
+      { key: 'protocolMode', label: '输出协议', type: 'enum', options: ['off', 'on'], optionLabels: { off: '关闭', on: '开启' }, hint: '让模型可以在回复最后一行写【控制】{json} 精确控制是否回应、分几条发、引用哪条。默认关闭（关闭时完全不解析，行为与改造前一样）；开启前先看 /doctor 里的解析成功率，成功率低于 95% 别全局开。', section: '输出协议' },
+      { key: 'protocolChats', label: '只在哪些聊天启用', type: 'stringArray', hint: 'private:QQ号 / group:群号，每行一个；留空 = 开启时对所有聊天生效。用于先灰度一个群。', section: '输出协议', placeholder: 'group:643561596', dependsOnText: '仅在「输出协议」开启时生效', dependsOn: draft => draftText(draft, 'protocolMode') === 'on' },
     ],
   },
   {
@@ -295,7 +297,7 @@ export const GROUPS: GroupMeta[] = [
   },
 ]
 
-/** 全部 103 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
+/** 全部 105 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
 export const ALL_FIELDS: FieldMeta[] = []
 for (const group of GROUPS) {
   for (const field of group.fields) ALL_FIELDS.push(field)
@@ -355,6 +357,8 @@ export const DEFAULTS: Record<string, unknown> = {
   privateSessionKeepDays: 0,
   groupSessionKeepDays: 0,
   chatIdleEvictDays: 7,
+  protocolMode: 'off',
+  protocolChats: [],
   groupNameTriggers: [],
   groupFollowupSeconds: 0,
   groupContextLines: 0,

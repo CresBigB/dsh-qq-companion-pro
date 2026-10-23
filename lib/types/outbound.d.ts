@@ -17,6 +17,11 @@ export interface SendOptions {
      * line, one message" with typing pauses (config.splitLines). Command
      * output, notices and interim sends never set it. */
     humanize?: boolean;
+    /** 明确分条（输出协议 B 档的 send 字段）：逐条发送，**覆盖** splitLines
+     *  自动拆句与 t2i 长文本卡片（模型已经自己决定怎么分）。每条仍过一个
+     *  stripMarkdown 与 [[qq_forward]] 块解析；只有第一条带 replyTo。给了它时
+     *  `text` 只用作审计扫描的整段文本（调用方传各条拼接）。 */
+    parts?: readonly string[];
 }
 /** Narrow view of a live chat the outbound pipeline may touch — the
  * structural subset of the bridge's ChatAgent the pipeline reads: the
@@ -122,6 +127,20 @@ export declare class OutboundPipeline {
      * @returns the sent message ids.
      */
     sendToChat(chatId: ChatId, text: string, options?: SendOptions): Promise<string[]>;
+    /**
+     * 逐条发送明确分条（输出协议 B 档的 send 字段）：覆盖自动拆句，且**不走**
+     * t2i 长文本卡片（模型已经自己决定分几条）；每条仍过 stripMarkdown 与
+     * [[qq_forward]] 块解析，只有第一条带引用（replyTo）。第一条之前的打字停顿
+     * 由调用方按 humanize 语义自行决定——这里与 splitLines 一致：第二条起才等。
+     * @param chatId - target chat.
+     * @param parts - 各条文本（已清洗：非空、≤9 条）。
+     * @param options - 首条带 replyTo；后续各条不带。
+     * @returns the sent message ids.
+     */
+    private sendParts;
+    /** 发一段正文：[[qq_forward]] 块单独发合并转发，剩余正文 stripMarkdown 后
+     *  作为一条普通文本发出（空正文不发）。控制块分条路径逐条走这里。 */
+    private sendTextChunk;
     /** Park one queuable send for a chat while disconnected:
      * per-chat FIFO, capped — the oldest entry is dropped beyond the cap. */
     private queuePendingSend;

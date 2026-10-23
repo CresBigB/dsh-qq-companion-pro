@@ -217,6 +217,12 @@ export async function makeCmdHarness(opts?: {
   groupChatter?: unknown
   /** 群聊自动引用（reply-quote）：absent = 'off'（现状）。 */
   groupAutoQuote?: 'off' | 'busy' | 'always'
+  /** 输出协议 B 档总开关（absent = 关闭，完全不解析）。 */
+  protocolMode?: 'off' | 'on'
+  /** 输出协议只在哪些聊天启用（absent = 对所有聊天生效）。 */
+  protocolChats?: string[]
+  /** 长回复转图片卡片的字数阈值（absent = 0，永不转卡片）。 */
+  textImageThreshold?: number
   /** 表情包库（absent = 未开启，入站表情包不带收藏标注）。 */
   stickers?: unknown
   /** 公开记忆文件（absent = 不注册 qq_memory_note；能力矩阵测试用）。 */
@@ -284,8 +290,10 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
       sensitivePatterns: [], mediaDir, maxImageBytes: 8 * 1024 * 1024,
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
-      textImageThreshold: 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
+      textImageThreshold: opts?.textImageThreshold ?? 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
       agentPreset: 'standard', workspacePath: mediaDir,
+      ...(opts?.protocolMode !== undefined ? { protocolMode: opts.protocolMode } : {}),
+      ...(opts?.protocolChats !== undefined ? { protocolChats: opts.protocolChats } : {}),
       ...(opts?.publicMemoryFile !== undefined ? { publicMemoryFile: opts.publicMemoryFile } : {}),
       ...(opts?.capabilitiesDeny !== undefined ? { capabilitiesDeny: opts.capabilitiesDeny } : {}),
       ...(opts?.adminPreset !== undefined ? { adminPreset: opts.adminPreset } : {}),

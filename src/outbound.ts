@@ -39,6 +39,11 @@ export interface SendOptions {
    * line, one message" with typing pauses (config.splitLines). Command
    * output, notices and interim sends never set it. */
   humanize?: boolean
+  /** 明确分条（输出协议 B 档的 send 字段）：逐条发送，**覆盖** splitLines
+   *  自动拆句与 t2i 长文本卡片（模型已经自己决定怎么分）。每条仍过一个
+   *  stripMarkdown 与 [[qq_forward]] 块解析；只有第一条带 replyTo。给了它时
+   *  `text` 只用作审计扫描的整段文本（调用方传各条拼接）。 */
+  parts?: readonly string[]
 }
 
 /** Narrow view of a live chat the outbound pipeline may touch — the
@@ -195,6 +200,10 @@ export class OutboundPipeline {
         this.ctx.trace?.(chatId, { stage: 'outbound', ok: false, reason: TRACE_REASONS.outboundNotConnected })
         throw new OneBotNotConnectedError()
       }
+      // 输出协议 B 档给了明确分条：逐条发（不自动拆句、不走 t2i 卡片）。
+      if (options.parts !== undefined && options.parts.length > 0) {
+        return await this.sendParts(chatId, options.parts, options)
+      }
       const hits = scanSensitive(text, this.ctx.config.sensitivePatterns)
       if (hits.length > 0) {
         this.ctx.log('warn', 'sensitive outbound audit for ' + chatId + ': ' + hits.join(', '))
@@ -260,6 +269,45 @@ export class OutboundPipeline {
       this.ctx.trace?.(chatId, { stage: 'outbound', ok: true, reason: '回复已发送', data: { segments: ids.length } })
       return ids
     })
+  }
+
+  /**
+   * 逐条发送明确分条（输出协议 B 档的 send 字段）：覆盖自动拆句，且**不走**
+   * t2i 长文本卡片（模型已经自己决定分几条）；每条仍过 stripMarkdown 与
+   * [[qq_forward]] 块解析，只有第一条带引用（replyTo）。第一条之前的打字停顿
+   * 由调用方按 humanize 语义自行决定——这里与 splitLines 一致：第二条起才等。
+   * @param chatId - target chat.
+   * @param parts - 各条文本（已清洗：非空、≤9 条）。
+   * @param options - 首条带 replyTo；后续各条不带。
+   * @returns the sent message ids.
+   */
+  private async sendParts(chatId: ChatId, parts: readonly string[], options: SendOptions): Promise<string[]> {
+    const hits = scanSensitive(parts.join('\n'), this.ctx.config.sensitivePatterns)
+    if (hits.length > 0) {
+      this.ctx.log('warn', 'sensitive outbound audit for ' + chatId + ': ' + hits.join(', '))
+      this.ctx.trace?.(chatId, { stage: 'outbound', ok: true, reason: TRACE_REASONS.outboundSensitive, data: { hits: hits.slice(0, 5) } })
+    }
+    const ids: string[] = []
+    for (let i = 0; i < parts.length; i++) {
+      if (i > 0 && !this.paceEveryMessage) await this.pacer.wait(parts[i])
+      await this.sendTextChunk(chatId, parts[i], i === 0 ? options : { queuable: options.queuable }, ids)
+    }
+    this.ctx.trace?.(chatId, { stage: 'outbound', ok: true, reason: '回复已发送', data: { segments: ids.length, parts: parts.length } })
+    return ids
+  }
+
+  /** 发一段正文：[[qq_forward]] 块单独发合并转发，剩余正文 stripMarkdown 后
+   *  作为一条普通文本发出（空正文不发）。控制块分条路径逐条走这里。 */
+  private async sendTextChunk(chatId: ChatId, text: string, options: SendOptions, ids: string[]): Promise<void> {
+    const { body, nodes } = extractForwardBlocks(text, '助手')
+    if (nodes.length > 0) {
+      await this.sendForwardNodes(chatId, nodes)
+      ids.push('forward')
+    }
+    const plain = stripMarkdown(body)
+    if (plain === '') return
+    const id = await this.sendMsg(chatId, [{ type: 'text', data: { text: plain } }], options)
+    if (id !== undefined) ids.push(id)
   }
 
   /** Park one queuable send for a chat while disconnected:

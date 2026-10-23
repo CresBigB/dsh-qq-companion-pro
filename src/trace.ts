@@ -104,6 +104,8 @@ export const TRACE_REASONS = {
   outboundEmptyText: '正文为空，未发送',
   // 输出协议 A 档：她整条只写 [不回] / [不发]，这条不发但留痕。
   replyPass: '她选择不回',
+  // 输出协议 B 档：最后一行【控制】{json} 生效（reply / send 条数 / quote 有无在 data）。
+  controlBlock: '输出协议控制块生效',
   noticeErrorSendFailed: '错误通知发送失败',
   // 超时补发（deferred delivery）。
   deferredRegistered: '等待模型回复超时，已登记超时补发跟踪',

@@ -98,6 +98,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'unknownCommand', 'rateLimitPerMinute',
     'idleResetHours', 'privateResetDays', 'groupResetDays', 'sessionTitleTemplate',
     'privateSessionKeepDays', 'groupSessionKeepDays', 'chatIdleEvictDays',
+    'protocolMode', 'protocolChats',
   ],
   group: [
     'groupNameTriggers', 'groupFollowupSeconds', 'groupContextLines',

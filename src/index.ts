@@ -197,6 +197,18 @@ export function apply(ctx: Context, config: Config): void {
   }, chatId.startsWith('group:') ? 'group' : policy.adminUsers.includes(chatId.slice('private:'.length)) ? 'owner' : 'other')
   // Counts what the account sends (shown by /doctor).
   const sendCounter = new SendCounter()
+  // 输出协议（B 档）状态：开关与灰度聊天来自配置，计数来自同一个 SendCounter
+  // ——/doctor 的「输出协议」行与设置页概览的「功能」卡片同源，不两处各算一遍。
+  const protocolStatus = (): import('./companion/index.js').ProtocolStatusView => {
+    const snapshot = sendCounter.snapshot()
+    return {
+      enabled: config.protocolMode === 'on',
+      chats: [...(config.protocolChats ?? [])],
+      repliesToday: snapshot.protocolReplies,
+      parsedToday: snapshot.protocolParsed,
+      failedToday: snapshot.protocolFailed,
+    }
+  }
   const typingPacer = new TypingPacer({ config: { perCharMs: config.typingDelayPerCharMs, minMs: config.typingDelayMinMs, maxMs: config.typingDelayMaxMs } })
   // Her sticker library (off when no directory is configured).
   const stickers = config.stickerDir !== ''
@@ -332,6 +344,7 @@ export function apply(ctx: Context, config: Config): void {
     typingPacer,
     companionStatus: () => companionStatusLines({
       sendCounter: () => sendCounter.snapshot(),
+      protocol: protocolStatus,
       liveness: () => liveness.snapshot(),
       scheduler: () => scheduler.snapshot(),
       ...(proactiveRef !== undefined ? { proactive: () => proactiveRef!.snapshot() } : {}),
@@ -460,6 +473,7 @@ export function apply(ctx: Context, config: Config): void {
       },
       titleOf: chatId => bridge.sessionTitleOf(chatId),
       sendCounter: () => sendCounter.snapshot(),
+      protocol: protocolStatus,
       scheduler: () => scheduler.snapshot(),
       scheduledPrompts: config.scheduledPrompts,
       ...(proactive !== undefined

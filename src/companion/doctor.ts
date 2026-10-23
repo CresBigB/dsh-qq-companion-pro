@@ -13,6 +13,8 @@ import { hhmm, minutesOfDay } from './time.js'
 export interface CompanionStatusDeps {
   liveness?: () => LivenessSnapshot
   sendCounter?: () => SendCounterSnapshot
+  /** 输出协议 B 档状态（/doctor 的「输出协议」行与设置页概览快照同源）。 */
+  protocol?: () => ProtocolStatusView
   scheduler?: () => Array<{ id: string; time: string; firedToday: boolean }>
   proactive?: () => { remaining: string[]; firedToday: number }
   stickers?: () => { count: number; maxCount: number; today: number; dailyMax: number }
@@ -22,6 +24,28 @@ export interface CompanionStatusDeps {
   groupMemoryDir?: string
   groupMemoryMaxBytes?: number
   now?: () => number
+}
+
+/** 输出协议 B 档的运行态视图（/doctor 与概览快照同源，纯 JSON）。 */
+export interface ProtocolStatusView {
+  /** protocolMode === 'on'。 */
+  enabled: boolean
+  /** 启用了协议的聊天（空 = 开启时对所有聊天生效）。 */
+  chats: string[]
+  /** 今天在协议聊天里的回复条数（成功率分母）。 */
+  repliesToday: number
+  /** 其中带控制块并解析成功的条数（成功率分子）。 */
+  parsedToday: number
+  /** 其中【控制】行 JSON 写错、整段原样发出的条数。 */
+  failedToday: number
+}
+
+/** 控制块成功率（0–100 取整；没有回复时 0——分母为 0 不编造数字）。 */
+export function protocolSuccessRate(view: { repliesToday: number; parsedToday: number }): number {
+  const replies = Number.isFinite(view.repliesToday) && view.repliesToday > 0 ? view.repliesToday : 0
+  const parsed = Number.isFinite(view.parsedToday) && view.parsedToday > 0 ? view.parsedToday : 0
+  if (replies === 0) return 0
+  return Math.round(Math.min(parsed, replies) / replies * 100)
 }
 
 const kb = (n: number) => (n / 1024).toFixed(1) + 'KB'
@@ -100,6 +124,17 @@ export async function companionStatusLines(deps: CompanionStatusDeps): Promise<s
   const p = deps.proactive?.()
   if (p !== undefined) {
     lines.push('主动聊天：今天已叫醒 ' + p.firedToday + ' 次，还剩 ' + (p.remaining.length > 0 ? p.remaining.join('、') : '无'))
+  }
+  const protocol = deps.protocol?.()
+  if (protocol !== undefined) {
+    if (!protocol.enabled) {
+      lines.push('输出协议：关闭')
+    } else {
+      const scope = protocol.chats.length > 0 ? '（仅 ' + protocol.chats.join('、') + '）' : ''
+      const rate = protocolSuccessRate(protocol)
+      const failed = protocol.failedToday > 0 ? '；JSON 写错 ' + protocol.failedToday + ' 次（那几段原样发出去了）' : ''
+      lines.push('输出协议：开启' + scope + '；今天 ' + protocol.repliesToday + ' 次回复里 ' + protocol.parsedToday + ' 次带控制块（成功率 ' + rate + '%）' + failed)
+    }
   }
   const st = deps.stickers?.()
   if (st !== undefined) lines.push('表情包：' + st.count + '/' + st.maxCount + ' 张 · 今天新存 ' + st.today + '/' + st.dailyMax + ' 张')

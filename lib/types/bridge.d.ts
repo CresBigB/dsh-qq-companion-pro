@@ -102,11 +102,16 @@ export declare class ChatBridge {
      * 统一出站闸门，顺序确定：
      * 1. cleanOutgoing —— 剪掉模仿聊天记录的编造内容；
      * 2. parseLeadingQuote —— [引用:<id>] 永远不发给 QQ（它可能变成一个 reply 段）；
-     * 3. parseReplyPass —— 整条只有一个 [不回] / [不回:原因] / [不发] 标记时什么都
+     * 3. 输出协议 B 档（**只在该聊天启用协议时**才调用解析器，未启用时一行代码
+     *    都不走）：解析正文最后一行的【控制】{json}，body 换成控制块之前的内容；
+     *    JSON 写错则整段原样发送（绝不吞消息）并记一次 failed；
+     * 4. parseReplyPass —— 整条只有一个 [不回] / [不回:原因] / [不发] 标记时什么都
      *    不发，但留痕（日志 / trace / 今日计数 / 活动记录）。这道判定对**所有**
      *    出站文本生效（最终回复、中间消息、超时补发），不只 humanize；
-     * 4. 空正文不发；
-     * 5. 发送（最终回复才附带台词记账与群里「刚说过话」的标记）。
+     * 5. 控制块的 reply:false —— 走同一条「不回」路径（why 作原因），一条也不发；
+     * 6. 空正文不发（除非控制块给了 send 分条）；
+     * 7. 引用：控制块的 quote 优先于行首标记，都没有才由 groupAutoQuote 决定；
+     * 8. 发送：控制块的 send 覆盖自动拆句（逐条发、不走 t2i 卡片），否则走原路径。
      *
      * For a FINAL reply (humanize) the quote marker becomes the reply segment of
      * the first split message. '[引用:这条]' means the turn's own trigger
@@ -120,12 +125,40 @@ export declare class ChatBridge {
      */
     sendToChat(chatId: ChatId, text: string, options?: SendOptions): Promise<string[]>;
     /**
+     * 该聊天是否启用输出协议（B 档）：`protocolMode === 'on'` 且
+     * （`protocolChats` 为空 或 包含该 chatId）。**未启用时 `sendToChat` 完全不调用
+     * 解析器**——这是「零行为变化」的硬保证，也是提示词只给启用的聊天加说明的依据。
+     * @param chatId - the chat to test.
+     */
+    protocolEnabledFor(chatId: string): boolean;
+    /**
      * 记一条「她选择不回」：日志（带原因）、决策 trace（stage='reply'）、今日计数、
      * 活动记录。四处都尽力而为，任何一处缺席都不影响「不发」这个结果。
      * @param chatId - the chat she chose not to answer in.
      * @param reason - 她写的原因（'' = 没说原因）。
+     * @param viaControl - true = 来自输出协议 B 档的控制块（reply:false），
+     *   日志与 trace 的措辞里带上「控制块」，便于和 A 档标记区分。
      */
     private recordReplyPass;
+    /**
+     * 解析控制块并留下解析侧的痕迹（B 档）：解析成功计一次 parsed，JSON 写错计一次
+     * failed（并 warn 一条——那段会原样发出，得让人知道），字段级警告一律 debug；
+     * 「协议聊天里的回复」这个分母**只算最终回复（humanize）**或真的写了控制块的出站
+     * 文本——插件自己的提示（排队提醒、错误提示、命令回执）不进分母，否则成功率会被
+     * 提示语拖低。
+     * @param chatId - 目标聊天（日志里用）。
+     * @param text - 已剥掉行首引用标记的正文。
+     * @param isFinalReply - 这次是不是模型的最终回复（options.humanize）。
+     * @returns parseControlBlock 的结果（调用方据 control / body 继续走）。
+     */
+    private readControlBlock;
+    /**
+     * 控制块生效的决策 trace（stage='outbound'，reason 里带「控制块」字样）。
+     * data 只放 reply / send 条数 / quote 有无——why 只进日志与记忆，不塞进 trace。
+     * @param chatId - 目标聊天。
+     * @param control - 已解析成功的控制块。
+     */
+    private recordControlBlock;
     /**
      * Resolve the message id this send should quote, or undefined for no quote.
      * An explicit marker wins (and only counts for a final reply); otherwise the
@@ -342,6 +375,8 @@ export declare class ChatBridge {
      * （{@link platformPromptText}）共用，不两处各算一遍。
      *
      * 纯函数式：同样的配置 + 同样的运行时依赖 → 同样的文本（指纹的稳定性依赖这一点）。
+     * 输出协议说明**只给启用了协议的那个聊天加**（{@link protocolEnabledFor}）：
+     * 未启用时平台段一个字都不多。
      */
     private composePlatformPrompt;
     /**
