@@ -81,6 +81,18 @@ export interface Config {
     memberPermission: string;
     /** 全局关闭的能力 id（见 src/capabilities.ts；主人私聊也关）。 */
     capabilitiesDeny: string[];
+    /** 只不给好友（friendUsers 里的人）用的能力 id（其他三档照常）。 */
+    friendDeny: string[];
+    /** 只不给群聊用的能力 id（所有群成员；群里主人发言也按群友档）。 */
+    memberDeny: string[];
+    /** 只不给陌生私聊（不在好友名单里的非管理员）用的能力 id。 */
+    strangerDeny: string[];
+    /** 额外给好友（friendUsers 里的人）开放的能力 id（默认关闭、单独给好友开）。 */
+    friendGrant: string[];
+    /** 额外给群聊（所有群成员；群里主人发言也按群友档）开放的能力 id。 */
+    memberGrant: string[];
+    /** 额外给陌生私聊（不在好友名单里的非管理员）开放的能力 id。 */
+    strangerGrant: string[];
     adminWorkspacePath: string;
     idleResetHours: number;
     /** Automatic session-title template for new (and untitled resumed) QQ

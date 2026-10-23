@@ -386,13 +386,22 @@ export declare class ChatBridge {
      * 同一状态重复调用结果恒定（调用方按稳定性做指纹）。
      */
     platformPromptText(chatId: ChatId): string;
-    /** 按一个聊天算能力（会话类型 + 管理员私聊 + 当前进程的运行时依赖）。 */
+    /** 按一个聊天算能力（会话类型 + 关系档 + 当前进程的运行时依赖）。 */
     private resolveChatCapabilities;
+    /** 能力相关的配置（全局 deny + 三个按关系 deny + 三个 grant；缺省一律空 = 现状）。 */
+    private capabilityConfig;
+    /**
+     * 这个**会话**的关系档（T11 的能力视角，与逐条消息的关系绸标不是一回事）：
+     * 群聊恒 'groupMember'（一个群只有一个会话，看不到具体发言人，所以群里主人
+     * 发言也按群友档），私聊按名单分 owner / friend / stranger。
+     */
+    private chatRelation;
     /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件）。 */
     private availableCapabilityDeps;
     /**
-     * 能力摘要（/doctor 与设置页概览共用）：按**管理员私聊**视角计算——主人自己
-     * 的私聊已经是权限最高的一类会话，缺什么就是配置层真的关了什么。
+     * 能力摘要（/doctor 与设置页概览共用）：`enabled` / `disabled` 按**主人私聊**
+     * 视角（权限最高的一类会话，缺什么就是配置层真关了什么），`byRelation` 给出
+     * 主人 / 好友 / 群友 / 陌生人四个档各自的已开数。
      */
     capabilitySummary(): CapabilitySummary;
     /** Start the NapCat typing indicator (private chats only). */

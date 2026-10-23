@@ -229,6 +229,14 @@ export async function makeCmdHarness(opts?: {
   publicMemoryFile?: string
   /** 全局关闭的能力 id（absent = 全部开启；能力矩阵测试用）。 */
   capabilitiesDeny?: string[]
+  /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；absent = 不额外关）。 */
+  friendDeny?: string[]
+  memberDeny?: string[]
+  strangerDeny?: string[]
+  /** 额外给好友 / 群聊 / 陌生人开放的能力 id（T11；absent = 不加开）。 */
+  friendGrant?: string[]
+  memberGrant?: string[]
+  strangerGrant?: string[]
   /** 好友名单（关系矩阵测试用；absent = 空）。 */
   friendUsers?: string[]
   /** 关系矩阵的三个比例（absent = 配置默认值）。 */
@@ -302,6 +310,12 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.protocolChats !== undefined ? { protocolChats: opts.protocolChats } : {}),
       ...(opts?.publicMemoryFile !== undefined ? { publicMemoryFile: opts.publicMemoryFile } : {}),
       ...(opts?.capabilitiesDeny !== undefined ? { capabilitiesDeny: opts.capabilitiesDeny } : {}),
+      ...(opts?.friendDeny !== undefined ? { friendDeny: opts.friendDeny } : {}),
+      ...(opts?.memberDeny !== undefined ? { memberDeny: opts.memberDeny } : {}),
+      ...(opts?.strangerDeny !== undefined ? { strangerDeny: opts.strangerDeny } : {}),
+      ...(opts?.friendGrant !== undefined ? { friendGrant: opts.friendGrant } : {}),
+      ...(opts?.memberGrant !== undefined ? { memberGrant: opts.memberGrant } : {}),
+      ...(opts?.strangerGrant !== undefined ? { strangerGrant: opts.strangerGrant } : {}),
       ...(opts?.adminPreset !== undefined ? { adminPreset: opts.adminPreset } : {}),
       ...(opts?.adminPermission !== undefined ? { adminPermission: opts.adminPermission } : {}),
       ...(opts?.memberPermission !== undefined ? { memberPermission: opts.memberPermission } : {}),

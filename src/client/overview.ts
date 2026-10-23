@@ -65,11 +65,21 @@ export interface OverviewDisabledCapabilityLike {
   reason?: unknown
 }
 
-/** 概览页看到的「功能」摘要（/doctor 的能力行同源，按管理员私聊视角）。 */
+/** 概览「功能」卡片里的四个关系各自的已开数（T11；缺失 = 「—」）。 */
+export interface OverviewCapabilityCountsLike {
+  owner?: unknown
+  friend?: unknown
+  groupMember?: unknown
+  stranger?: unknown
+}
+
+/** 概览页看到的「功能」摘要（/doctor 的能力行同源：主人视角的已开 / 关闭项 +
+ *  四个关系各自的已开数）。 */
 export interface OverviewCapabilitiesLike {
   enabled?: unknown
   total?: unknown
   disabled?: OverviewDisabledCapabilityLike[] | null
+  byRelation?: OverviewCapabilityCountsLike | null
 }
 
 /** 概览「功能」卡片里的输出协议（B 档）行（缺失 = 「—」）。 */
@@ -381,13 +391,29 @@ function sessionsCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatus
 }
 
 /**
- * 「功能」卡片（T6 能力开关）：已开 N / 共 M，加列出被关闭的能力（id（中文名）+ 原因）。
- * 快照里没有 capabilities（主插件未提供 / 取数失败）= 显示「—」，与其余卡片同一纪律。
+ * 「功能」卡片（T6 能力开关 / T11 按关系授权）：四个关系各自的已开数
+ * （主人 / 好友 / 群友 / 陌生人），已开 N / 共 M，加列出被关闭的能力
+ * （id（中文名）+ 原因）。
+ * 快照里没有 capabilities（主插件未提供 / 取数失败）= 显示「—」，与其余卡片同一纪律；
+ * byRelation 单独缺失时只有那一行显示「—」。
  * T9 起卡片顶部多一行输出协议（B 档）状态与今天的控制块成功率（缺失同样显示「—」）。
  */
 function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatusLike | null): ReactElement {
   const summary = status == null || status.capabilities == null ? null : status.capabilities
   const disabled = summary == null || !Array.isArray(summary.disabled) ? [] : summary.disabled
+  const counts = summary == null || summary.byRelation == null ? null : summary.byRelation
+  const relationRow = h(ReactImpl, 'div', {
+    className: 'qqc-hint',
+    key: 'by-relation',
+    'data-role': 'overview-capabilities-by-relation',
+  }, counts == null
+    ? OVERVIEW_MISSING
+    : format(t('overview.capabilitiesByRelation'), {
+      owner: numberText(counts.owner),
+      friend: numberText(counts.friend),
+      groupMember: numberText(counts.groupMember),
+      stranger: numberText(counts.stranger),
+    }))
   const rows: ReactElement[] = []
   for (const item of disabled) {
     if (item == null) continue
@@ -432,6 +458,7 @@ function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewSt
     h(ReactImpl, 'div', { className: 'qqc-card-head' },
       h(ReactImpl, 'h3', { className: 'qqc-card-title' }, t('overview.capabilities'))),
     protocolRow,
+    relationRow,
     ...body)
 }
 

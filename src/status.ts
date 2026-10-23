@@ -18,10 +18,10 @@
  *   （记忆文件清单与 /doctor 同源）。
  * @module dsh-qq-companion/status
  */
-import type { CapabilitySummary } from './capabilities.js'
 import { fileSize, memoryFileSpecs } from './companion/doctor.js'
 import type { ProtocolStatusView } from './companion/doctor.js'
 import type { LivenessSnapshot } from './liveness.js'
+import { RELATIONS, type Relation } from './relation.js'
 import type { SendCounterSnapshot } from './companion/send-counter.js'
 
 /** 主插件挂到 cordis 上的只读状态服务名。 */
@@ -108,8 +108,18 @@ export interface CompanionStatusPermissions {
   member: string
 }
 
-/** 概览页「功能」卡片：能力开关摘要（与 /doctor 的能力行同源，按管理员私聊视角）。 */
-export type CompanionStatusCapabilities = CapabilitySummary
+/** 概览页「功能」卡片：能力开关摘要（与 /doctor 的能力行同源）。
+ *
+ *  `enabled` / `disabled` 是主人私聊视角（缺什么就是配置层真关了什么）；
+ *  `byRelation` 是四个关系各自的已开数（T11）。字段逐项归一化，任何一项读不到都
+ *  只影响它自己（byRelation 整个缺失 = 概览显示「—」）。 */
+export interface CompanionStatusCapabilities {
+  enabled: number
+  total: number
+  disabled: Array<{ id: string; title: string; reason: string }>
+  /** 四个关系各自的已开数（主插件没提供 = 省略）。 */
+  byRelation?: Record<Relation, number>
+}
 
 /** 概览页「功能」卡片的输出协议（B 档）一行：开关 / 灰度聊天 / 今天的解析计数。 */
 export type CompanionStatusProtocol = ProtocolStatusView
@@ -171,7 +181,8 @@ export interface CompanionStatusDeps {
   groupMemoryMaxBytes?: number
   /** /doctor 的权限行（'' = 宿主默认）。 */
   permissions?: { admin: string; member: string }
-  /** 能力开关摘要（bridge.capabilitySummary；缺席 = null）。 */
+  /** 能力开关摘要（bridge.capabilitySummary 的 CapabilitySummary——它多带一个
+   *  byRelation，正好是本字段声明的可选部分；缺席 = null）。 */
   capabilities?: () => CompanionStatusCapabilities
   /** 输出协议状态（protocolMode / protocolChats + 今天计数；缺席 = null）。 */
   protocol?: () => CompanionStatusProtocol
@@ -289,6 +300,19 @@ async function memoryOf(deps: CompanionStatusDeps): Promise<CompanionStatusMemor
   return out
 }
 
+/** 四个关系各自的已开数：四项都是合法非负数才算数，缺一项就整块省略（概览显示「—」）。 */
+function byRelationOf(value: unknown): Record<Relation, number> | undefined {
+  if (value == null || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const out = {} as Record<Relation, number>
+  for (const relation of RELATIONS) {
+    const count = record[relation]
+    if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) return undefined
+    out[relation] = count
+  }
+  return out
+}
+
 /** 「功能」卡片：能力开关摘要（缺席 = null；只保留纯 JSON 字段）。 */
 function capabilitiesOf(deps: CompanionStatusDeps): CompanionStatusCapabilities | null {
   if (deps.capabilities === undefined) return null
@@ -302,7 +326,14 @@ function capabilitiesOf(deps: CompanionStatusDeps): CompanionStatusCapabilities 
       reason: typeof item.reason === 'string' ? item.reason : '',
     })
   }
-  return { enabled: countOf(summary.enabled), total: countOf(summary.total), disabled }
+  const out: CompanionStatusCapabilities = {
+    enabled: countOf(summary.enabled),
+    total: countOf(summary.total),
+    disabled,
+  }
+  const byRelation = byRelationOf(summary.byRelation)
+  if (byRelation !== undefined) out.byRelation = byRelation
+  return out
 }
 
 /** 「功能」卡片：输出协议状态（缺席 = null；只保留纯 JSON 字段）。 */

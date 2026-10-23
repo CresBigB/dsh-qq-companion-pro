@@ -33,6 +33,14 @@ export interface SelfCheckInput {
     typingDelayMaxMs?: number;
     /** 全局关闭的能力 id（未知 id 在这里告警：写错了不会关掉任何东西）。 */
     capabilitiesDeny?: readonly string[];
+    /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；未知 id 同样告警）。 */
+    friendDeny?: readonly string[];
+    memberDeny?: readonly string[];
+    strangerDeny?: readonly string[];
+    /** 额外给好友 / 群聊 / 陌生人开放的能力 id（未知 id 同样告警：写错了开不出任何东西）。 */
+    friendGrant?: readonly string[];
+    memberGrant?: readonly string[];
+    strangerGrant?: readonly string[];
     /** 输出协议 B 档总开关（'on' / 缺省 off）。 */
     protocolMode?: 'off' | 'on';
     /** 输出协议的灰度聊天名单（空 = 开启时对所有聊天生效）。 */

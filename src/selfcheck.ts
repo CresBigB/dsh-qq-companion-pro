@@ -40,6 +40,14 @@ export interface SelfCheckInput {
   typingDelayMaxMs?: number
   /** 全局关闭的能力 id（未知 id 在这里告警：写错了不会关掉任何东西）。 */
   capabilitiesDeny?: readonly string[]
+  /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；未知 id 同样告警）。 */
+  friendDeny?: readonly string[]
+  memberDeny?: readonly string[]
+  strangerDeny?: readonly string[]
+  /** 额外给好友 / 群聊 / 陌生人开放的能力 id（未知 id 同样告警：写错了开不出任何东西）。 */
+  friendGrant?: readonly string[]
+  memberGrant?: readonly string[]
+  strangerGrant?: readonly string[]
   /** 输出协议 B 档总开关（'on' / 缺省 off）。 */
   protocolMode?: 'off' | 'on'
   /** 输出协议的灰度聊天名单（空 = 开启时对所有聊天生效）。 */
@@ -96,6 +104,28 @@ export function selfCheck(c: SelfCheckInput): string[] {
   // 能力开关写错 id 时不会关掉任何功能（静默无效），启动时点出来。
   for (const id of unknownCapabilityIds(c.capabilitiesDeny)) {
     problems.push('capabilitiesDeny 里的「' + id + '」不是已知能力 id，不会关掉任何功能（' + capabilityCatalogText() + '）')
+  }
+  // 三个按关系的 deny（T11 r1）同理：写错 id 时那一档不会少任何功能，静默无效。
+  const relationDenies: Array<[string, readonly string[] | undefined]> = [
+    ['friendDeny', c.friendDeny],
+    ['memberDeny', c.memberDeny],
+    ['strangerDeny', c.strangerDeny],
+  ]
+  for (const [key, ids] of relationDenies) {
+    for (const id of unknownCapabilityIds(ids)) {
+      problems.push(key + ' 里的「' + id + '」不是已知能力 id，不会对任何人关闭功能（可用 id 见 /doctor）')
+    }
+  }
+  // 三个 grant（T11）同理：写错 id 时不会给任何人加开功能，静默无效。
+  const grants: Array<[string, readonly string[] | undefined]> = [
+    ['friendGrant', c.friendGrant],
+    ['memberGrant', c.memberGrant],
+    ['strangerGrant', c.strangerGrant],
+  ]
+  for (const [key, ids] of grants) {
+    for (const id of unknownCapabilityIds(ids)) {
+      problems.push(key + ' 里的「' + id + '」不是已知能力 id，不会给任何人开放功能（可用 id 见 /doctor）')
+    }
   }
   // 输出协议（B 档）的灰度名单：只在协议开启时才有意义，格式错了那个聊天不会生效。
   const protocolChats = c.protocolChats ?? []

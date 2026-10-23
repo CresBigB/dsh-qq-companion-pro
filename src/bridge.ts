@@ -13,7 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 
 import type { BridgeDeps } from './bridge-types.js'
-import { resolveCapabilities, summarizeCapabilities, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
+import { resolveCapabilities, summarizeCapabilities, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
 import { buildChatId, classifyUserRole, groupAllowed, sanitizeMessageId, splitChatId } from './chat.js'
@@ -32,7 +32,7 @@ import { parseControlBlock, parseReplyPass, type ControlBlock, type ParseControl
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
 import { ChatRegistry, type ChatAgent } from './registry.js'
-import { stripRelationPrefix } from './relation.js'
+import { sessionRelation, stripRelationPrefix, type Relation } from './relation.js'
 import { parseLeadingQuote, SELF_QUOTE_TOKEN, SeenMessageIds, type QuoteMarker } from './reply-quote.js'
 import { registerStickerTools } from './sticker-tools.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
@@ -1211,12 +1211,41 @@ export class ChatBridge {
     return this.composePlatformPrompt(chatId, this.resolveChatCapabilities(chatId))
   }
 
-  /** 按一个聊天算能力（会话类型 + 管理员私聊 + 当前进程的运行时依赖）。 */
+  /** 按一个聊天算能力（会话类型 + 关系档 + 当前进程的运行时依赖）。 */
   private resolveChatCapabilities(chatId: ChatId): ResolveCapabilitiesResult {
+    const ref = splitChatId(chatId)
     return resolveCapabilities({
-      config: { capabilitiesDeny: this.deps.config.capabilitiesDeny ?? [] },
+      config: this.capabilityConfig(),
       deps: this.availableCapabilityDeps(),
-      chat: { kind: splitChatId(chatId).kind, adminPrivate: this.isAdminPrivate(chatId) },
+      chat: { kind: ref.kind, relation: this.chatRelation(chatId) },
+    })
+  }
+
+  /** 能力相关的配置（全局 deny + 三个按关系 deny + 三个 grant；缺省一律空 = 现状）。 */
+  private capabilityConfig(): CapabilityConfig {
+    const config = this.deps.config
+    return {
+      capabilitiesDeny: config.capabilitiesDeny ?? [],
+      friendDeny: config.friendDeny ?? [],
+      memberDeny: config.memberDeny ?? [],
+      strangerDeny: config.strangerDeny ?? [],
+      friendGrant: config.friendGrant ?? [],
+      memberGrant: config.memberGrant ?? [],
+      strangerGrant: config.strangerGrant ?? [],
+    }
+  }
+
+  /**
+   * 这个**会话**的关系档（T11 的能力视角，与逐条消息的关系绸标不是一回事）：
+   * 群聊恒 'groupMember'（一个群只有一个会话，看不到具体发言人，所以群里主人
+   * 发言也按群友档），私聊按名单分 owner / friend / stranger。
+   */
+  private chatRelation(chatId: ChatId): Relation {
+    const ref = splitChatId(chatId)
+    return sessionRelation({
+      userId: ref.target,
+      chatKind: ref.kind,
+      policy: { adminUsers: this.deps.policy.adminUsers, friendUsers: this.deps.config.friendUsers ?? [] },
     })
   }
 
@@ -1229,15 +1258,15 @@ export class ChatBridge {
   }
 
   /**
-   * 能力摘要（/doctor 与设置页概览共用）：按**管理员私聊**视角计算——主人自己
-   * 的私聊已经是权限最高的一类会话，缺什么就是配置层真的关了什么。
+   * 能力摘要（/doctor 与设置页概览共用）：`enabled` / `disabled` 按**主人私聊**
+   * 视角（权限最高的一类会话，缺什么就是配置层真关了什么），`byRelation` 给出
+   * 主人 / 好友 / 群友 / 陌生人四个档各自的已开数。
    */
   capabilitySummary(): CapabilitySummary {
-    return summarizeCapabilities(resolveCapabilities({
-      config: { capabilitiesDeny: this.deps.config.capabilitiesDeny ?? [] },
+    return summarizeCapabilities({
+      config: this.capabilityConfig(),
       deps: this.availableCapabilityDeps(),
-      chat: { kind: 'private', adminPrivate: true },
-    }))
+    })
   }
 
   // ------------------------------------------------------------ typing

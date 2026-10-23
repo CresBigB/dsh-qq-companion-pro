@@ -13,6 +13,8 @@
 import type { ChatKind } from './chat.js';
 /** 发送者跟她的关系。 */
 export type Relation = 'owner' | 'friend' | 'groupMember' | 'stranger';
+/** 四个关系（固定顺序：主人 → 好友 → 群友 → 陌生人；/doctor 行与概览按这个顺序念）。 */
+export declare const RELATIONS: readonly Relation[];
 /** 语气：措辞的软硬（soft=亲切 / teasing=打趣 / neutral=中性）。 */
 export type RelationTone = 'soft' | 'teasing' | 'neutral';
 /** 一条关系的调参：语气、服从度、亲密度、能否用斜杠命令。 */
@@ -52,6 +54,8 @@ export declare const RELATION_DEFAULTS: {
     readonly friendObedience: 0.5;
     readonly friendIntimacy: 0.6;
 };
+/** 关系的中文名（绸标第一段；/doctor 的能力行与设置页概览也用它）。 */
+export declare const RELATION_NAMES: Readonly<Record<Relation, string>>;
 /**
  * 判定一个人跟她的关系。**单一判定来源**：主人 > 好友 > 群友 / 陌生人。
  * 群聊里既不是主人也不是好友的是群友；非管理员私聊的是陌生人。
@@ -59,6 +63,17 @@ export declare const RELATION_DEFAULTS: {
  * @returns 关系。
  */
 export declare function classifyRelation(input: RelationInput): Relation;
+/**
+ * **会话级**的关系视角（T11 的能力判定用它，不是绸标用的那一套）。
+ *
+ * 与 {@link classifyRelation} 的唯一区别：**群聊一律 'groupMember'**——模型工具
+ * 是按会话注册的，一个群只有一个会话，会话级注册根本看不到具体发言人，所以群里
+ * 主人自己发言也走群友档（能力默认位 / memberGrant / 群会话的宿主权限预设同一
+ * 口径）。这是故意的，不是 bug。
+ * @param input - 发送者 QQ 号、聊天类型、判定名单。
+ * @returns 这个会话的关系档。
+ */
+export declare function sessionRelation(input: RelationInput): Relation;
 /**
  * 一条关系的调参。主人写死（soft / 0.9 / 0.9 / 可指挥）；好友取
  * friendObedience 与 friendIntimacy；群友与陌生人共用 memberObedience，

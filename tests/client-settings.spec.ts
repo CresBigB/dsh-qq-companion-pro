@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 109 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 115 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { Config } from '../src/config.js'
+import { CAPABILITIES, capabilityCatalogText } from '../src/capabilities.js'
 import {
   ALL_KEYS,
   NAMESPACE,
@@ -469,10 +470,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(109)
+    expect(ALL_KEYS).toHaveLength(115)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 109 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 115 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -589,11 +590,55 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     }
   })
 
+  it('「功能开关」七个能力键的 hint 里只有一份能力清单，且那份清单 ≡ 注册表（不手写）', () => {
+    const catalog = capabilityCatalogText()
+    const CAPABILITY_KEYS = [
+      'capabilitiesDeny',
+      'friendDeny', 'memberDeny', 'strangerDeny',
+      'friendGrant', 'memberGrant', 'strangerGrant',
+    ]
+    for (const key of CAPABILITY_KEYS) {
+      const field = allFields.find((item) => item.key === key)!
+      expect(field, key).toBeTruthy()
+      expect(field.type, key).toBe('stringArray')
+      expect(field.section, key).toBe('功能开关')
+      const hint = field.hint ?? ''
+      expect(hint, key).toContain(catalog)
+      // 能力 id / 中文名只能来自注册表清单：把清单原文去掉后，不该再出现任何一项
+      // （以后改了注册表却手写一份新清单，这条会失败）。
+      const rest = hint.split(catalog).join('')
+      for (const capability of CAPABILITIES) {
+        expect(rest, key + ' 手写了能力 id ' + capability.id).not.toContain(capability.id)
+        expect(rest, key + ' 手写了中文名 ' + capability.title).not.toContain(capability.title)
+      }
+      // 三个 grant 的 hint 都讲清「默认关闭、单独给某一档开」与「默认位已开启的不用写」。
+      if (key.endsWith('Grant')) {
+        expect(hint, key).toContain('默认关闭')
+        expect(hint, key).toContain('默认位已开启的不需要写进来')
+      }
+    }
+    // 三个按关系 deny（T11 r1）的 hint 讲清「只针对这一档」，并收尾在
+    // 「capabilitiesDeny 是全局关…两边都写了以 capabilitiesDeny 为准」（与文档同句）。
+    for (const key of ['friendDeny', 'memberDeny', 'strangerDeny']) {
+      const hint = allFields.find((item) => item.key === key)!.hint ?? ''
+      expect(hint, key).toContain('只对')
+      expect(hint, key).toContain('capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。')
+    }
+    // 三个 grant 的 hint 指回对应的 deny（默认位全开时 grant 是空转的，要关只能用 deny）。
+    expect(allFields.find((item) => item.key === 'friendGrant')!.hint).toContain('不给好友用的功能')
+    expect(allFields.find((item) => item.key === 'memberGrant')!.hint).toContain('不给群聊用的功能')
+    expect(allFields.find((item) => item.key === 'strangerGrant')!.hint).toContain('不给陌生人用的功能')
+    // 「功能开关」卡片的七个键在 access 子页里是连续的一段（渲染按组内顺序切卡片）。
+    const access = groups.find((group) => group.id === 'access')!
+    const switchKeys = access.fields.filter((field) => field.section === '功能开关').map((field) => field.key)
+    expect(switchKeys).toEqual(CAPABILITY_KEYS)
+  })
+
   it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
     expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
     expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
-    expect(configSchemaKeys).toHaveLength(109)
-    expect(patchSchemaKeys).toHaveLength(109)
+    expect(configSchemaKeys).toHaveLength(115)
+    expect(patchSchemaKeys).toHaveLength(115)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {
@@ -1070,8 +1115,14 @@ describe('搜索与高亮切分纯函数（§5.3）', () => {
     // 媒体子页的表情包库 4 键（顺序即键序）。
     expect(matches.filter(match => match.groupId === 'media').map(match => match.field.key))
       .toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
-    // T6 的能力开关（access 子页）hint 里也写着表情包能力 id，所以它同样是命中项。
-    expect(matches.filter(match => match.groupId === 'access').map(match => match.field.key)).toEqual(['capabilitiesDeny'])
+    // T6/T11 的能力开关（access 子页）hint 里也写着表情包能力 id，所以它同样是命中项
+    // （全局 deny + 三个按关系 deny + 三个 grant 各自的 hint 都由注册表生成，都带这串清单）。
+    expect(matches.filter(match => match.groupId === 'access').map(match => match.field.key))
+      .toEqual([
+        'capabilitiesDeny',
+        'friendDeny', 'memberDeny', 'strangerDeny',
+        'friendGrant', 'memberGrant', 'strangerGrant',
+      ])
     const stickerDir = matches.find(match => match.field.key === 'stickerDir')!
     expect(stickerDir.hits).toContain('section')
     expect(searchFields('')).toEqual([])
@@ -1472,7 +1523,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（109 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（115 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

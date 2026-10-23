@@ -111,7 +111,7 @@ function demoStatus(overrides: Record<string, unknown> = {}): Record<string, unk
     memory: [{ label: '公开', path: 'E:\\To DeepSeek\\AGENTS.md', bytes: 5000, maxBytes: 6144 }],
     scheduled: [{ id: 'diary', time: '23:00', chatId: 'private:2824149798', doneToday: false, nextAt: '23:00' }],
     permissions: { admin: 'danger-full-access', member: 'read-only' },
-    capabilities: { enabled: 11, total: 11, disabled: [] },
+    capabilities: { enabled: 11, total: 11, disabled: [], byRelation: { owner: 11, friend: 11, groupMember: 11, stranger: 11 } },
     generatedAt: 1_700_000_000_000,
   }, overrides)
 }
@@ -362,6 +362,39 @@ describe('概览子页 — 记忆用量 / 定时任务 / 会话卡片（§4.14�
     expect(textOf(rows[1])).toContain('表情包库未开启')
     // 每一行都标「未开启」，与其余卡片的用词一致。
     expect(textOf(rows[0])).toContain('未开启')
+  })
+
+  it('功能卡片（T11 按关系授权）：展示四个关系各自的已开数；byRelation 缺失显示「—」', () => {
+    const nodes = renderOverview(stubReact, overviewProps())
+    const card = byRole(nodes, 'overview-capabilities')[0]
+    expect(textOf(byRole(card, 'overview-capabilities-by-relation')[0]))
+      .toBe('主人 11 / 好友 11 / 群友 11 / 陌生人 11')
+    // 四个数字互不相同也照原样念（grant / 默认位不同时会出现差异）。
+    const varied = renderOverview(stubReact, overviewProps({
+      status: demoStatus({
+        capabilities: {
+          enabled: 11,
+          total: 11,
+          disabled: [],
+          byRelation: { owner: 11, friend: 9, groupMember: 7, stranger: 5 },
+        },
+      }),
+    }))
+    expect(textOf(byRole(byRole(varied, 'overview-capabilities')[0], 'overview-capabilities-by-relation')[0]))
+      .toBe('主人 11 / 好友 9 / 群友 7 / 陌生人 5')
+    // byRelation 缺失（老主插件 / 取数不全）→ 这一行「—」，卡片其余部分照旧。
+    const legacy = renderOverview(stubReact, overviewProps({
+      status: demoStatus({ capabilities: { enabled: 9, total: 11, disabled: [] } }),
+    }))
+    const legacyCard = byRole(legacy, 'overview-capabilities')[0]
+    expect(textOf(byRole(legacyCard, 'overview-capabilities-by-relation')[0])).toBe('—')
+    expect(textOf(legacyCard)).toContain('已开 9 / 共 11')
+    // 数据不完整（宿主不会这样发，status.ts 会整块省略）→ 缺的那一项显示「—」，不崩。
+    const partial = renderOverview(stubReact, overviewProps({
+      status: demoStatus({ capabilities: { enabled: 9, total: 11, disabled: [], byRelation: { owner: 9 } } }),
+    }))
+    expect(textOf(byRole(byRole(partial, 'overview-capabilities')[0], 'overview-capabilities-by-relation')[0]))
+      .toBe('主人 9 / 好友 — / 群友 — / 陌生人 —')
   })
 
   it('功能卡片：快照里没有 capabilities 时显示「—」（不整页报错）', () => {

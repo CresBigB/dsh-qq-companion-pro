@@ -2,7 +2,10 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "rootDir": "src/client",
+    // 设置页前端（src/client）会引用同层的纯函数模块——能力 id 清单来自
+    // src/capabilities.ts（它只依赖 src/relation.ts，两者都没有一行 I/O），
+    // 所以 rootDir 放到 src 这一层；noEmit，rootDir 只决定"工程根"，不产生产物。
+    "rootDir": "src",
     "noEmit": true,
     "declarationMap": false,
     "types": []
