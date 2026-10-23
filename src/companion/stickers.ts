@@ -16,10 +16,13 @@ import { dayKey, type Log } from './time.js'
 
 export const STICKER_INDEX_FILE = 'index.json'
 export const DEFAULT_STICKER_MAX_COUNT = 300
-export const DEFAULT_STICKER_MAX_BYTES = 1024 * 1024
+export const DEFAULT_STICKER_MAX_BYTES = 4 * 1024 * 1024
 export const DEFAULT_STICKER_DAILY_MAX = 20
 /** Most results one search returns. */
 export const STICKER_SEARCH_MAX = 5
+/** How many file hashes findByFile remembers (inbound stickers are looked up
+ * once per message; the same file is often quoted again). */
+export const STICKER_HASH_CACHE_MAX = 200
 const MAX_TAGS = 8
 const MAX_TAG_CHARS = 12
 const MAX_DESCRIPTION_CHARS = 60
@@ -40,6 +43,14 @@ export interface Sticker {
 export type StickerSaveResult =
   | { ok: true; sticker: Sticker; merged: boolean }
   | { ok: false; reason: string }
+
+/** What the library can say about a file before anyone tries to save it.
+ * `too-large` is the one that matters: save() would refuse it, so the caller
+ * must not nudge her to try. */
+export type StickerFileShelf =
+  | { kind: 'known'; sticker: Sticker }
+  | { kind: 'new' }
+  | { kind: 'too-large' }
 
 export interface StickerLibraryOptions {
   dir: string
@@ -83,6 +94,8 @@ export class StickerLibrary {
   private readonly writer: SerialFileWriter
   private stickers: Sticker[] = []
   private nextNumber = 1
+  /** path → content hash of the file at that path (LRU; see STICKER_HASH_CACHE_MAX). */
+  private readonly hashCache = new Map<string, { size: number; mtimeMs: number; sha256: string }>()
   /** Mutations run one at a time (dedupe and numbering stay correct). */
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -122,6 +135,75 @@ export class StickerLibrary {
 
   get(id: string): Sticker | undefined {
     return this.stickers.find(s => s.id === id)
+  }
+
+  /**
+   * The sticker already kept with exactly this file's content, or undefined.
+   * The hash uses the same algorithm as save, so a picture she kept from an
+   * earlier chat is recognized when it comes in again. Missing / unreadable
+   * files and anything over the per-image cap have no hash at all.
+   */
+  async findByFile(path: string): Promise<Sticker | undefined> {
+    const shelf = await this.classifyFile(path)
+    return shelf !== undefined && shelf.kind === 'known' ? shelf.sticker : undefined
+  }
+
+  /**
+   * The three answers a received file can get: already kept (with the sticker),
+   * not kept yet, or too big for the per-image cap so save() would refuse it.
+   * undefined when the file cannot be read at all — then there is nothing to
+   * say about it.
+   */
+  async classifyFile(path: string): Promise<StickerFileShelf | undefined> {
+    let size: number
+    try {
+      const stats = await stat(path)
+      if (!stats.isFile()) return undefined
+      size = stats.size
+    } catch {
+      return undefined
+    }
+    // Checked before hashing: hashOf() gives up on oversized files too, and
+    // "too large" is exactly what the caller needs to tell apart from "new".
+    if (size > this.maxBytes) return { kind: 'too-large' }
+    const sha256 = await this.hashOf(path)
+    if (sha256 === undefined) return undefined
+    const kept = this.stickers.find(s => s.sha256 === sha256)
+    return kept === undefined ? { kind: 'new' } : { kind: 'known', sticker: kept }
+  }
+
+  /** The file's content hash, memoized by path; undefined when the file is
+   * missing, unreadable or bigger than the per-image cap. */
+  private async hashOf(path: string): Promise<string | undefined> {
+    let info: { size: number; mtimeMs: number }
+    try {
+      const stats = await stat(path)
+      if (!stats.isFile() || stats.size > this.maxBytes) return undefined
+      info = { size: stats.size, mtimeMs: stats.mtimeMs }
+    } catch {
+      return undefined
+    }
+    const cached = this.hashCache.get(path)
+    if (cached !== undefined && cached.size === info.size && cached.mtimeMs === info.mtimeMs) {
+      this.hashCache.delete(path)
+      this.hashCache.set(path, cached)
+      return cached.sha256
+    }
+    let sha256: string | undefined
+    try {
+      sha256 = createHash('sha256').update(await readFile(path)).digest('hex')
+    } catch {
+      // a failed read is not cached: the next message may read it fine.
+      return undefined
+    }
+    this.hashCache.delete(path)
+    while (this.hashCache.size >= STICKER_HASH_CACHE_MAX) {
+      const oldest = this.hashCache.keys().next().value
+      if (oldest === undefined) break
+      this.hashCache.delete(oldest)
+    }
+    this.hashCache.set(path, { ...info, sha256 })
+    return sha256
   }
 
   private serial<T>(work: () => Promise<T>): Promise<T> {
@@ -173,6 +255,7 @@ export class StickerLibrary {
    * Find stickers for a mood or topic. Each query word scores on the tags
    * (whole tag 3, part of a tag 2) and the description (1); ties go to the
    * one sent less often, so the same picture does not come up every time.
+   * An empty query instead shows what the shelf holds (see browse()).
    * `today` lists today's additions instead (for the nightly tidy-up).
    */
   search(query: string, options: { limit?: number; today?: boolean } = {}): Sticker[] {
@@ -182,7 +265,7 @@ export class StickerLibrary {
       return this.stickers.filter(s => dayKey(s.addedAt) === today).slice(0, limit)
     }
     const words = query.split(/[\s,，、/]+/).map(w => w.trim()).filter(w => w !== '')
-    if (words.length === 0) return []
+    if (words.length === 0) return this.browse(limit)
     const scored = this.stickers.map(s => {
       let score = 0
       for (const w of words) {
@@ -194,6 +277,28 @@ export class StickerLibrary {
     }).filter(x => x.score > 0)
     scored.sort((a, b) => b.score - a.score || a.s.uses - b.s.uses || (a.s.lastUsedAt ?? 0) - (b.s.lastUsedAt ?? 0))
     return scored.slice(0, limit).map(x => x.s)
+  }
+
+  /**
+   * The empty-query shelf: half the most-used pictures, the rest filled with
+   * the newest ones, no duplicates, never more than limit.
+   */
+  private browse(limit: number): Sticker[] {
+    const picked: Sticker[] = []
+    const add = (sticker: Sticker): void => {
+      if (picked.length >= limit || picked.includes(sticker)) return
+      picked.push(sticker)
+    }
+    const byId = (a: Sticker, b: Sticker): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    const mostUsed = [...this.stickers].sort((a, b) =>
+      b.uses - a.uses || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || b.addedAt - a.addedAt || byId(a, b))
+    for (const sticker of mostUsed.slice(0, Math.ceil(limit / 2))) add(sticker)
+    const newest = [...this.stickers].sort((a, b) => b.addedAt - a.addedAt || byId(b, a))
+    for (const sticker of newest) {
+      if (picked.length >= limit) break
+      add(sticker)
+    }
+    return picked
   }
 
   /** The image file of one sticker (absolute path). */

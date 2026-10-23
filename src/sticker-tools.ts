@@ -72,9 +72,9 @@ export function registerStickerTools(ctx: Context, host: StickerToolHost, librar
 
     ctx.tools.register(defineTool({
       name: 'qq_sticker_search',
-      description: '在你的表情包库里按情绪、动作或场合找表情包（多个关键词用空格隔开），最多返回 5 张，被发过次数少的排前面。today=true 时改为列出今天新存的（夜里整理用）。',
+      description: '在你的表情包库里按情绪、动作或场合找表情包（多个关键词用空格隔开），最多返回 5 张，被发过次数少的排前面。不知道搜什么、想先看看库里有什么，就留空 query（返回常用的和最近新存的）。today=true 时改为列出今天新存的（夜里整理用）。',
       parameters: {
-        query: { type: 'string', description: '关键词，例如「摸头 安慰」' },
+        query: { type: 'string', description: '关键词，例如「摸头 安慰」；留空 = 看看库里常用的和最近新存的' },
         today: { type: 'boolean', description: 'true = 列出今天新存的表情包' },
       },
       output: json(value => {

@@ -5,6 +5,7 @@ import type { OneBotSegment, MediaRef } from './cq.js';
 import type { AccessPolicyConfig, ChatId, UserRole } from './chat.js';
 import type { BridgeConfig } from './bridge.js';
 import type { GroupChatter } from './companion/group-chatter.js';
+import type { StickerLibrary } from './companion/stickers.js';
 /**
  * The neutral shape normalizeOneBot11 extracts from one OneBot 11 message
  * event: exactly the fields the inbound pipeline consumes, with the event
@@ -117,6 +118,9 @@ export interface InboundContext {
     noteSeenMessage?(chatId: ChatId, messageId: string): void;
     /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
     groupChatter?: GroupChatter;
+    /** Her sticker library: an incoming sticker is labeled with whether she
+     * already kept it (absent = the library is off, no label). */
+    stickers?: StickerLibrary;
     /** Outbound facade (the rate-limit notice). */
     sendToChat(chatId: ChatId, text: string): Promise<string[]>;
     /** Bridge log line callback. */
@@ -191,6 +195,14 @@ export declare class InboundPipeline {
     buildBody(text: string, media: MediaRef[], _chatId: ChatId): Promise<string>;
     /** Resolve one media ref to a text annotation with a local path. */
     resolveMediaRef(ref: MediaRef): Promise<string>;
+    /**
+     * What her sticker library says about a received sticker: the kept id with
+     * its first tags, 「还没收藏」, or 「太大了存不下」 when it is over the
+     * per-image cap (qq_sticker_save would refuse it, so she must not be told to
+     * try). '' when the library is off, and a lookup failure never costs the
+     * message — it only loses the note.
+     */
+    private stickerShelfNote;
     /** The transcript label for one voice file ('' when nothing was said,
      * transcription failed or it took longer than VOICE_TRANSCRIPT_WAIT_MS —
      * the message then goes on as a bare [语音]). */

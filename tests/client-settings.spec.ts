@@ -171,7 +171,7 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
 describe('客户端 bundle — 分组、键集、默认值与 host 一致', () => {
   it('分组与键序逐字对齐 host SETTINGS_GROUPS', () => {
     expect(client.GROUP_KEYS).toEqual(SETTINGS_GROUPS)
-    expect(groups.map((group) => group.id)).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'memory', 'proactive'])
+    expect(groups.map((group) => group.id)).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'stickers', 'memory', 'proactive'])
     expect(allFields.map((field) => field.key).sort()).toEqual([...ALL_KEYS].sort())
     expect(allFields).toHaveLength(ALL_KEYS.length)
   })
@@ -200,7 +200,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   })
 
   it('分组标题与字段 label 为中文', () => {
-    expect(groups.map((group) => group.title)).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '记忆与会话', '主动聊天'])
+    expect(groups.map((group) => group.title)).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '表情包', '记忆与会话', '主动聊天'])
     for (const field of allFields) expect(field.label).toMatch(/\p{Script=Han}/u)
   })
 
@@ -226,9 +226,9 @@ describe('客户端 bundle — 渲染函数模块级可测（renderGroup 纯函�
 
   it('四组各产出标题与逐字段控件行（28 行 obx-field）', () => {
     const sections = renderAll(draft({ config: SCHEMA_DEFAULTS }))
-    expect(sections.map((section) => (section.props as Record<string, unknown>)['data-group'])).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'memory', 'proactive'])
+    expect(sections.map((section) => (section.props as Record<string, unknown>)['data-group'])).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'stickers', 'memory', 'proactive'])
     const titles = sections.map((section) => ((section.children[0] as StubElement).children[0] as string))
-    expect(titles).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '记忆与会话', '主动聊天'])
+    expect(titles).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '表情包', '记忆与会话', '主动聊天'])
     const fieldRows = sections.flatMap((section) => walk(section).filter((element) => element.type === 'div' && element.props.className === 'obx-field'))
     expect(fieldRows).toHaveLength(ALL_KEYS.length)
   })
@@ -358,6 +358,42 @@ describe('诊断组 — 6 个观测/调试布尔键的文案契约（中文标�
     const patchCodec = updateSettings.parameters[0].codec.schema
     expect(patchCodec.parse({ actionAuditEnabled: false, traceEnabled: true })).toEqual({ actionAuditEnabled: false, traceEnabled: true })
     expect(() => patchCodec.parse({ traceEnabled: 'yes' })).toThrow()
+  })
+})
+
+describe('表情包组 — 4 个键的文案契约（留空 = 关闭 的语义 + 配置键名）', () => {
+  const stickersGroup = groups.find((group) => group.id === 'stickers')!
+
+  it('分组紧跟在陪伴组之后，键集与键序逐字对齐 host SETTINGS_GROUPS.stickers', () => {
+    expect(stickersGroup.title).toBe('表情包')
+    expect(stickersGroup.fields.map((field) => field.key)).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
+    const ids = groups.map((group) => group.id)
+    expect(ids.indexOf('stickers')).toBe(ids.indexOf('companion') + 1)
+  })
+
+  it('stickerDir 写明留空=关闭与目录示例；stickerMaxBytes 默认 4MB 并说明 QQ 动图常超过 1MB', () => {
+    const dir = stickersGroup.fields.find((field) => field.key === 'stickerDir')!
+    expect(dir.type).toBe('string')
+    expect(dir.hint).toContain('留空 = 关闭')
+    expect(dir.hint).toContain('stickers')
+    expect(dir.hint).toContain('（配置键 stickerDir）')
+
+    const defaults = client.DEFAULTS as Record<string, unknown>
+    expect(defaults.stickerDir).toBe('')
+    expect(defaults.stickerMaxBytes).toBe(4 * 1024 * 1024)
+    const bytes = stickersGroup.fields.find((field) => field.key === 'stickerMaxBytes')!
+    expect(bytes.type).toBe('number')
+    expect(bytes.hint).toContain('1MB')
+    expect(bytes.hint).toContain('（配置键 stickerMaxBytes）')
+
+    for (const field of stickersGroup.fields) {
+      expect(field.label).toMatch(/\p{Script=Han}/u)
+      expect(field.hint).toContain(`（配置键 ${field.key}）`)
+    }
+    // 四个数字/字符串键都走 patch 通道
+    const updateSettings = descriptors[1] as { parameters: Array<{ codec: { schema: { parse(value: unknown): unknown } } }> }
+    const patchCodec = updateSettings.parameters[0].codec.schema
+    expect(patchCodec.parse({ stickerDir: 'E:\\stickers', stickerMaxBytes: 4194304 })).toEqual({ stickerDir: 'E:\\stickers', stickerMaxBytes: 4194304 })
   })
 })
 

@@ -74,7 +74,7 @@
 | `memoryNoteDenyWords` | string[] | `[]` | 群友让记的群记忆里不能出现的词（管理员的隐私：微信号、真名、住址等）；管理员 QQ 号自动算在内 |
 | `stickerDir` | string | `""` | 表情包库目录（图片和 index.json 放在这里）；留空 = 不开表情包功能（没有存/搜/发表情包的工具） |
 | `stickerMaxCount` | number | `300` | 表情包库最多存多少张；满了要先删再存 |
-| `stickerMaxBytes` | number | `1048576` | 一张表情包的最大字节数 |
+| `stickerMaxBytes` | number | `4194304` | 一张表情包的最大字节数（默认 4MB；QQ 动图常超过 1MB，所以别按图片的标准卡得太紧，超过就被拒收） |
 | `stickerDailyMax` | number | `20` | 每天最多新存多少张（控制她看图打标签的花费；合并到已有表情包不算） |
 | `privateResetDays` | number | `0` | 私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `groupResetDays` | number | `0` | 群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |

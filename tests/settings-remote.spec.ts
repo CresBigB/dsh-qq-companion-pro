@@ -600,6 +600,44 @@ describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（behavior
   })
 })
 
+describe('onebotSettings remote — stickers 分组（用户待办 4：表情包 4 键上设置页）', () => {
+  it('四个表情包键入快照：分组紧跟 companion、stickerDir 默认空、单张上限默认 4MB', () => {
+    const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
+    expect(Object.keys(SETTINGS_GROUPS)).toEqual([
+      'connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'stickers', 'memory', 'proactive',
+    ])
+    expect(SETTINGS_GROUPS.stickers).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
+    expect(snapshot.groups.stickers).toEqual(SETTINGS_GROUPS.stickers)
+    expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
+    // kindOf 认得这 4 个键的类型（字符串 1 个 + 数字 3 个），不支持的会在模块加载时抛错。
+    expect(SCHEMA_DEFAULTS.stickerDir).toBe('')
+    expect(SCHEMA_DEFAULTS.stickerMaxCount).toBe(300)
+    expect(SCHEMA_DEFAULTS.stickerMaxBytes).toBe(4 * 1024 * 1024)
+    expect(SCHEMA_DEFAULTS.stickerDailyMax).toBe(20)
+    expect(snapshot.config.stickerDir).toBe('')
+    expect(snapshot.config.stickerMaxBytes).toBe(4 * 1024 * 1024)
+  })
+
+  it('四个键按各自通道写入（字符串 / 数字 ≥0）；非法值整单拒写且 edit 零调用', async () => {
+    const editor = new FakeConfigEditor()
+    const state = createRevisionState()
+    const written = await updateSettings(editor, state, {
+      stickerDir: 'E:\\To DeepSeek\\companion\\stickers', stickerMaxCount: 500, stickerMaxBytes: 8 * 1024 * 1024, stickerDailyMax: 0,
+    })
+    expect(written.revision).toBe(1)
+    expect(written.config.stickerDir).toBe('E:\\To DeepSeek\\companion\\stickers')
+    expect(written.config.stickerDailyMax).toBe(0) // 0 = 不再新存（当天额度用完的语义）
+    expect(editor.rows[0].config).toMatchObject({ stickerMaxCount: 500, stickerMaxBytes: 8 * 1024 * 1024 })
+
+    const writes = editor.editCalls
+    for (const patch of [{ stickerDir: 42 }, { stickerMaxBytes: -1 }, { stickerMaxCount: '300' }, { stickerDailyMax: null }]) {
+      await expect(updateSettings(editor, state, patch)).rejects.toMatchObject({ code: 'onebot-settings/bad-request' })
+    }
+    expect(editor.editCalls).toBe(writes)
+    expect(getSettings(editor, state).config.stickerMaxCount).toBe(500) // 拒写不改生效值
+  })
+})
+
 describe('onebotSettings remote — groupAutoQuote 白名单扩展（behavior 组 29→30 键，用户待办 8）', () => {
   it("groupAutoQuote 入快照：默认 'off'、behavior 组尾追加（deferredTimeoutMs 之后）、ALL_KEYS 29→30", () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())

@@ -109,9 +109,49 @@ describe('StickerLibrary', () => {
     expect(lib.search('摸头').map(s => s.id)).toEqual(['s0001', 's0002'])
     expect(lib.search('安慰 摸头')[0].id).toBe('s0001')
     expect(lib.search('问号').map(s => s.id)).toEqual(['s0003'])
-    expect(lib.search('')).toEqual([])
+    // 空查询不再是空：先给最常用的，再按新到旧补齐。
+    expect(lib.search('')).toEqual([lib.get('s0002'), lib.get('s0003'), lib.get('s0001')])
+    expect(lib.search('   ')).toEqual(lib.search(''))
     expect(lib.search('', { today: true }).map(s => s.id)).toEqual(['s0002', 's0003'])
     expect(lib.snapshot()).toEqual({ count: 3, maxCount: 300, today: 2, dailyMax: 20 })
+  })
+
+  it('an empty query gives the shelf: most used first, newest filling the rest, no repeats, capped by limit', async () => {
+    let now = new Date(2026, 9, 19, 11).getTime()
+    const dir = tmp('stk-'), media = tmp('stk-media-')
+    const lib = new StickerLibrary({ dir, now: () => now })
+    await lib.load()
+    for (let i = 1; i <= 6; i += 1) {
+      now = new Date(2026, 9, 19, 11 + i).getTime()
+      await lib.save(image(media, i + '.png', PNG, String(i)), ['t' + i], '', 'g')
+    }
+    await lib.markUsed('s0005')
+    await lib.markUsed('s0005')
+    await lib.markUsed('s0002')
+    // 前一半（3 张）按 uses 降序：s0005(2)、s0002(1)、然后是没发过里最新的 s0006；
+    // 后用「最新」补齐：s0006 已在清单里，跳过，补 s0004、s0003。
+    expect(lib.search('').map(s => s.id)).toEqual(['s0005', 's0002', 's0006', 's0004', 's0003'])
+    expect(lib.search('', { limit: 2 }).map(s => s.id)).toEqual(['s0005', 's0006'])
+    expect(lib.search('', { limit: 1 }).map(s => s.id)).toEqual(['s0005'])
+    // 上限不会被「补齐」突破，重复也不会出现
+    expect(new Set(lib.search('').map(s => s.id)).size).toBe(lib.search('').length)
+  })
+
+  it('findByFile: the same content is recognized however it is named; missing, different and oversized files are not', async () => {
+    const dir = tmp('stk-'), media = tmp('stk-media-')
+    const lib = new StickerLibrary({ dir, maxBytes: 64 })
+    await lib.load()
+    const kept = image(media, 'a.png', PNG, 'kept')
+    expect(await lib.save(kept, ['摸头', '安慰', '开心', '可爱'], '摸头猫', 'g')).toMatchObject({ ok: true, sticker: { id: 's0001' } })
+    // 同一张图又发了一次（换了文件名），认得出
+    expect((await lib.findByFile(image(media, 'copy.png', PNG, 'kept')))?.id).toBe('s0001')
+    expect((await lib.findByFile(kept))?.id).toBe('s0001')
+    // 库里那张文件本身也是同一个哈希
+    expect((await lib.findByFile(join(dir, 's0001.png')))?.id).toBe('s0001')
+    // 内容不同 / 文件不存在 / 比单张上限大 → 都没有匹配
+    expect(await lib.findByFile(image(media, 'other.png', PNG, 'other'))).toBeUndefined()
+    expect(await lib.findByFile(join(media, 'missing.png'))).toBeUndefined()
+    expect(await lib.findByFile(image(media, 'big.png', PNG, 'x'.repeat(100)))).toBeUndefined()
   })
 
   it('edits and deletes (file removed); a corrupt index loads as empty', async () => {
@@ -229,9 +269,89 @@ describe('a sticker reaches her as [表情包:path]', () => {
       raw_message: '[CQ:image][CQ:image]', sender: { user_id: 10001, nickname: '主人' },
     }))
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    // 表情包库没开启：两个占位符都原样替换成路径，谁也不带收藏标注。
     expect(h.captured.followups[0].text).toMatch(/\[表情包:[^\]]+\]\[图片:[^\]]+\]/)
+    expect(h.captured.followups[0].text).not.toContain('还没收藏')
+    expect(h.captured.followups[0].text).not.toContain('库里已有')
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
+  })
+})
+
+describe('an incoming sticker says whether she already kept it', () => {
+  /** Send one message carrying a sticker (sub_type 1) and a photo (sub_type 0). */
+  async function inbound(opts: { stickers?: unknown } = {}): Promise<string> {
+    const h = await makeCmdHarness(opts)
+    const sticker = 'base64://' + PNG.toString('base64')
+    const photo = 'base64://' + Buffer.concat([PNG, Buffer.from('photo')]).toString('base64')
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'private', user_id: 10001, self_id: 10002,
+      message: [
+        { type: 'image', data: { file: sticker, sub_type: 1, summary: '[动画表情]' } },
+        { type: 'image', data: { file: photo, sub_type: 0 } },
+      ],
+      raw_message: '[CQ:image][CQ:image]', sender: { user_id: 10001, nickname: '主人' },
+    }))
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const text = h.captured.followups[0].text
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+    return text
+  }
+
+  it('not kept yet: 「（还没收藏）」 right after the sticker bracket, and never after a photo', async () => {
+    const lib = new StickerLibrary({ dir: tmp('stk-') })
+    await lib.load()
+    const text = await inbound({ stickers: lib })
+    expect(text).toMatch(/\[表情包:[^\]]+\]（还没收藏）/)
+    // 括号里仍然是纯路径，标注在括号外
+    expect(text).not.toMatch(/\[表情包:[^\]]*（/)
+    // 普通图片 [图片:…] 不标注
+    expect(text).toMatch(/\[图片:[^\]]+\](?!（)/)
+    expect(text.match(/（还没收藏）/g)).toHaveLength(1)
+  })
+
+  it('over the per-image cap: 「（太大了存不下）」, not a nudge to save something save() would refuse', async () => {
+    // 库的单张上限只有 16 字节，这张表情包 100 字节，qq_sticker_save 一定被拒。
+    const lib = new StickerLibrary({ dir: tmp('stk-'), maxBytes: 16 })
+    await lib.load()
+    const tooBig = Buffer.concat([PNG, Buffer.alloc(84)])
+    const h = await makeCmdHarness({ stickers: lib })
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'private', user_id: 10001, self_id: 10002,
+      message: [{ type: 'image', data: { file: 'base64://' + tooBig.toString('base64'), sub_type: 1, summary: '[动画表情]' } }],
+      raw_message: '[CQ:image]', sender: { user_id: 10001, nickname: '主人' },
+    }))
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const text = h.captured.followups[0].text
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+    expect(text).toMatch(/\[表情包:[^\]]+\]（太大了存不下）/)
+    expect(text).not.toContain('还没收藏')
+    expect(text).not.toContain('库里已有')
+    // 标注说的就是真话：同一张图交给 qq_sticker_save 确实存不进来。
+    const path = /\[表情包:([^\]]+)\]/.exec(text)?.[1] ?? ''
+    expect(await lib.save(path, ['摸头'], '', 'private:10001')).toMatchObject({ ok: false })
+  })
+
+  it('already kept: 「（库里已有 <id>：<前 3 个标签>）」', async () => {
+    const dir = tmp('stk-'), media = tmp('stk-media-')
+    const lib = new StickerLibrary({ dir })
+    await lib.load()
+    await lib.save(image(media, 'saved.png', PNG), ['摸头', '安慰', '开心', '可爱'], '摸头猫', 'group:888')
+    const text = await inbound({ stickers: lib })
+    expect(text).toMatch(/\[表情包:[^\]]+\]（库里已有 s0001：摸头、安慰、开心）/)
+    expect(text).not.toContain('还没收藏')
+  })
+
+  it('a lookup failure only drops the label, the message still goes through', async () => {
+    const broken = { classifyFile: async () => { throw new Error('index.json 读坏了') } }
+    const text = await inbound({ stickers: broken })
+    expect(text).toMatch(/\[表情包:[^\]]+\]/)
+    expect(text).not.toContain('还没收藏')
+    expect(text).not.toContain('库里已有')
   })
 })

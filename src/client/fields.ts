@@ -115,6 +115,16 @@ export const GROUPS: OnebotGroup[] = [
     ],
   },
   {
+    id: 'stickers',
+    title: '表情包',
+    fields: [
+      { key: 'stickerDir', label: '表情包库目录', type: 'string', hint: '留空 = 关闭表情包（她没有存、找、发表情包的工具）；填一个目录即开启，图片和 index.json 都放在这里，例如 E:\\To DeepSeek\\companion\\stickers。（配置键 stickerDir）' },
+      { key: 'stickerMaxCount', label: '最多存多少张', type: 'number', hint: '库满了要先删几张不常用的，才能再存新的。（配置键 stickerMaxCount）' },
+      { key: 'stickerMaxBytes', label: '单张最大（字节）', type: 'number', hint: '默认 4MB（4194304）。QQ 动图常超过 1MB，所以别卡得太紧；超过这张的上限她会存不进来。（配置键 stickerMaxBytes）' },
+      { key: 'stickerDailyMax', label: '每天最多新存几张', type: 'number', hint: '控制她看图打标签的花费；同一张图合并到已有表情包不算。（配置键 stickerDailyMax）' },
+    ],
+  },
+  {
     id: 'memory',
     title: '记忆与会话',
     fields: [
@@ -201,6 +211,10 @@ export const DEFAULTS: Record<string, unknown> = {
   publicMemoryMaxBytes: 6144,
   groupMemoryDir: '',
   groupMemoryMaxBytes: 8192,
+  stickerDir: '',
+  stickerMaxCount: 300,
+  stickerMaxBytes: 4194304,
+  stickerDailyMax: 20,
   sessionTitleTemplate: '{kind} {target} · {date}',
   proactiveEnabled: false,
   proactiveChatId: '',

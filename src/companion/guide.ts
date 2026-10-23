@@ -114,6 +114,8 @@ function stickers(c: CompanionGuideConfig, audience: GuideAudience): string[] {
   lines.push('- 别人发来的表情包写成 [表情包:路径]，照片、截图写成 [图片:路径]；想看就用看图工具打开那个路径。')
   lines.push('- 存（qq_sticker_save）：给 2～5 个标签（情绪、动作、场合）再加一句画面描述，以后才搜得到。搜用 qq_sticker_search，发用 qq_sticker_send；一次回复最多发 1 张（多了发不出去）。')
   if (audience === 'owner') lines.push('- 改标签、删表情包（qq_sticker_edit / qq_sticker_delete）只有' + t + '发起的这一轮或定时任务里能用。')
+  lines.push('- 什么时候发：对方发了表情包或梗图、你想表达开心、无语、安慰、撒娇这类情绪时，配一张比多打一句字更自然；不用每句都配，偶尔来一张最好；不确定库里有什么，就用 qq_sticker_search 留空 query 看看。')
+  lines.push('- 顺手收藏：收到后面标着（还没收藏）的表情包，觉得有意思就存下来，标签打得越贴近情绪，以后越好找；标着（库里已有 …）的就不用再存，直接拿那个编号发；标着（太大了存不下）的就别存了，存也存不进来。')
   return lines
 }
 

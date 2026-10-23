@@ -213,6 +213,8 @@ export async function makeCmdHarness(opts?: {
   groupChatter?: unknown
   /** 群聊自动引用（reply-quote）：absent = 'off'（现状）。 */
   groupAutoQuote?: 'off' | 'busy' | 'always'
+  /** 表情包库（absent = 未开启，入站表情包不带收藏标注）。 */
+  stickers?: unknown
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -237,6 +239,7 @@ export async function makeCmdHarness(opts?: {
     agentPresets: opts?.agentPresets as never,
     ...(opts?.activity !== undefined ? { activity: opts.activity as never } : {}),
     ...(opts?.groupChatter !== undefined ? { groupChatter: opts.groupChatter as never } : {}),
+    ...(opts?.stickers !== undefined ? { stickers: opts.stickers as never } : {}),
     commands: (opts?.commands ?? {
       execute: vi.fn(async (_agent: unknown, _line: string, attachments: readonly unknown[], signal: AbortSignal | undefined) => {
         // Mirror the host: execute() reads submittedAttachments.length and

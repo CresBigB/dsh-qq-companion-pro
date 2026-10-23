@@ -33,6 +33,20 @@ describe('buildCompanionGuide', () => {
     expect(g).not.toContain('[叫到我]')
   })
 
+  it('the owner chat: when to send one, and to keep the ones she does not have yet', () => {
+    const g = buildCompanionGuide(config, 'owner')
+    expect(g).toContain('什么时候发')
+    expect(g).toContain('比多打一句字更自然')
+    expect(g).toContain('偶尔来一张最好')
+    expect(g).toContain('qq_sticker_search 留空 query')
+    expect(g).toContain('顺手收藏')
+    expect(g).toContain('（还没收藏）')
+    expect(g).toContain('（库里已有 …）')
+    expect(g).toContain('（太大了存不下）的就别存了')
+    // 不写会变的具体数字/库存，免得每次变化都换会话。
+    expect(g).not.toMatch(/库里 (有 )?\d+ 张/)
+  })
+
   it('a group: triggers from the config, group memory rules, nothing private', () => {
     const g = buildCompanionGuide(config, 'group')
     expect(g).toContain('大肥鱼、肥鱼')
@@ -53,5 +67,9 @@ describe('buildCompanionGuide', () => {
     expect(g).not.toContain('[接着和我说]')
     expect(g).not.toContain('看一眼')
     expect(g).not.toContain('表情包库')
+    // 表情包库没开：连「什么时候发」「顺手收藏」这两条也说不到
+    expect(g).not.toContain('什么时候发')
+    expect(g).not.toContain('顺手收藏')
+    expect(g).not.toContain('qq_sticker_search')
   })
 })

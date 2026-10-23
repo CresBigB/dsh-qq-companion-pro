@@ -25,6 +25,7 @@ import type { BridgeConfig } from './bridge.js'
 import { describeError } from './errors.js'
 import { currentTrace, TRACE_REASONS } from './trace.js'
 import type { GroupChatter } from './companion/group-chatter.js'
+import type { StickerLibrary } from './companion/stickers.js'
 
 /**
  * The neutral shape normalizeOneBot11 extracts from one OneBot 11 message
@@ -171,6 +172,9 @@ export interface InboundContext {
   noteSeenMessage?(chatId: ChatId, messageId: string): void
   /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
   groupChatter?: GroupChatter
+  /** Her sticker library: an incoming sticker is labeled with whether she
+   * already kept it (absent = the library is off, no label). */
+  stickers?: StickerLibrary
   /** Outbound facade (the rate-limit notice). */
   sendToChat(chatId: ChatId, text: string): Promise<string[]>
   /** Bridge log line callback. */
@@ -509,8 +513,12 @@ export class InboundPipeline {
     if (resolved === undefined) return ''
     if (resolved.tooLarge === true) return placeholderFor(ref) + '（超过 ' + this.ctx.media.capLabel() + '，没有接收）'
     switch (resolved.kind) {
-      case 'image':
-        return (ref.sticker === true ? '[表情包:' : '[图片:') + resolved.path + ']'
+      case 'image': {
+        const annotation = (ref.sticker === true ? '[表情包:' : '[图片:') + resolved.path + ']'
+        // A sticker gets a word on whether she already has it — the bracket
+        // itself stays a bare path so [表情包:…] keeps parsing.
+        return ref.sticker === true ? annotation + await this.stickerShelfNote(resolved.path) : annotation
+      }
       case 'voice':
         // The message waits for its transcript (a couple of seconds), so
         // she answers what was said instead of replying to a bare [语音]
@@ -520,6 +528,29 @@ export class InboundPipeline {
         return '[视频:' + resolved.path + ']'
       default:
         return '[文件:' + resolved.path + ']'
+    }
+  }
+
+  /**
+   * What her sticker library says about a received sticker: the kept id with
+   * its first tags, 「还没收藏」, or 「太大了存不下」 when it is over the
+   * per-image cap (qq_sticker_save would refuse it, so she must not be told to
+   * try). '' when the library is off, and a lookup failure never costs the
+   * message — it only loses the note.
+   */
+  private async stickerShelfNote(path: string): Promise<string> {
+    const library = this.ctx.stickers
+    if (library === undefined) return ''
+    try {
+      const shelf = await library.classifyFile(path)
+      if (shelf === undefined) return ''
+      if (shelf.kind === 'new') return '（还没收藏）'
+      if (shelf.kind === 'too-large') return '（太大了存不下）'
+      const tags = shelf.sticker.tags.slice(0, 3).join('、')
+      return '（库里已有 ' + shelf.sticker.id + (tags !== '' ? '：' + tags : '') + '）'
+    } catch (error) {
+      this.ctx.log('debug', '表情包库查询失败，跳过收藏标注: ' + describeError(error))
+      return ''
     }
   }
 
