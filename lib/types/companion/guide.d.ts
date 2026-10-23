@@ -2,6 +2,14 @@ export interface CompanionGuideConfig {
     ownerTitle: string;
     /** The owner's QQ numbers. */
     adminUsers: readonly string[];
+    /** The friend list (QQ numbers): closer than a group member, not the owner. */
+    friendUsers?: readonly string[];
+    /** Relation matrix: obedience of non-owners (group member / stranger). */
+    memberObedience?: number;
+    /** Relation matrix: obedience of a friend. */
+    friendObedience?: number;
+    /** Relation matrix: intimacy of a friend. */
+    friendIntimacy?: number;
     publicMemoryFile: string;
     publicMemoryMaxBytes: number;
     /** The owner's private-chat workspace (its AGENTS.md is the private memory). */

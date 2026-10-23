@@ -175,6 +175,10 @@ export function apply(ctx: Context, config: Config): void {
   const companionGuide = (chatId: string): string => buildCompanionGuide({
     ownerTitle: config.ownerTitle,
     adminUsers: policy.adminUsers,
+    friendUsers: config.friendUsers ?? [],
+    memberObedience: config.memberObedience,
+    friendObedience: config.friendObedience,
+    friendIntimacy: config.friendIntimacy,
     publicMemoryFile: config.publicMemoryFile ?? '',
     publicMemoryMaxBytes: config.publicMemoryMaxBytes,
     adminWorkspacePath: config.adminWorkspacePath ?? '',
