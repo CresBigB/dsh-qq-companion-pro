@@ -34,6 +34,9 @@ export interface HealthDeps {
     /** /doctor 能力行（`capabilitySummary()`，按管理员私聊视角）；
      *  absent = 报告省略该行。 */
     capabilities?: () => CapabilitySummary;
+    /** /doctor 群管理写操作提示行（T13）：非主人档真的开了这两个能力时返回一行
+     *  警告，空串 = 不提。absent = 报告省略该行。 */
+    groupWriteWarning?: () => string;
     /** Write-gate snapshot. */
     /** The already-redacted config snapshot (see redactSnapshot). */
     configSnapshot: Record<string, unknown>;

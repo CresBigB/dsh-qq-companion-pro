@@ -80,6 +80,20 @@ export declare class ChatBridge {
      * as member. */
     canEditFiles(sessionId: string): boolean;
     /**
+     * 写操作审计入口（T13）：往 `mediaDir/qq-actions.log` 追加一行 jsonl
+     * （ts / chatId / action / ok / reason），**内部转调 outbound 既有的
+     * `auditWrite`**——同一个文件、同一套格式与串行写入，不另起一套日志。
+     *
+     * 目前用它的只有群管理写操作工具（`src/group-tools.ts`）的四个工具：每次调用
+     * 无论成功、失败、被回合门禁拒掉还是参数不合法都记一行。审计开关与
+     * `actionAuditEnabled`、目录与 `mediaDir` 同源；关闭审计时这里是 no-op。
+     * @param chatId - 目标会话（`group:<群号>`；目标不明时为 `unknown`）。
+     * @param action - 工具名（例如 `qq_group_ban`）。
+     * @param ok - 这一次是否真的做成了。
+     * @param reason - 目标 + 参数摘要 + 结果（给人事后复盘用的一行中文）。
+     */
+    auditAction(chatId: ChatId, action: string, ok: boolean, reason: string): void;
+    /**
      * Outbound media fence roots for one agent session's current turn:
      * the plugin media dir always, plus the chat's workspace directory when the
      * running turn's initiator is an admin. The role reuses the turn-level

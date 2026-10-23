@@ -7,6 +7,9 @@
  *
  * NapCat 白名单从 T12 起是表驱动的（`src/napcat-actions.ts`）：`qq_napcat_api`
  * 只是一个查表执行器，表外 action 照旧拒绝，表内 action 的行为与改造前逐字一致。
+ * T13 追加的群管理写操作也在那张表里，但**不归 `qq.napcat.api` 能力**，所以
+ * `qq_napcat_api` 依旧调不到它们（`NAPCAT_PROXY_ACTION_NAMES` 就是那 15 条）——
+ * 那两个能力只能走各自的专用工具（`src/group-tools.ts`，带回合门禁与审计）。
  * @module dsh-qq-companion/tools
  */
 
@@ -21,7 +24,7 @@ import { fileToBase64, isUrl } from './media.js'
 import { sanitizeMessageId, splitChatId } from './chat.js'
 import type { OneBotSegment } from './cq.js'
 import { parseMessage, cqUnescape } from './cq.js'
-import { NAPCAT_ACTION_NAMES, isNapCatActionWhitelisted } from './napcat-actions.js'
+import { NAPCAT_PROXY_ACTION_NAMES, isNapCatProxyAction } from './napcat-actions.js'
 
 /** Output projection shared by the send tools (unconstrained JSON value). */
 function sendOutput() {
@@ -492,7 +495,7 @@ export function registerTools(
       action: {
         type: 'string',
         required: true,
-        description: '白名单 action：' + NAPCAT_ACTION_NAMES.join(' / '),
+        description: '白名单 action：' + NAPCAT_PROXY_ACTION_NAMES.join(' / '),
       },
       params: {
         type: 'object',
@@ -505,8 +508,10 @@ export function registerTools(
     execute: async args => {
       const a = args as { action?: unknown; params?: unknown }
       // 白名单是表（src/napcat-actions.ts）：表外照旧拒绝，文案与改造前逐字一致。
-      if (typeof a.action !== 'string' || !isNapCatActionWhitelisted(a.action)) {
-        throw new Error('qq_napcat_api: action 不在白名单内（' + NAPCAT_ACTION_NAMES.join(', ') + '）')
+      // 群管理写操作虽在表里，但不归 qq.napcat.api 能力，所以这里同样拒绝——
+      // 它们只能走各自的专用工具（那里才有主人的回合门禁与审计）。
+      if (typeof a.action !== 'string' || !isNapCatProxyAction(a.action)) {
+        throw new Error('qq_napcat_api: action 不在白名单内（' + NAPCAT_PROXY_ACTION_NAMES.join(', ') + '）')
       }
       const params = typeof a.params === 'object' && a.params !== null ? a.params as Record<string, unknown> : {}
       return await connection.call(a.action, params) as JsonValue

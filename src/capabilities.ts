@@ -28,6 +28,11 @@
  *   的社交关系与私聊记录，群友一句「列一下你的好友」就能把它们发到群里。默认只给
  *   主人私聊（owner 档不看默认位，恒开），需要时由主人在 `memberGrant` /
  *   `friendGrant` / `strangerGrant` 里显式授权。
+ * - **例外（T13）**：`qq.group.manage` / `qq.group.notice` 两个**群管理写操作**的
+ *   两个默认位也都是 false——它们会真的改变群里的状态（禁言、群名片、公告、精华）。
+ *   这两个能力还有第二道闸：工具执行体里先查「本回合是主人发起的吗」
+ *   （`bridge.canEditFiles`），不是主人回合就直接拒绝、一个请求都不发；能力层
+ *   的 grant 只决定「这个会话有没有入口」，回合层才决定「这一次能不能真的做」。
  * - 推论（T11 r1 的存在理由）：对默认位为 true 的能力，**grant 是空转的**（写了也
  *   不会改变任何东西），所以「某一档人不许用某项功能」只能靠三个 deny 表达——deny
  *   是「减」，与默认位无关，永远生效。对 T12 的三个隐私能力，grant 才是唯一入口。
@@ -52,6 +57,8 @@ export type CapabilityId =
   | 'qq.list.groups'
   | 'qq.list.friends'
   | 'qq.history.private'
+  | 'qq.group.manage'
+  | 'qq.group.notice'
 
 /** 能力的运行时依赖键：对应能力只有在依赖具备时才可能开启。 */
 export type CapabilityDependency = 'stickerLib' | 'memoryNote'
@@ -194,6 +201,23 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
     title: '私聊历史',
     tools: ['qq_private_history'],
     describe: '拉取自己与某个好友的私聊历史（只取文本与发送者）。这是主人账号的私聊记录，属于隐私数据：默认只在主人私聊里可用，工具本身也只在管理员私聊里放行。',
+    memberDefault: false,
+    groupDefault: false,
+  },
+  // ---- T13 · 群管理写操作（会真的改变群状态；默认关，且只由主人本人发起的回合执行）
+  {
+    id: 'qq.group.manage',
+    title: '群管理（禁言/群名片）',
+    tools: ['qq_group_ban', 'qq_group_card'],
+    describe: '写操作，会真的改变群状态：禁言或解除禁言（某个成员或全体）、改群成员的群名片。默认关闭；即使按关系开启，也只有主人本人发起的这一回合能真的执行，群里其他人要求一律拒绝。',
+    memberDefault: false,
+    groupDefault: false,
+  },
+  {
+    id: 'qq.group.notice',
+    title: '群公告与精华',
+    tools: ['qq_group_announce', 'qq_group_essence'],
+    describe: '写操作，会真的改变群状态：发布或修改群公告（群里所有人都能看到）、把一条消息设为精华或取消精华。默认关闭；即使按关系开启，也只有主人本人发起的这一回合能真的执行。',
     memberDefault: false,
     groupDefault: false,
   },
@@ -563,4 +587,38 @@ export function formatCapabilityLine(summary: CapabilitySummary): string {
   const head = '能力：' + counts + '（共 ' + summary.total + '）'
   if (summary.disabled.length === 0) return head
   return head + '；关闭的：' + summary.disabled.map(item => item.id + '（' + item.reason + '）').join('、')
+}
+
+/** 群管理写操作的两个能力（/doctor 提示行只关心这两项，顺序即能力注册表顺序）。 */
+export const GROUP_WRITE_CAPABILITY_IDS: readonly CapabilityId[] = ['qq.group.manage', 'qq.group.notice']
+
+/** 提示行里给每个写操作能力配的一句短说明。 */
+const GROUP_WRITE_LABELS: Readonly<Record<string, string>> = {
+  'qq.group.manage': '禁言/群名片',
+  'qq.group.notice': '公告/精华',
+}
+
+/**
+ * /doctor 的群管理提示行（T13）。
+ *
+ * 判据：这两个能力里**只要有任意一个在非主人档（好友 / 群友 / 陌生人）真的开着**，
+ * 就出一句警告。为什么不算主人私聊那一档：owner 的默认位恒开，若把主人也算进来，
+ * 这句提示会在任何配置下都出现（包括刚装好、什么都没授权的时候），提示就废了。
+ * 也就是说「全关」（默认配置 / 只写在 capabilitiesDeny 里关掉）时这里返回空串，
+ * /doctor 不出这一行。
+ * @param input - 配置 + 当前进程具备的运行时依赖。
+ * @returns 一行提示；空串 = 不提。
+ */
+export function groupWriteWarningLine(input: CapabilityViewInput): string {
+  const deps = [...input.deps]
+  const open: CapabilityId[] = []
+  for (const relation of ['friend', 'groupMember', 'stranger'] as const) {
+    const resolved = resolveCapabilities({ config: input.config, deps, chat: chatViewOf(relation) })
+    for (const id of GROUP_WRITE_CAPABILITY_IDS) {
+      if (resolved.enabled.has(id) && !open.includes(id)) open.push(id)
+    }
+  }
+  if (open.length === 0) return ''
+  const list = open.map(id => id + '（' + GROUP_WRITE_LABELS[id] + '）').join('、')
+  return '⚠ 群管理写操作已开启：' + list + '——群友要求时也会被拒，但请确认这是你要的'
 }

@@ -148,11 +148,21 @@ describe('三个新能力：默认位全关、工具归属正确、老能力不�
   })
 
   it('改造前的老能力默认位仍全开（只增不改）', () => {
-    const legacy = CAPABILITIES.filter(capability => !Object.prototype.hasOwnProperty.call(expected, capability.id))
+    // T12 的三个隐私能力与 T13 的两个群管理写操作都是默认关的新增项，其余仍是老能力。
+    const T13_WRITE = ['qq.group.manage', 'qq.group.notice']
+    const legacy = CAPABILITIES.filter(capability =>
+      !Object.prototype.hasOwnProperty.call(expected, capability.id) && !T13_WRITE.includes(capability.id))
     expect(legacy.length).toBe(11)
     for (const capability of legacy) {
       expect(capability.memberDefault, capability.id).toBe(true)
       expect(capability.groupDefault, capability.id).toBe(true)
+    }
+    // T13 的两项写操作默认位全是 false（与隐私能力同一条纪律）。
+    for (const id of T13_WRITE) {
+      const capability = findCapability(id)
+      expect(capability, id).toBeDefined()
+      expect(capability!.memberDefault, id).toBe(false)
+      expect(capability!.groupDefault, id).toBe(false)
     }
   })
 

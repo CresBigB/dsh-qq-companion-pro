@@ -52,6 +52,9 @@ export interface HealthDeps {
   /** /doctor 能力行（`capabilitySummary()`，按管理员私聊视角）；
    *  absent = 报告省略该行。 */
   capabilities?: () => CapabilitySummary
+  /** /doctor 群管理写操作提示行（T13）：非主人档真的开了这两个能力时返回一行
+   *  警告，空串 = 不提。absent = 报告省略该行。 */
+  groupWriteWarning?: () => string
   /** Write-gate snapshot. */
   /** The already-redacted config snapshot (see redactSnapshot). */
   configSnapshot: Record<string, unknown>
@@ -135,6 +138,15 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
       lines.push(formatCapabilityLine(deps.capabilities()))
     } catch (error) {
       lines.push('能力：读取失败（' + (error instanceof Error ? error.message : String(error)) + '）')
+    }
+  }
+  // 群管理写操作提示（T13）：四个群管理工具里有任何一个对非主人档开着时补一句。
+  if (deps.groupWriteWarning !== undefined) {
+    try {
+      const warning = deps.groupWriteWarning()
+      if (warning !== '') lines.push(warning)
+    } catch (error) {
+      lines.push('群管理写操作：读取失败（' + (error instanceof Error ? error.message : String(error)) + '）')
     }
   }
   const files: string[] = []

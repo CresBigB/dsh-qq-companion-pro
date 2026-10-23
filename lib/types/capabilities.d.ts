@@ -28,6 +28,11 @@
  *   的社交关系与私聊记录，群友一句「列一下你的好友」就能把它们发到群里。默认只给
  *   主人私聊（owner 档不看默认位，恒开），需要时由主人在 `memberGrant` /
  *   `friendGrant` / `strangerGrant` 里显式授权。
+ * - **例外（T13）**：`qq.group.manage` / `qq.group.notice` 两个**群管理写操作**的
+ *   两个默认位也都是 false——它们会真的改变群里的状态（禁言、群名片、公告、精华）。
+ *   这两个能力还有第二道闸：工具执行体里先查「本回合是主人发起的吗」
+ *   （`bridge.canEditFiles`），不是主人回合就直接拒绝、一个请求都不发；能力层
+ *   的 grant 只决定「这个会话有没有入口」，回合层才决定「这一次能不能真的做」。
  * - 推论（T11 r1 的存在理由）：对默认位为 true 的能力，**grant 是空转的**（写了也
  *   不会改变任何东西），所以「某一档人不许用某项功能」只能靠三个 deny 表达——deny
  *   是「减」，与默认位无关，永远生效。对 T12 的三个隐私能力，grant 才是唯一入口。
@@ -35,7 +40,7 @@
  */
 import type { Relation } from './relation.js';
 /** 一个能力 id（也是 `capabilitiesDeny` 里能填的值）。 */
-export type CapabilityId = 'qq.send.image' | 'qq.send.voice' | 'qq.send.video' | 'qq.send.file' | 'qq.send.forward' | 'qq.napcat.api' | 'qq.group.history' | 'qq.message.open' | 'qq.memory.note' | 'qq.sticker.use' | 'qq.sticker.manage' | 'qq.list.groups' | 'qq.list.friends' | 'qq.history.private';
+export type CapabilityId = 'qq.send.image' | 'qq.send.voice' | 'qq.send.video' | 'qq.send.file' | 'qq.send.forward' | 'qq.napcat.api' | 'qq.group.history' | 'qq.message.open' | 'qq.memory.note' | 'qq.sticker.use' | 'qq.sticker.manage' | 'qq.list.groups' | 'qq.list.friends' | 'qq.history.private' | 'qq.group.manage' | 'qq.group.notice';
 /** 能力的运行时依赖键：对应能力只有在依赖具备时才可能开启。 */
 export type CapabilityDependency = 'stickerLib' | 'memoryNote';
 /** 一条能力定义。 */
@@ -228,3 +233,17 @@ export interface CapabilitySummary {
 export declare function summarizeCapabilities(input: CapabilityViewInput): CapabilitySummary;
 /** /doctor 那一行的正文：四个关系各自的已开数 + 总数；有关闭项时另附原因。 */
 export declare function formatCapabilityLine(summary: CapabilitySummary): string;
+/** 群管理写操作的两个能力（/doctor 提示行只关心这两项，顺序即能力注册表顺序）。 */
+export declare const GROUP_WRITE_CAPABILITY_IDS: readonly CapabilityId[];
+/**
+ * /doctor 的群管理提示行（T13）。
+ *
+ * 判据：这两个能力里**只要有任意一个在非主人档（好友 / 群友 / 陌生人）真的开着**，
+ * 就出一句警告。为什么不算主人私聊那一档：owner 的默认位恒开，若把主人也算进来，
+ * 这句提示会在任何配置下都出现（包括刚装好、什么都没授权的时候），提示就废了。
+ * 也就是说「全关」（默认配置 / 只写在 capabilitiesDeny 里关掉）时这里返回空串，
+ * /doctor 不出这一行。
+ * @param input - 配置 + 当前进程具备的运行时依赖。
+ * @returns 一行提示；空串 = 不提。
+ */
+export declare function groupWriteWarningLine(input: CapabilityViewInput): string;

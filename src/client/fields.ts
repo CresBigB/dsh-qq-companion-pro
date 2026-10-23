@@ -161,9 +161,9 @@ export const GROUPS: GroupMeta[] = [
       { key: 'friendDeny', label: '不给好友用的功能', type: 'stringArray', hint: '每行一个能力 id：只对好友（好友名单里的人）关掉的功能，主人私聊、群聊、陌生人都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
       { key: 'memberDeny', label: '不给群聊用的功能', type: 'stringArray', hint: '每行一个能力 id：只对群聊关掉的功能（所有群成员；群里主人发言也按群友档），私聊都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
       { key: 'strangerDeny', label: '不给陌生人用的功能', type: 'stringArray', hint: '每行一个能力 id：只对陌生人私聊（不在好友名单里的非管理员）关掉的功能，主人私聊、好友私聊、群聊都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
-      { key: 'friendGrant', label: '给好友加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给好友（好友名单里的人）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录），要给好友开就写在这里。要把好友这一档单独关掉用「不给好友用的功能」。', section: '功能开关' },
-      { key: 'memberGrant', label: '给群聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给群聊（所有群成员；群里主人发言也按群友档）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录），要给群开就写在这里（群里一开，谁都能让模型把主人的群和好友念出来，谨慎）。要把群聊这一档单独关掉用「不给群聊用的功能」。', section: '功能开关' },
-      { key: 'strangerGrant', label: '给陌生人加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给陌生人私聊（不在好友名单里的非管理员）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录），要给陌生人开就写在这里（等于把主人的社交关系给不认识的人，谨慎）。要把陌生人这一档单独关掉用「不给陌生人用的功能」。', section: '功能开关' },
+      { key: 'friendGrant', label: '给好友加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给好友（好友名单里的人）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录）和两个群管理写操作（禁言/群名片、公告/精华——这两项即使开了，也只有主人本人发起的回合能真的执行），要给好友开就写在这里。要把好友这一档单独关掉用「不给好友用的功能」。', section: '功能开关' },
+      { key: 'memberGrant', label: '给群聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给群聊（所有群成员；群里主人发言也按群友档）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录）和两个群管理写操作（禁言/群名片、公告/精华——这两项即使开了，也只有主人本人发起的回合能真的执行），要给群开就写在这里（群里一开，谁都能让模型把主人的群和好友念出来，谨慎）。要把群聊这一档单独关掉用「不给群聊用的功能」。', section: '功能开关' },
+      { key: 'strangerGrant', label: '给陌生人加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给陌生人私聊（不在好友名单里的非管理员）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录）和两个群管理写操作（禁言/群名片、公告/精华——这两项即使开了，也只有主人本人发起的回合能真的执行），要给陌生人开就写在这里（等于把主人的社交关系给不认识的人，谨慎）。要把陌生人这一档单独关掉用「不给陌生人用的功能」。', section: '功能开关' },
     ],
   },
   {

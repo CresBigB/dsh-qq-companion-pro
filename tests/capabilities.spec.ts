@@ -71,7 +71,7 @@ describe('能力注册表 — 结构自洽', () => {
     expect(capabilityOfTool('not_a_tool')).toBeUndefined()
   })
 
-  it('覆盖现在的全部模型工具（18 个）', () => {
+  it('覆盖现在的全部模型工具（22 个）', () => {
     expect(REGISTRY_TOOLS).toEqual([
       'qq_send_image',
       'qq_send_voice',
@@ -91,6 +91,10 @@ describe('能力注册表 — 结构自洽', () => {
       'qq_group_info',
       'qq_list_friends',
       'qq_private_history',
+      'qq_group_ban',
+      'qq_group_card',
+      'qq_group_announce',
+      'qq_group_essence',
     ])
     expect(new Set(REGISTRY_TOOLS).size).toBe(REGISTRY_TOOLS.length)
   })
@@ -107,9 +111,13 @@ describe('能力注册表 — 结构自洽', () => {
     }
   })
 
-  it('默认位：改造前的 11 项全为 true；T12 的三个隐私能力全为 false', () => {
-    /** 默认关闭的能力（T12：群列表 / 好友列表 / 私聊历史都是账号隐私）。 */
-    const OFF_BY_DEFAULT = ['qq.list.groups', 'qq.list.friends', 'qq.history.private']
+  it('默认位：改造前的 11 项全为 true；T12 的三个隐私能力与 T13 的两个写操作全为 false', () => {
+    /** 默认关闭的能力（T12：群列表 / 好友列表 / 私聊历史都是账号隐私；
+     *  T13：群管理写操作会真的改变群状态，默认连入口都不给）。 */
+    const OFF_BY_DEFAULT = [
+      'qq.list.groups', 'qq.list.friends', 'qq.history.private',
+      'qq.group.manage', 'qq.group.notice',
+    ]
     for (const capability of CAPABILITIES) {
       const off = OFF_BY_DEFAULT.includes(capability.id)
       expect(capability.memberDefault, capability.id).toBe(!off)
@@ -215,17 +223,21 @@ async function waitForTools(h: Awaited<ReturnType<typeof makeCmdHarness>>): Prom
 /** T12 新增的四个隐私工具（默认只在管理员私聊注册）。 */
 const PRIVACY_TOOLS = ['qq_list_groups', 'qq_group_info', 'qq_list_friends', 'qq_private_history']
 
+/** T13 新增的四个群管理写操作工具（默认只在管理员私聊注册；能力层默认关）。 */
+const GROUP_WRITE_TOOLS = ['qq_group_ban', 'qq_group_card', 'qq_group_announce', 'qq_group_essence']
+
 /**
- * 一个矩阵组合今天该注册到的工具集合 = **改造前集合 + T12 的增量**。
+ * 一个矩阵组合今天该注册到的工具集合 = **改造前集合 + T12/T13 的增量**。
  *
- * 增量只有一条：管理员私聊默认位恒开，所以会多出四个隐私工具；群聊与非管理员
- * 私聊的默认位是 false，集合与改造前**逐字一致**——这条断言本身就是「老工具零
- * 行为变化」的证据（预期串是改造前原文拼出来的，不是我重抄的）。
+ * 增量只有一条：管理员私聊默认位恒开（owner 档不看默认位），所以会多出四个隐私
+ * 工具和四个群管理写操作工具；群聊与非管理员私聊的默认位是 false，集合与改造前
+ * **逐字一致**——这条断言本身就是「老工具零行为变化」的证据（预期串是改造前原文
+ * 拼出来的，不是我重抄的）。
  */
 function expectedTools(key: string): string {
   const legacy = PRE_CHANGE_TOOLS[key]
   if (!key.startsWith('admin-private|')) return legacy
-  return [...legacy.split(' '), ...PRIVACY_TOOLS].sort().join(' ')
+  return [...legacy.split(' '), ...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS].sort().join(' ')
 }
 
 /**
@@ -757,13 +769,17 @@ describe('四个关系 × 全部能力：空 grant 时的实际开启矩阵', ()
     })
   }
 
-  it('主人私聊开满全部能力；群友 / 好友 / 陌生人各少三个隐私能力（T12 的默认关）', () => {
+  it('主人私聊开满全部能力；群友 / 好友 / 陌生人各少三个隐私能力与两个写操作（T12 / T13 的默认关）', () => {
     const owner = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf('owner') })
     expect(owner.enabled.size).toBe(CAPABILITIES.length)
     for (const relation of ['friend', 'groupMember', 'stranger'] as const) {
       const resolved = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf(relation) })
-      expect(resolved.enabled.size, RELATION_NAMES[relation]).toBe(CAPABILITIES.length - 3)
+      expect(resolved.enabled.size, RELATION_NAMES[relation]).toBe(CAPABILITIES.length - 5)
       for (const id of ['qq.list.groups', 'qq.list.friends', 'qq.history.private'] as const) {
+        expect(resolved.enabled.has(id), RELATION_NAMES[relation] + ' 不该开 ' + id).toBe(false)
+      }
+      // T13：群管理写操作对非主人档默认也是关的。
+      for (const id of ['qq.group.manage', 'qq.group.notice'] as const) {
         expect(resolved.enabled.has(id), RELATION_NAMES[relation] + ' 不该开 ' + id).toBe(false)
       }
     }
@@ -889,8 +905,8 @@ describe('/doctor 与状态快照', () => {
       groupMember: defaultOpenCount('groupMember'),
       stranger: defaultOpenCount('stranger'),
     })
-    // 三个非主人档同时少掉三个隐私能力 → 四个数从 T12 起真的不同。
-    expect(all.byRelation.friend).toBe(CAPABILITIES.length - 3)
+    // 三个非主人档同时少掉三个隐私能力与两个群管理写操作 → 四个数从 T12/T13 起真的不同。
+    expect(all.byRelation.friend).toBe(CAPABILITIES.length - 5)
     expect(formatCapabilityLine(all)).toBe(
       '能力：主人 ' + defaultOpenCount('owner') + ' / 好友 ' + defaultOpenCount('friend')
       + ' / 群友 ' + defaultOpenCount('groupMember') + ' / 陌生人 ' + defaultOpenCount('stranger')
@@ -955,19 +971,20 @@ describe('/doctor 与状态快照', () => {
       + ' / 陌生人 ' + (defaultOpenCount('stranger') - 1))
   })
 
-  it('四个关系 × 依赖全开时按关系 deny 后的工具数（群聊少 1，另三档只少三个隐私能力的工具）', async () => {
+  it('四个关系 × 依赖全开时按关系 deny 后的工具数（群聊少 1，另三档只少隐私与写操作的工具）', async () => {
     const base = { stickers: true, memory: true, memberDeny: ['qq.napcat.api'] }
     const owner = (await toolsOf('admin-private', base)).length
     const stranger = (await toolsOf('member-private', base)).length
     const friend = (await toolsOf('member-private', { ...base, friendUsers: ['20002'] })).length
     const group = (await toolsOf('group', base)).length
-    // qq.napcat.api 只对应一个工具（qq_napcat_api）；三个隐私能力的四个工具默认只在
-    // 主人私聊注册，所以群聊 = 全量 - 4（隐私工具）- 1（deny 掉的 qq_napcat_api）。
+    // qq.napcat.api 只对应一个工具（qq_napcat_api）；T12 的四个隐私工具与 T13 的
+    // 四个群管理写操作工具默认只在主人私聊注册，所以群聊 = 全量 - 8 - 1（deny 掉的
+    // qq_napcat_api）。非主人私聊只少那 8 个工具（它们的默认位也是 false）。
     expect({ owner, friend, group, stranger }).toEqual({
       owner: REGISTRY_TOOLS.length,
-      friend: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length,
-      group: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length - 1,
-      stranger: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length,
+      friend: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length - GROUP_WRITE_TOOLS.length,
+      group: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length - GROUP_WRITE_TOOLS.length - 1,
+      stranger: REGISTRY_TOOLS.length - PRIVACY_TOOLS.length - GROUP_WRITE_TOOLS.length,
     })
   })
 

@@ -20,6 +20,12 @@
  * 1. 表完整（每条都有 capability，且该能力真的在 CAPABILITIES 里）；
  * 2. 改造前的 15 条**逐条仍可调用**，表外 action 的拒绝文案一字不变（零行为变化）；
  * 3. 表格键的顺序 = 改造前数组的顺序（描述与报错文案由它拼出来）。
+ *
+ * T13 追加了 6 条**群管理写操作**（禁言 / 全体禁言 / 群名片 / 群公告 / 精华），
+ * 各自挂在 `qq.group.manage` / `qq.group.notice` 下。它们**不走 `qq_napcat_api`
+ * 这个万能入口**：那个工具的放行集合是 {@link NAPCAT_PROXY_ACTION_NAMES}（只在
+ * `qq.napcat.api` 能力下的 15 条），否则 `qq.napcat.api` 一开（默认就对每个会话开）
+ * 就等于给所有人一把禁言的刀，连带双重门禁形同虚设。
  * @module dsh-qq-companion/napcat-actions
  */
 import type { CapabilityId } from './capabilities.js'
@@ -56,6 +62,13 @@ export const NAPCAT_ACTIONS: Readonly<Record<string, NapCatActionMeta>> = {
   ocr_image: { write: false, capability: 'qq.napcat.api', describe: '识别图片里的文字' },
   get_ai_characters: { write: false, capability: 'qq.napcat.api', describe: '列出群 AI 语音的音色' },
   send_group_ai_record: { write: true, capability: 'qq.napcat.api', describe: '用群 AI 语音发一条语音' },
+  // ---- T13 · 群管理写操作（两个能力默认关，且只由主人回合驱动；不走 qq_napcat_api）
+  set_group_ban: { write: true, capability: 'qq.group.manage', describe: '禁言 / 解除禁言某个群成员（duration 0 = 解除）' },
+  set_group_whole_ban: { write: true, capability: 'qq.group.manage', describe: '开启 / 解除全体禁言' },
+  set_group_card: { write: true, capability: 'qq.group.manage', describe: '改某个群成员的群名片（空串 = 清除名片）' },
+  _send_group_notice: { write: true, capability: 'qq.group.notice', describe: '发布 / 修改群公告（全群可见）' },
+  set_essence_msg: { write: true, capability: 'qq.group.notice', describe: '把一条群消息设为精华' },
+  delete_essence_msg: { write: true, capability: 'qq.group.notice', describe: '取消某条群消息的精华' },
 }
 
 /**
@@ -90,4 +103,23 @@ export function isNapCatActionWhitelisted(action: string): boolean {
  */
 export function napcatActionsOfCapability(capability: CapabilityId): string[] {
   return NAPCAT_ACTION_NAMES.filter(action => NAPCAT_ACTIONS[action].capability === capability)
+}
+
+/**
+ * `qq_napcat_api` 的放行集合：表内**且归 `qq.napcat.api` 能力**的 action。
+ *
+ * 与 {@link NAPCAT_ACTION_NAMES}（整张表）刻意分开：T13 的群管理写操作也在表里，
+ * 但它们有自己的能力开关，绝不能借这个万能入口绕过「能力默认关 + 只有主人回合」
+ * 两道门禁。这份清单就是改造前的 15 条，顺序也一致——`qq_napcat_api` 的描述与
+ * 拒绝文案都由它拼出来，所以 T13 之后那个工具仍然零行为变化。
+ */
+export const NAPCAT_PROXY_ACTION_NAMES: readonly string[] = Object.freeze(napcatActionsOfCapability('qq.napcat.api'))
+
+/**
+ * 这条 action 能不能经 `qq_napcat_api` 调用（= 在 {@link NAPCAT_PROXY_ACTION_NAMES} 里）。
+ * @param action - OneBot action 名。
+ * @returns 可经万能入口调用为 true。
+ */
+export function isNapCatProxyAction(action: string): boolean {
+  return NAPCAT_ACTIONS[action]?.capability === 'qq.napcat.api' && isNapCatActionWhitelisted(action)
 }

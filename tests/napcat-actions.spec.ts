@@ -6,7 +6,10 @@
  *      且被拒绝时不发任何 OneBot 请求；
  *   ③ 表结构：每条 action 都有 capability，且该能力真的在 CAPABILITIES 里注册
  *      （「以后新增 action 只需加一行」的前提），describe 是一句中文；
- *   ④ write 标记把「改外部状态」和「只读查询」分开（现在 3 条写、12 条读）。
+ *   ④ write 标记把「改外部状态」和「只读查询」分开（改造前 3 条写、12 条读；
+ *      T13 追加的 6 条群管理 action 也是写）；
+ *   ⑤ T13 之后 `qq_napcat_api` 的放行集合仍然是改造前那 15 条：表内的群管理
+ *      action 不能借万能入口绕过「能力默认关 + 只有主人回合」两道门禁。
  * @module dsh-qq-companion-pro/tests/napcat-actions
  */
 import { describe, expect, it } from 'vitest'
@@ -16,7 +19,9 @@ import { registerTools } from '../src/tools.js'
 import {
   NAPCAT_ACTIONS,
   NAPCAT_ACTION_NAMES,
+  NAPCAT_PROXY_ACTION_NAMES,
   isNapCatActionWhitelisted,
+  isNapCatProxyAction,
   napcatActionMeta,
   napcatActionsOfCapability,
 } from '../src/napcat-actions.js'
@@ -46,6 +51,22 @@ const PRE_CHANGE_WHITELIST = [
 
 /** 改造前的工具描述（同样逐字抄下来对照）。 */
 const PRE_CHANGE_DESCRIPTION = '调用 NapCat 白名单内的 OneBot 扩展 API（群成员列表/信息、文件、OCR、AI 语音等）。非白名单 action 会被拒绝。'
+
+/**
+ * T13 追加的 6 条群管理写操作（表尾，挂在新能力下）。
+ *
+ * 它们**不在 `qq_napcat_api` 的放行集合里**：那个工具的放行集合是
+ * `NAPCAT_PROXY_ACTION_NAMES`（只在 qq.napcat.api 能力下的 15 条），否则
+ * qq.napcat.api 一开（默认就对每个会话开）就等于把禁言的刀发给所有人。
+ */
+const T13_ACTIONS = [
+  'set_group_ban',
+  'set_group_whole_ban',
+  'set_group_card',
+  '_send_group_notice',
+  'set_essence_msg',
+  'delete_essence_msg',
+]
 
 interface ApiTool {
   name: string
@@ -87,13 +108,14 @@ describe('表驱动零行为变化 — 改造前的 15 条 action 逐条可用',
     })
   }
 
-  it('表里就只有这 15 条（不多不少）', () => {
-    expect([...NAPCAT_ACTION_NAMES].sort()).toEqual([...PRE_CHANGE_WHITELIST].sort())
-    expect(NAPCAT_ACTION_NAMES).toHaveLength(15)
+  it('表的前 15 条就是改造前那 15 条；T13 的 6 条追加在尾部（不多不少）', () => {
+    expect(NAPCAT_ACTION_NAMES.slice(0, PRE_CHANGE_WHITELIST.length)).toEqual(PRE_CHANGE_WHITELIST)
+    expect(NAPCAT_ACTION_NAMES.slice(PRE_CHANGE_WHITELIST.length)).toEqual(T13_ACTIONS)
+    expect(NAPCAT_ACTION_NAMES).toHaveLength(PRE_CHANGE_WHITELIST.length + T13_ACTIONS.length)
   })
 
   it('表顺序 = 改造前数组顺序（描述与报错文案由它拼出来）', () => {
-    expect([...NAPCAT_ACTION_NAMES]).toEqual(PRE_CHANGE_WHITELIST)
+    expect(NAPCAT_ACTION_NAMES.slice(0, PRE_CHANGE_WHITELIST.length)).toEqual(PRE_CHANGE_WHITELIST)
   })
 
   it('工具描述与 action 参数描述（= 白名单清单）与改造前逐字一致', () => {
@@ -152,28 +174,51 @@ describe('表结构 — 加一行就够（能力必须已登记）', () => {
     }
   })
 
-  it('当前 15 条全部归 qq.napcat.api（刻意不打散现有能力）', () => {
+  it('当前归 qq.napcat.api 的仍是改造前那 15 条（刻意不打散现有能力）', () => {
     expect(napcatActionsOfCapability('qq.napcat.api')).toEqual(PRE_CHANGE_WHITELIST)
     expect(napcatActionMeta('get_group_member_list')?.capability).toBe('qq.napcat.api')
-    // 没有任何一条 action 挂在别的能力下（否则就是行为变化）。
+    // 挂到别的能力下的只有 T13 追加的那 6 条（qq.napcat.api 的集合一个字没动）。
     const otherCapabilities = CAPABILITIES
       .filter(capability => capability.id !== 'qq.napcat.api')
       .flatMap(capability => napcatActionsOfCapability(capability.id))
-    expect(otherCapabilities).toEqual([])
+    expect(otherCapabilities).toEqual(T13_ACTIONS)
   })
 
-  it('write 标记：只有「上传文件 / 发群 AI 语音」算写，其余 12 条只读', () => {
+  it('write 标记：改造前 3 条写 + T13 的 6 条写，其余 12 条只读', () => {
     const write = NAPCAT_ACTION_NAMES.filter(action => NAPCAT_ACTIONS[action].write)
-    expect(write).toEqual(['upload_group_file', 'upload_private_file', 'send_group_ai_record'])
+    expect(write).toEqual(['upload_group_file', 'upload_private_file', 'send_group_ai_record', ...T13_ACTIONS])
     const read = NAPCAT_ACTION_NAMES.filter(action => !NAPCAT_ACTIONS[action].write)
     expect(read).toHaveLength(12)
     // 只读里既有查询也有下载类，但都不改 QQ 侧状态。
     expect(read).toContain('get_group_member_list')
     expect(read).toContain('ocr_image')
+    // T13 的每一条都必须是写（禁言、改名、公告、精华都改群状态）。
+    for (const action of T13_ACTIONS) expect(NAPCAT_ACTIONS[action].write, action).toBe(true)
   })
 
   it('napcatActionMeta 表外返回 undefined（不抛错、不建新条目）', () => {
     expect(napcatActionMeta('nope')).toBeUndefined()
-    expect(Object.keys(NAPCAT_ACTIONS)).toHaveLength(15)
+    expect(Object.keys(NAPCAT_ACTIONS)).toHaveLength(PRE_CHANGE_WHITELIST.length + T13_ACTIONS.length)
+  })
+})
+
+describe('T13 · qq_napcat_api 的放行集合仍然只有改造前那 15 条', () => {
+  it('NAPCAT_PROXY_ACTION_NAMES = 改造前 15 条（顺序一致）', () => {
+    expect([...NAPCAT_PROXY_ACTION_NAMES]).toEqual(PRE_CHANGE_WHITELIST)
+  })
+
+  it('表内的群管理 action 也不能经 qq_napcat_api 调用（一个请求都不发）', async () => {
+    for (const action of T13_ACTIONS) {
+      const h = makeApiHarness()
+      await expect(h.tool.execute({ action })).rejects.toThrow('qq_napcat_api: action 不在白名单内（' + PRE_CHANGE_WHITELIST.join(', ') + '）')
+      expect(h.calls, action).toHaveLength(0)
+    }
+  })
+
+  it('isNapCatProxyAction / isNapCatActionWhitelisted 的分工：前者是万能入口的门，后者是表本身', () => {
+    expect(isNapCatProxyAction('get_group_member_list')).toBe(true)
+    expect(isNapCatProxyAction('set_group_ban')).toBe(false)
+    expect(isNapCatActionWhitelisted('set_group_ban')).toBe(true)
+    expect(isNapCatProxyAction('toString')).toBe(false)
   })
 })

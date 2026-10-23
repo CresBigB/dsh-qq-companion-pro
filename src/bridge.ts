@@ -13,7 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 
 import type { BridgeDeps } from './bridge-types.js'
-import { resolveCapabilities, summarizeCapabilities, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
+import { resolveCapabilities, summarizeCapabilities, groupWriteWarningLine, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
 import { buildChatId, classifyUserRole, groupAllowed, sanitizeMessageId, splitChatId } from './chat.js'
@@ -35,6 +35,7 @@ import { ChatRegistry, type ChatAgent } from './registry.js'
 import { sessionRelation, stripRelationPrefix, type Relation } from './relation.js'
 import { parseLeadingQuote, SELF_QUOTE_TOKEN, SeenMessageIds, type QuoteMarker } from './reply-quote.js'
 import { registerStickerTools } from './sticker-tools.js'
+import { registerGroupTools } from './group-tools.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope, type TraceStage } from './trace.js'
 
@@ -270,6 +271,23 @@ export class ChatBridge {
     const chatId = this.bySession.get(sessionId)
     if (chatId === undefined) return true
     return this.chats.get(chatId)?.activeTurnRole === 'admin'
+  }
+
+  /**
+   * 写操作审计入口（T13）：往 `mediaDir/qq-actions.log` 追加一行 jsonl
+   * （ts / chatId / action / ok / reason），**内部转调 outbound 既有的
+   * `auditWrite`**——同一个文件、同一套格式与串行写入，不另起一套日志。
+   *
+   * 目前用它的只有群管理写操作工具（`src/group-tools.ts`）的四个工具：每次调用
+   * 无论成功、失败、被回合门禁拒掉还是参数不合法都记一行。审计开关与
+   * `actionAuditEnabled`、目录与 `mediaDir` 同源；关闭审计时这里是 no-op。
+   * @param chatId - 目标会话（`group:<群号>`；目标不明时为 `unknown`）。
+   * @param action - 工具名（例如 `qq_group_ban`）。
+   * @param ok - 这一次是否真的做成了。
+   * @param reason - 目标 + 参数摘要 + 结果（给人事后复盘用的一行中文）。
+   */
+  auditAction(chatId: ChatId, action: string, ok: boolean, reason: string): void {
+    this.outbound.auditWrite(chatId, action, ok, reason)
   }
 
   /**
@@ -904,6 +922,9 @@ export class ChatBridge {
       },
       // /doctor 能力行：哪几项功能被关掉了（按管理员私聊视角算）。
       capabilities: () => this.capabilitySummary(),
+      // /doctor 群管理提示行（T13）：四个群管理写操作工具里有任何一个对
+      // 好友 / 群友 / 陌生人档开着才出现；全关时这一行不出。
+      groupWriteWarning: () => groupWriteWarningLine({ config: this.capabilityConfig(), deps: this.availableCapabilityDeps() }),
       configSnapshot: this.deps.configSnapshot?.() ?? {},
       // the recent fault references for the report section.
       failureRefs: () => this.failureRefs.recent(),
@@ -1195,6 +1216,9 @@ export class ChatBridge {
     }, allow)
     if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote, allow)
     if (this.deps.stickers !== undefined) registerStickerTools(agentCtx, this, this.deps.stickers, allow)
+    // 群管理写操作（T13）：能力层默认关，且每个执行体还有一道回合门禁
+    // （群里谁在说话只有回合级知道），见 src/group-tools.ts。
+    registerGroupTools(agentCtx, this, this.deps.connection, allow)
   }
 
   /**

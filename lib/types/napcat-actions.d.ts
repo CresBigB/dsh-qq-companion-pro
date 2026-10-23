@@ -20,6 +20,12 @@
  * 1. 表完整（每条都有 capability，且该能力真的在 CAPABILITIES 里）；
  * 2. 改造前的 15 条**逐条仍可调用**，表外 action 的拒绝文案一字不变（零行为变化）；
  * 3. 表格键的顺序 = 改造前数组的顺序（描述与报错文案由它拼出来）。
+ *
+ * T13 追加了 6 条**群管理写操作**（禁言 / 全体禁言 / 群名片 / 群公告 / 精华），
+ * 各自挂在 `qq.group.manage` / `qq.group.notice` 下。它们**不走 `qq_napcat_api`
+ * 这个万能入口**：那个工具的放行集合是 {@link NAPCAT_PROXY_ACTION_NAMES}（只在
+ * `qq.napcat.api` 能力下的 15 条），否则 `qq.napcat.api` 一开（默认就对每个会话开）
+ * 就等于给所有人一把禁言的刀，连带双重门禁形同虚设。
  * @module dsh-qq-companion/napcat-actions
  */
 import type { CapabilityId } from './capabilities.js';
@@ -63,3 +69,18 @@ export declare function isNapCatActionWhitelisted(action: string): boolean;
  * @returns action 名列表（可能为空）。
  */
 export declare function napcatActionsOfCapability(capability: CapabilityId): string[];
+/**
+ * `qq_napcat_api` 的放行集合：表内**且归 `qq.napcat.api` 能力**的 action。
+ *
+ * 与 {@link NAPCAT_ACTION_NAMES}（整张表）刻意分开：T13 的群管理写操作也在表里，
+ * 但它们有自己的能力开关，绝不能借这个万能入口绕过「能力默认关 + 只有主人回合」
+ * 两道门禁。这份清单就是改造前的 15 条，顺序也一致——`qq_napcat_api` 的描述与
+ * 拒绝文案都由它拼出来，所以 T13 之后那个工具仍然零行为变化。
+ */
+export declare const NAPCAT_PROXY_ACTION_NAMES: readonly string[];
+/**
+ * 这条 action 能不能经 `qq_napcat_api` 调用（= 在 {@link NAPCAT_PROXY_ACTION_NAMES} 里）。
+ * @param action - OneBot action 名。
+ * @returns 可经万能入口调用为 true。
+ */
+export declare function isNapCatProxyAction(action: string): boolean;

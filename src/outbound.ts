@@ -361,8 +361,12 @@ export class OutboundPipeline {
    * Fire-and-forget: a write failure only warns and never affects the send
    * path. Writes are chained so lines land in call order even when the fs
    * thread pool completes them out of schedule. No-op when auditing is
-   * disabled or no mediaDir is configured. */
-  private auditWrite(chatId: ChatId, action: string, ok: boolean, reason: string): void {
+   * disabled or no mediaDir is configured.
+   *
+   * Public since T13: the group-management write tools (`src/group-tools.ts`)
+   * audit through the bridge's `auditAction`, which delegates here — one
+   * writer, one file format, no second logging path. */
+  auditWrite(chatId: ChatId, action: string, ok: boolean, reason: string): void {
     if (this.ctx.config.actionAuditEnabled === false) return
     const dir = this.ctx.config.mediaDir
     if (dir === undefined || dir === '') return

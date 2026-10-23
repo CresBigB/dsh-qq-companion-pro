@@ -7,6 +7,9 @@
  *
  * NapCat 白名单从 T12 起是表驱动的（`src/napcat-actions.ts`）：`qq_napcat_api`
  * 只是一个查表执行器，表外 action 照旧拒绝，表内 action 的行为与改造前逐字一致。
+ * T13 追加的群管理写操作也在那张表里，但**不归 `qq.napcat.api` 能力**，所以
+ * `qq_napcat_api` 依旧调不到它们（`NAPCAT_PROXY_ACTION_NAMES` 就是那 15 条）——
+ * 那两个能力只能走各自的专用工具（`src/group-tools.ts`，带回合门禁与审计）。
  * @module dsh-qq-companion/tools
  */
 import type { Context } from '@deepseek-ai/cordis';
