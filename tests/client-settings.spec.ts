@@ -457,7 +457,7 @@ describe('workspacePath + 「快速填入 workspace」（connection 组新行 + 
 
   it('connection 组追加 workspacePath：键序组尾、中文 label、hint 申明新会话生效与 /workspace 覆盖不受影响', () => {
     const connection = groups.find((group) => group.id === 'connection')!
-    expect(connection.fields.map((field) => field.key)).toEqual(['host', 'port', 'accessToken', 'botQQ', 'workspacePath'])
+    expect(connection.fields.map((field) => field.key)).toEqual(['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'attachWorkspaceMode'])
     const workspaceField = connection.fields.find((field) => field.key === 'workspacePath')!
     expect(workspaceField.type).toBe('string')
     expect(workspaceField.label).toMatch(/\p{Script=Han}/u)

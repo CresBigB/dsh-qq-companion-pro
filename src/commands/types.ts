@@ -9,7 +9,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 
 import type { OneBotConnection } from '../connection.js'
 import { type ChatId, type UserRole } from '../chat.js'
-import type { PendingSelection, SessionSwitchOutcome, SwitchableSession } from '../registry.js'
+import type { PendingSelection, SessionSwitchOutcome, SwitchableSession, WorkspaceAttachOutcome } from '../registry.js'
 import type { AgentDefaultModelLike, AgentPresetsLike, BridgeConfig, BridgeDeps, LlmCatalogPort, SessionPersistenceLike, WorkspaceRegistryLike } from '../bridge.js'
 import type { TraceStage } from '../trace.js'
 
@@ -60,6 +60,10 @@ export interface CommandContext {
   steerRunningTurn(chatId: ChatId, text: string): boolean
   /** Per-chat state readers/writers (the pre-split private maps). */
   effectiveCwd(chatId: ChatId): string
+  /** /workspace attach — re-run the workspace attach for this chat's live
+   * session right now (the plugin otherwise only attaches at create/resume).
+   * allowCreate (default true) also creates the chat's own directory. */
+  attachChatToWorkspace(chatId: ChatId, options?: { allowCreate?: boolean }): Promise<WorkspaceAttachOutcome>
   sessionIdFromMapping(chatId: ChatId): Promise<string | undefined>
   resolvePresetId(chatId: ChatId): Promise<string | undefined>
   setChatWorkspacePath(chatId: ChatId, path: string): void

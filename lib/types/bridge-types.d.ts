@@ -87,6 +87,12 @@ export interface BridgeConfig {
     /** the daily scheduled prompts (for /task listing / run-now). */
     scheduledPrompts?: readonly ScheduledPrompt[];
     workspacePath: string;
+    /** how QQ sessions are grouped into DSH workspaces: 'existing' (default) =
+     * attach to a workspace that already owns the directory (plus create one for
+     * workspacePath); 'auto' = also create per-chat directories (one per group /
+     * private chat); 'off' = never touch the workspace registry. Absent =
+     * 'existing'. */
+    attachWorkspaceMode?: 'existing' | 'auto' | 'off';
     /** Max inbound file bytes fetched via QQ direct link / base64 (0 = no cap). */
     maxInboundFileBytes: number;
     /** chats idle longer than this many days are evicted on the next

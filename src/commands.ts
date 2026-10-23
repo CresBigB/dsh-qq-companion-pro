@@ -56,7 +56,7 @@ export const COMMANDS: CommandDefinition[] = [
   { name: 'stop', adminOnly: true, group: '操作', help: '停止当前生成', handler: (ctx, chatId) => handleStopCommand(ctx, chatId) },
   { name: 'steer', adminOnly: true, group: '操作', help: '<补充内容> 向运行中的任务补充指令', handler: (ctx, chatId, arg, sender) => handleSteerCommand(ctx, chatId, arg, sender) },
   { name: 'model', adminOnly: true, group: '其他', help: '[--default] <provider> <model> 切换模型（--default 改部署默认；无参两级序号列表）', handler: (ctx, chatId, arg) => handleModelCommand(ctx, chatId, arg) },
-  { name: 'workspace', adminOnly: true, group: '会话', help: '[路径|序号|list] 查看或切换工作区', handler: (ctx, chatId, arg) => handleWorkspaceCommand(ctx, chatId, arg) },
+  { name: 'workspace', adminOnly: true, group: '会话', help: '[路径|序号|list|attach] 查看或切换工作区（attach=把当前会话归入工作区）', handler: (ctx, chatId, arg) => handleWorkspaceCommand(ctx, chatId, arg) },
   { name: 'preset', adminOnly: true, group: '会话', help: '[id|序号] 查看/切换 agent 预设', handler: (ctx, chatId, arg) => handlePresetCommand(ctx, chatId, arg) },
   { name: 'session', adminOnly: true, group: '会话', help: '[序号] 查看/切回历史会话', handler: (ctx, chatId, arg) => handleSessionCommand(ctx, chatId, arg) },
   { name: 'status', adminOnly: true, group: '查询', help: '会话全景', handler: (ctx, chatId) => handleStatusCommand(ctx, chatId) },

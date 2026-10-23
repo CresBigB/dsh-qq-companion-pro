@@ -2,7 +2,7 @@ import type { ChatId } from './chat.js';
 import type { SwitchableSession } from './session-ledger.js';
 export * from './registry-types.js';
 export type { SwitchableSession } from './session-ledger.js';
-import { ChatAgent, ChatSettings, RegistryDeps, SessionSwitchOutcome } from './registry-types.js';
+import { ChatAgent, ChatSettings, RegistryDeps, SessionSwitchOutcome, WorkspaceAttachOutcome } from './registry-types.js';
 /**
  * The chat↔session registry: dual index, persistence pair, per-chat settings
  * and the shared create/resume assembly. Created by the ChatBridge
@@ -160,6 +160,11 @@ export declare class ChatRegistry {
      * back to the host process cwd.
      */
     effectiveCwd(chatId?: ChatId): string;
+    /** The global default directory: the configured workspacePath, else the host
+     * process cwd. Everything a chat does NOT specialize (no /workspace
+     * override, no admin private dir, no group memory dir) lands here — and it
+     * is the one directory the default attach mode may auto-create. */
+    private globalWorkspacePath;
     /**
      * The preset id a NEW session records and joins: the configured id when set,
      * else the deployment default — the same resolution the Web surface applies,
@@ -199,15 +204,37 @@ export declare class ChatRegistry {
     /**
      * Attach a chat session to the workspace owning its header cwd, so QQ
      * sessions group under a workspace in the GUI instead of "Ungrouped".
-     * Best-effort: failure only logs.
+     * Best-effort: failure only logs, the chat itself is never affected.
      *
-     * A workspace is auto-created only when the session cwd matches the
-     * configured workspacePath (new sessions). A resumed session carrying a
-     * foreign cwd (e.g. created under an earlier host cwd) is attached only when
-     * a workspace already owns that path — never auto-created, so legacy
-     * sessions cannot spawn accidental workspaces.
+     * `chatId` says which directory the chat is supposed to use today
+     * (effectiveCwd(chatId)); `attachWorkspaceMode` decides whether a missing
+     * workspace may be created for it:
+     * - existing (default): a directory a workspace already owns is attached; a
+     *   missing one is created only for the global workspacePath — the pre-mode
+     *   behavior, so group / private-memory dirs never spawn workspaces.
+     * - auto: when the header cwd IS what this chat should use
+     *   (headerCwd === effectiveCwd(chatId)) a missing workspace is created and
+     *   titled after the chat ("QQ群 <群号>" / "QQ私聊 <QQ号>").
+     * - off: the workspace registry is never touched.
+     * A session whose cwd is NOT what the chat should use today (a legacy /
+     * foreign session directory) is only attached to an existing workspace —
+     * never given a new one, in any mode.
      */
     private attachToWorkspace;
+    /**
+     * /workspace attach: re-run the workspace attach for a chat's live session
+     * right now. The plugin otherwise only attaches at create/resume, so a
+     * workspace added later in the DSH UI would wait for the next restart —
+     * this is the manual escape hatch. `allowCreate` (default true) lets the
+     * manual command create the chat's OWN directory even in the default
+     * 'existing' mode; mode 'off' still wins.
+     */
+    attachChatToWorkspace(chatId: ChatId, options?: {
+        allowCreate?: boolean;
+    }): Promise<WorkspaceAttachOutcome>;
+    /** The one attach implementation behind create/resume and /workspace
+     * attach; returns a structured outcome the command layer phrases. */
+    private attachSessionToWorkspace;
     /**
      * /new: dispose the current chat agent and retire its session id, so the
      * next inbound message creates a brand-new session (fresh history; the old

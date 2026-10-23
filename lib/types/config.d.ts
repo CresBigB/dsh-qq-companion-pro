@@ -99,6 +99,9 @@ export interface Config {
     proactiveSkipIfActiveMinutes: number;
     proactiveMaxUnanswered: number;
     workspacePath: string;
+    /** QQ 会话怎么归入 DSH 工作区：existing 只归入已存在的（另为 workspacePath 建一个）；
+     *  auto 连群/私聊各自的工作目录也建；off 完全不碰工作区。 */
+    attachWorkspaceMode: 'existing' | 'auto' | 'off';
     inboundFileMaxBytes: number;
     /** @deprecated alias of inboundFileMaxBytes; honored for one release. */
     maxInboundFileBytes?: number;

@@ -21,6 +21,25 @@ export type SessionSwitchOutcome =
   | { ok: true; sessionId: string }
   | { ok: false; reason: 'busy' | 'not-switchable' | 'broken' | 'resume-failed'; message: string }
 
+/** The outcome of one workspace-attach attempt (create/resume + /workspace
+ * attach). `reason` is what the command layer phrases the ❌ reply from:
+ * 'off' — attachWorkspaceMode=off; 'no-registry' — the host has no
+ * workspaceRegistry service; 'no-session' — the chat has no live session yet;
+ * 'no-cwd' — the session header records no cwd; 'no-workspace' — nothing owns
+ * the directory and the mode does not allow creating one; 'foreign-cwd' — the
+ * directory is not what this chat should use today, so no workspace may be
+ * created for it; 'failed' — the host call threw (message carries the error). */
+export type WorkspaceAttachOutcome =
+  | { ok: true; path: string; created: boolean }
+  | { ok: false; reason: 'off' | 'no-registry' | 'no-session' | 'no-cwd' | 'no-workspace' | 'foreign-cwd' | 'failed'; path?: string; message?: string }
+
+/** 这个聊天新建工作区时用的标题：群聊「QQ群 <群号>」、私聊「QQ私聊 <QQ号>」。 */
+export function workspaceTitleForChat(chatId: ChatId): string {
+  if (chatId.startsWith('group:')) return 'QQ群 ' + chatId.slice('group:'.length)
+  if (chatId.startsWith('private:')) return 'QQ私聊 ' + chatId.slice('private:'.length)
+  return 'QQ ' + chatId
+}
+
 /** one pending serial-number selection snapshot — the numbered list a
  * bare /workspace|/model|/preset|/session rendered, kept per chat so a
  * following `/cmd <序号>` picks an entry without re-listing. `payload` stores the exact
@@ -162,7 +181,7 @@ export interface RegistryDeps {
   sessionTitle?: () => SessionTitleLike | undefined
   defaultModel: (() => ModelSelection | undefined) | undefined
   /** The only config fields the registry reads. */
-  config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>
+  config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'attachWorkspaceMode' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
   /** Bridge stop flag (guards the resume loop). */
   isStopping(): boolean

@@ -624,7 +624,7 @@ describe('commands', () => {
       '可用命令（仅管理员）：',
       '▍会话',
       '/new 开启新会话（清空上下文）',
-      '/workspace [路径|序号|list] 查看或切换工作区',
+      '/workspace [路径|序号|list|attach] 查看或切换工作区（attach=把当前会话归入工作区）',
       '/preset [id|序号] 查看/切换 agent 预设',
       '/session [序号] 查看/切回历史会话',
       '/permission [w|f|预设名|序号] 切换权限预设（w=工作区可写+需审批，f=全盘+免审批）',

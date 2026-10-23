@@ -518,6 +518,9 @@ export class ChatBridge {
       // source write point in bridge.ts (producer-owned kind, session-v4 guard).
       steerRunningTurn: (chatId, text) => bridge.steerMessage(chatId, text),
       effectiveCwd: chatId => bridge.registry.effectiveCwd(chatId),
+      // /workspace attach — the registry re-runs the attach for this chat's
+      // live session (manual escape hatch when a workspace was added later).
+      attachChatToWorkspace: (chatId, options) => bridge.registry.attachChatToWorkspace(chatId, options),
       sessionIdFromMapping: chatId => bridge.registry.sessionIdFromMapping(chatId),
       resolvePresetId: chatId => bridge.registry.resolvePresetId(chatId),
       // /workspace persists with the chat mapping (debounced). When the

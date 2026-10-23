@@ -62,14 +62,14 @@
 | `agentPreset` | string | `""` | QQ 会话加入的 agent 预设 id；留空用部署默认（settings 的 agent-presets.default，当前为 router-flash）。创建时总是解析有效预设并写入会话 header，Web 界面可见；resume 优先恢复会话自己记录的预设 |
 | `adminPreset` | string | `""` | 管理员私聊默认使用的 agent preset（留空=同 agentPreset；/preset 覆盖优先） |
 | `adminPermission` | string | `""` | 管理员私聊每个新会话自动切换的宿主权限预设，如 danger-full-access（留空=宿主默认） |
-| `adminWorkspacePath` | string | `""` | 管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。群聊用 workspacePath，读不到这里的 AGENTS.md |
+| `adminWorkspacePath` | string | `""` | 管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。管理员私聊设置后覆盖 workspacePath（这类会话用本目录）；群聊用 workspacePath，读不到这里的 AGENTS.md |
 | `idleResetHours` | number | `0` | 超过这么多小时没说话，下一条消息开新会话，并附上最后几句作交接（0=关闭） |
 | `sessionTitleTemplate` | string | `"{kind} {target} · {date}"` | 新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 2824149798 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名 |
 | `publicMemoryFile` | string | `""` | qq_memory_note 工具追加的公开记忆文件（留空=不提供该工具） |
 | `scheduledPrompts` | object[] | `[]` | 每天定时投递给指定会话的任务（写日记等）；time 为本地 HH:MM |
 | `publicMemoryMaxBytes` | number | `6144` | 公开记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |
 | `privateMemoryMaxBytes` | number | `24576` | 管理员私密记忆（adminWorkspacePath/AGENTS.md）的上限（字节），写进给她的功能说明里，由她自己整理 |
-| `groupMemoryDir` | string | `""` | 每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile |
+| `groupMemoryDir` | string | `""` | 每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile。设置后群会话以 <目录>/<群号> 为工作目录，覆盖 workspacePath |
 | `groupMemoryMaxBytes` | number | `8192` | 每个群的记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |
 | `memoryNoteDenyWords` | string[] | `[]` | 群友让记的群记忆里不能出现的词（管理员的隐私：微信号、真名、住址等）；管理员 QQ 号自动算在内 |
 | `stickerDir` | string | `""` | 表情包库目录（图片和 index.json 放在这里）；留空 = 不开表情包功能（没有存/搜/发表情包的工具） |
@@ -89,7 +89,8 @@
 | `proactiveMinGapMinutes` | number | `90` | 两次叫醒至少间隔多少分钟 |
 | `proactiveSkipIfActiveMinutes` | number | `30` | 对方这么多分钟内说过话就跳过这次 |
 | `proactiveMaxUnanswered` | number | `2` | 主动发的消息有这么多条没回，当天就不再叫醒 |
-| `workspacePath` | string | `""` | QQ 会话的工作区目录（写入会话 cwd，并自动归入该工作区，不存在则创建）；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区），单聊 /workspace 覆盖优先且已持久化到会话映射文件，重启/恢复失败均不丢失 |
+| `workspacePath` | string | `""` | QQ 会话的默认工作区目录（写入会话 cwd，并自动归入该工作区，不存在则创建）；管理员私聊优先用 adminWorkspacePath，开了群记忆（groupMemoryDir）的群聊用 <群记忆目录>/<群号>，这两类会话不受本项影响；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区），单聊 /workspace 覆盖优先且已持久化到会话映射文件，重启/恢复失败均不丢失 |
+| `attachWorkspaceMode` | "existing" / "auto" / "off" | `"existing"` | QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：existing（默认）= 只归入已存在的工作区（另外为 workspacePath 自动建一个）；auto = 群聊、私聊各自的工作目录也自动建工作区（每个群一个）；off = 不归入。已有会话可发 /workspace attach 立即补挂 |
 | `inboundFileMaxBytes` | number | `20971520` | QQ 入站文件最大字节数（直链/base64 拉取，0 = 不限制） |
 | `maxInboundFileBytes` | number |  | [deprecated] 旧名别名（现 inboundFileMaxBytes）：QQ 入站文件最大字节数；本版兼容读取，新配置请用新名 |
 | `allowPrivateHosts` | boolean | `false` | 下载 SSRF 防护逃生门：默认拒绝解析到私网/环回/链路本地地址的下载目标（协议仅 http/https、重定向逐跳复检仍生效）；NapCat 文件服务器或反代部署在本机/内网时置 true 跳过私网检查 |
