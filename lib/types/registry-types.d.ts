@@ -9,6 +9,7 @@ import type { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ChatId, UserRole } from './chat.js';
 import type { AgentPresetsLike, BridgeConfig, SessionPersistenceLike, WorkspaceRegistryLike } from './bridge.js';
+import type { SessionTitleLike } from './session-title.js';
 /** The mapping file name inside the media dir. */
 export declare const MAPPING_FILE = "chat-sessions.json";
 /** The outcome of a /session switch attempt (the command layer phrases the
@@ -149,9 +150,13 @@ export interface RegistryDeps {
     sessionPersistence: SessionPersistenceLike | undefined;
     workspaceRegistry: WorkspaceRegistryLike | undefined;
     agentPresets: AgentPresetsLike | undefined;
+    /** Host sessionTitle service, resolved lazily per create/resume (absent =
+     * sessions keep their raw id as the display name). Lazy on purpose: the
+     * plugin does not statically inject this service. */
+    sessionTitle?: () => SessionTitleLike | undefined;
     defaultModel: (() => ModelSelection | undefined) | undefined;
     /** The only config fields the registry reads. */
-    config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort'>;
+    config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>;
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
     /** Bridge stop flag (guards the resume loop). */
     isStopping(): boolean;

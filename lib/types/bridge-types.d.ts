@@ -12,6 +12,7 @@ import type { ChatActivity, GroupChatter, ScheduledPrompt, StickerLibrary } from
 import type { OneBotConnection } from './connection.js';
 import type { GroupAccessLike } from './groups.js';
 import type { MediaStore } from './media.js';
+import type { SessionTitleLike } from './session-title.js';
 import type { Transcriber } from './stt.js';
 import type { TraceSink } from './trace.js';
 /** Resolved runtime configuration for the bridge. */
@@ -117,6 +118,10 @@ export interface BridgeConfig {
     dedupWindowSeconds?: number;
     /** tool-send audit (mediaDir/qq-actions.log); absent → on. */
     actionAuditEnabled?: boolean;
+    /** template for the automatic session title of new (and untitled resumed)
+     * QQ sessions, e.g. '{kind} {target} · {date}'; '' = no automatic naming.
+     * Absent → the config default. See session-title.ts. */
+    sessionTitleTemplate?: string;
     /** decision-trace sink; absent/disabled = no traceIds, no jsonl. */
     trace?: TraceSink | undefined;
 }
@@ -271,6 +276,9 @@ export interface BridgeDeps {
      * fallback and preview-less list items. */
     sessionPersistence: SessionPersistenceLike | undefined;
     workspaceRegistry: WorkspaceRegistryLike | undefined;
+    /** Host sessionTitle service, resolved lazily per create/resume (absent =
+     * QQ sessions keep their raw id as the display name). */
+    sessionTitle?: () => SessionTitleLike | undefined;
     agentDefaultModel: AgentDefaultModelLike | undefined;
     defaultModel: (() => ModelSelection | undefined) | undefined;
     config: BridgeConfig;

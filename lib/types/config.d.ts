@@ -71,6 +71,9 @@ export interface Config {
     adminPermission: string;
     adminWorkspacePath: string;
     idleResetHours: number;
+    /** Automatic session-title template for new (and untitled resumed) QQ
+     * sessions; '' = no automatic naming. */
+    sessionTitleTemplate: string;
     publicMemoryFile: string;
     scheduledPrompts: ScheduledPrompt[];
     publicMemoryMaxBytes: number;

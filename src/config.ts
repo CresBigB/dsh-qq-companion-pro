@@ -84,6 +84,9 @@ export interface Config {
   adminPermission: string
   adminWorkspacePath: string
   idleResetHours: number
+  /** Automatic session-title template for new (and untitled resumed) QQ
+   * sessions; '' = no automatic naming. */
+  sessionTitleTemplate: string
   publicMemoryFile: string
   scheduledPrompts: ScheduledPrompt[]
   publicMemoryMaxBytes: number
@@ -279,6 +282,8 @@ export const Config: Z<Config> = z.object({
     .description('管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。群聊用 workspacePath，读不到这里的 AGENTS.md'),
   idleResetHours: z.number().default(0)
     .description('超过这么多小时没说话，下一条消息开新会话，并附上最后几句作交接（0=关闭）'),
+  sessionTitleTemplate: z.string().default('{kind} {target} · {date}')
+    .description('新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 2824149798 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名'),
   publicMemoryFile: z.string().default('')
     .description('qq_memory_note 工具追加的公开记忆文件（留空=不提供该工具）'),
   scheduledPrompts: z.array(z.object({

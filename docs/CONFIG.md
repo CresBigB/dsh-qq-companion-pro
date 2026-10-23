@@ -64,6 +64,7 @@
 | `adminPermission` | string | `""` | 管理员私聊每个新会话自动切换的宿主权限预设，如 danger-full-access（留空=宿主默认） |
 | `adminWorkspacePath` | string | `""` | 管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。群聊用 workspacePath，读不到这里的 AGENTS.md |
 | `idleResetHours` | number | `0` | 超过这么多小时没说话，下一条消息开新会话，并附上最后几句作交接（0=关闭） |
+| `sessionTitleTemplate` | string | `"{kind} {target} · {date}"` | 新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 2824149798 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名 |
 | `publicMemoryFile` | string | `""` | qq_memory_note 工具追加的公开记忆文件（留空=不提供该工具） |
 | `scheduledPrompts` | object[] | `[]` | 每天定时投递给指定会话的任务（写日记等）；time 为本地 HH:MM |
 | `publicMemoryMaxBytes` | number | `6144` | 公开记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |

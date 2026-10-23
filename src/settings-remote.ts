@@ -66,7 +66,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   behavior: ['interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'],
   diagnostics: ['actionAuditEnabled', 'traceEnabled'],
   companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'groupSplitLines', 'humanTypingPace', 'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs'],
-  memory: ['idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes'],
+  memory: ['idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes', 'sessionTitleTemplate'],
   proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
 }
 

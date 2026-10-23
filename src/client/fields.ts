@@ -122,6 +122,7 @@ export const GROUPS: OnebotGroup[] = [
       { key: 'publicMemoryMaxBytes', label: '公开记忆上限（字节）', type: 'number', hint: '满了群里就不再追加。（配置键 publicMemoryMaxBytes）' },
       { key: 'groupMemoryDir', label: '每群一份记忆的目录', type: 'string', hint: '<目录>/<群号>/AGENTS.md，群会话以此为工作目录；留空 = 所有群共用公开记忆。（配置键 groupMemoryDir）' },
       { key: 'groupMemoryMaxBytes', label: '每群记忆上限（字节）', type: 'number', hint: '（配置键 groupMemoryMaxBytes）' },
+      { key: 'sessionTitleTemplate', label: '会话标题模板', type: 'string', hint: '新建 QQ 会话（以及恢复时还没有标题的旧会话）的网页标题，可用 {kind} {target} {nickname} {date} {time}；已有标题（比如在网页上手动改过）的不会被覆盖，留空 = 不自动命名。（配置键 sessionTitleTemplate）' },
     ],
   },
   {
@@ -196,6 +197,7 @@ export const DEFAULTS: Record<string, unknown> = {
   publicMemoryMaxBytes: 6144,
   groupMemoryDir: '',
   groupMemoryMaxBytes: 8192,
+  sessionTitleTemplate: '{kind} {target} · {date}',
   proactiveEnabled: false,
   proactiveChatId: '',
   proactiveWindowStart: '09:00',

@@ -9,7 +9,7 @@
  */
 import type { Agent, AgentSetup, ModelSelection, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { SessionId as makeSessionId } from '@deepseek-ai/dsh-session'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -22,6 +22,8 @@ import { describeError } from './errors.js'
 import { SerialFileWriter } from './persist.js'
 import { SessionLedger } from './session-ledger.js'
 import type { SwitchableSession } from './session-ledger.js'
+import type { SessionTitleMode } from './session-title.js'
+import { titleSession } from './session-title.js'
 
 export * from './registry-types.js'
 export type { SwitchableSession } from './session-ledger.js'
@@ -274,6 +276,7 @@ export class ChatRegistry {
     // session events route to this chat and the mapping persists the truth.
     const actualSessionId = handle.agent.session.id
     await this.attachToWorkspace(actualSessionId, handle.agent.session.header?.cwd)
+    this.applySessionTitle(chatId, handle.agent.session, 'create', nickname)
     const chat = this.createChatAgent(chatId, handle, selectionRef, nickname)
     await this.settle(handle)
     this.chats.set(chatId, chat)
@@ -407,6 +410,9 @@ export class ChatRegistry {
       setup: this.buildSetup(chatId, selectionRef, recordedPreset, { chatId, presetId: expectedPreset }),
     })
     await this.attachToWorkspace(handle.agent.session.id, handle.agent.session.header?.cwd)
+    // a resumed session may already be named (a user's Web rename is pinned):
+    // only an untitled legacy session is backfilled.
+    this.applySessionTitle(chatId, handle.agent.session, 'resume', '')
     // /workspace persistence across restarts: the per-chat override map is
     // in-memory only, but a session's cwd is frozen in its header. When the
     // resumed session's directory differs from what this chat would default
@@ -811,6 +817,27 @@ export class ChatRegistry {
     } catch (error) {
       this.deps.log('warn', 'agent preset mount failed (tools fall back to the global layer): ' + describeError(error))
     }
+  }
+
+  /**
+   * Give a just-created / just-resumed session a human title from the
+   * configured template ("QQ私聊 2824149798 · 10-23"). The host only
+   * auto-titles `user`-sourced messages and this plugin's messages are
+   * plugin-sourced, so without this a QQ session shows its raw session id in
+   * the Web session list. Entirely best-effort: an absent sessionTitle service,
+   * a blank template or any failure inside titleSession leaves the session
+   * exactly as it would have been (see session-title.ts).
+   */
+  private applySessionTitle(chatId: ChatId, session: Session, mode: SessionTitleMode, nickname: string): void {
+    titleSession({
+      service: this.deps.sessionTitle?.(),
+      session,
+      chatId,
+      mode,
+      template: this.deps.config.sessionTitleTemplate,
+      nickname,
+      log: (level, message) => this.deps.log(level, message),
+    })
   }
 
   /**

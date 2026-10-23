@@ -187,6 +187,16 @@ export declare class ChatRegistry {
      */
     private joinPreset;
     /**
+     * Give a just-created / just-resumed session a human title from the
+     * configured template ("QQ私聊 2824149798 · 10-23"). The host only
+     * auto-titles `user`-sourced messages and this plugin's messages are
+     * plugin-sourced, so without this a QQ session shows its raw session id in
+     * the Web session list. Entirely best-effort: an absent sessionTitle service,
+     * a blank template or any failure inside titleSession leaves the session
+     * exactly as it would have been (see session-title.ts).
+     */
+    private applySessionTitle;
+    /**
      * Attach a chat session to the workspace owning its header cwd, so QQ
      * sessions group under a workspace in the GUI instead of "Ungrouped".
      * Best-effort: failure only logs.

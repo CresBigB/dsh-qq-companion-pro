@@ -22,6 +22,7 @@ import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type Z from '@deepseek-ai/schemastery'
 import type { OneBotEvent } from './connection.js'
 import type { BridgeDeps, WorkspaceRegistryLike } from './bridge.js'
+import type { SessionTitleLike } from './session-title.js'
 import { join } from 'node:path'
 
 // 部署加固：peer 依赖解析失败/关键模块缺失时必须显眼报错并 fail-loud，
@@ -280,6 +281,17 @@ export function apply(ctx: Context, config: Config): void {
     commands: ctx.commands as BridgeDeps['commands'],
     sessionPersistence: ctx.sessionPersistence,
     workspaceRegistry: ctx.workspaceRegistry as unknown as WorkspaceRegistryLike,
+    // the host `sessionTitle` service is optional and NOT in the static inject
+    // list, so it is resolved lazily per create/resume (absent = the session
+    // keeps its raw id as the display name). Same posture as workspaceRegistry
+    // in the settings remote.
+    sessionTitle: () => {
+      try {
+        return ctx.get('sessionTitle') as SessionTitleLike | undefined
+      } catch {
+        return undefined
+      }
+    },
     agentDefaultModel: ctx.agentDefaultModel,
     defaultModel: () => {
       try {
