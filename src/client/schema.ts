@@ -3,8 +3,8 @@
  * descriptor。
  *
  * descriptor 与 host lib/settings-remote.ts 的服务方法面逐字对齐：
- * getSettings() / updateSettings(patch, expectedRevision) / listWorkspaces()，
- * 全 positional（宿主网关 methodParameterNames 拒绝解构/默认值/rest）。
+ * getSettings() / updateSettings(patch, expectedRevision) / listWorkspaces() /
+ * getStatus()，全 positional（宿主网关 methodParameterNames 拒绝解构/默认值/rest）。
  * host 侧未导出客户端 descriptor 数组——两侧各自持有一份，本文件为客户端
  * 真相源，变更须同步宿主侧；tests/client-settings.spec.ts 做契约核对。
  */
@@ -270,6 +270,73 @@ export const workspaceListSchema: Schema<Record<string, unknown>> = vObject({
   workspaces: vArray(vObject({ id: vString(1, 256), path: vString(0, 1024), sessionCount: vInt(0) })),
 })
 
+/* ------------------------------------------------------------------ *
+ * getStatus 返回值（host StatusResult）。概览页对缺失字段一律显示「—」，
+ * 所以这里**宽松**：每个字段都是 vOptional，缺键 / null 都放行，缺一个字段
+ * 不会让整份快照被 codec 拒绝（否则概览会因一处取数失败整页报错）。
+ * ------------------------------------------------------------------ */
+
+/** 概览快照的顶层（src/status.ts CompanionStatusSnapshot 的宽松投影）。 */
+export const statusSnapshotSchema: Schema<Record<string, unknown>> = vObject({
+  connection: vOptional(vObject({
+    connected: vOptional(vBoolean()),
+    online: vOptional(vBoolean()),
+    selfId: vOptional(vString(0, 128)),
+    botQQ: vOptional(vString(0, 128)),
+    host: vOptional(vString(0, 256)),
+    port: vOptional(vNumber(0)),
+  })),
+  sessions: vOptional(vObject({
+    private: vOptional(vNumber(0)),
+    group: vOptional(vNumber(0)),
+    list: vOptional(vArray(vObject({
+      chatId: vOptional(vString(0, 256)),
+      sessionId: vOptional(vString(0, 256)),
+      title: vOptional(vString(0, 1024)),
+      workspaceAttached: vOptional(vBoolean()),
+    }))),
+  })),
+  today: vOptional(vObject({ sent: vOptional(vNumber(0)) })),
+  proactive: vOptional(vObject({
+    enabled: vOptional(vBoolean()),
+    doneToday: vOptional(vNumber(0)),
+    plannedToday: vOptional(vNumber(0)),
+    nextAt: vOptional(vString(0, 32)),
+  })),
+  stickers: vOptional(vObject({
+    enabled: vOptional(vBoolean()),
+    count: vOptional(vNumber(0)),
+    maxCount: vOptional(vNumber(0)),
+    today: vOptional(vNumber(0)),
+    dailyMax: vOptional(vNumber(0)),
+  })),
+  memory: vOptional(vArray(vObject({
+    label: vOptional(vString(0, 256)),
+    path: vOptional(vString(0, 1024)),
+    bytes: vOptional(vNumber(0)),
+    maxBytes: vOptional(vNumber(0)),
+  }))),
+  scheduled: vOptional(vArray(vObject({
+    id: vOptional(vString(0, 256)),
+    time: vOptional(vString(0, 32)),
+    chatId: vOptional(vString(0, 256)),
+    doneToday: vOptional(vBoolean()),
+    nextAt: vOptional(vString(0, 32)),
+  }))),
+  permissions: vOptional(vObject({
+    admin: vOptional(vString(0, 256)),
+    member: vOptional(vString(0, 256)),
+  })),
+  generatedAt: vOptional(vNumber(0)),
+})
+
+/** getStatus 返回值（host StatusResult 同构；status 宽松）。 */
+export const statusResultSchema: Schema<Record<string, unknown>> = vObject({
+  available: vBoolean(),
+  status: vOptional(statusSnapshotSchema),
+  error: vOptional(vString(0, 4096)),
+})
+
 /** Typert 严格 codec（模式固定 strict）。 */
 export interface TypertCodec {
   mode: 'strict'
@@ -328,7 +395,7 @@ export function onebotMethod(
   }
 }
 
-/** 客户端 truth source：三个方法的 descriptor 清单。 */
+/** 客户端 truth source：四个方法的 descriptor 清单（顺序即契约）。 */
 export const ONEBOT_SETTINGS_DESCRIPTORS: TypertMethodDescriptor[] = [
   onebotMethod('getSettings', []),
   onebotMethod('updateSettings', [
@@ -336,6 +403,7 @@ export const ONEBOT_SETTINGS_DESCRIPTORS: TypertMethodDescriptor[] = [
     jsonParameter('expectedRevision', 'number', vOptional(vInt(0))),
   ]),
   onebotMethod('listWorkspaces', [], workspaceListSchema, 'WorkspaceListResult'),
+  onebotMethod('getStatus', [], statusResultSchema, 'CompanionStatusResult'),
 ]
 
 /** `ctx.remote.$mount()` 的入参。 */

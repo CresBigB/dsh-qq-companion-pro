@@ -908,6 +908,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
   it('冲突：error 横幅 + 草稿保留；重新加载才丢弃改动', async () => {
     const harness = mountPanel({ updateResult: { ok: false, error: { code: 'onebot-settings/conflict', message: 'expectedRevision mismatch' } } })
     await harness.settle()
+    gotoPage(harness, 'connection') // F3 起默认打开概览页
     byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
@@ -936,6 +937,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     vi.useFakeTimers()
     const harness = mountPanel()
     await harness.settle()
+    gotoPage(harness, 'connection') // F3 起默认打开概览页
     byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
@@ -960,6 +962,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     vi.useFakeTimers()
     const harness = mountPanel()
     await harness.settle()
+    gotoPage(harness, 'connection') // F3 起默认打开概览页
     byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
@@ -978,6 +981,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
   it('失败（非冲突）：error 横幅显示消息，草稿保留', async () => {
     const harness = mountPanel({ updateResult: { ok: false, error: { code: 'onebot-settings/edit-failed', message: '写入失败：配置文件被其他写入方占用' } } })
     await harness.settle()
+    gotoPage(harness, 'connection') // F3 起默认打开概览页
     byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()

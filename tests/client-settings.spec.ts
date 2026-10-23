@@ -365,8 +365,8 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
     }
   })
 
-  it('方法集逐字对齐：getSettings() 0 参；updateSettings(patch, expectedRevision)；listWorkspaces() 0 参，全 positional', () => {
-    expect(descriptors.map((descriptor) => descriptor.method)).toEqual(['getSettings', 'updateSettings', 'listWorkspaces'])
+  it('方法集逐字对齐：getSettings() 0 参；updateSettings(patch, expectedRevision)；listWorkspaces() / getStatus() 0 参，全 positional', () => {
+    expect(descriptors.map((descriptor) => descriptor.method)).toEqual(['getSettings', 'updateSettings', 'listWorkspaces', 'getStatus'])
     const getSettings = descriptors[0] as { parameters: Array<unknown>; result: { schema: { parse(value: unknown): unknown } } }
     expect(getSettings.parameters).toEqual([])
     const updateSettings = descriptors[1] as { parameters: Array<{ name: string }>; result: { schema: { parse(value: unknown): unknown } } }
@@ -379,6 +379,44 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
       workspaces: [{ id: 'ws-1', path: '/tmp/ws', sessionCount: 2 }],
     })
     expect(listWorkspaces.result.schema.parse({ available: false, workspaces: [] })).toEqual({ available: false, workspaces: [] })
+    // getStatus 是 F3 追加的第四个方法：0 参只读查询。
+    const getStatus = descriptors[3] as { parameters: Array<unknown>; result: { typeSymbol: string; schema: { parse(value: unknown): { status?: Record<string, unknown> } } } }
+    expect(getStatus.parameters).toEqual([])
+    expect(getStatus.result.typeSymbol).toBe('CompanionStatusResult')
+  })
+
+  it('getStatus result codec 宽松接受缺失字段（概览缺失显示「—」，不因一处缺键整页报错）', () => {
+    const getStatus = descriptors[3] as { result: { schema: { parse(value: unknown): { available: boolean; status?: Record<string, unknown> } } } }
+    // 主插件未运行：只有 available:false。
+    expect(getStatus.result.schema.parse({ available: false })).toMatchObject({ available: false })
+    // 部分字段取数失败（null / 缺键）照常放行。
+    const partial = getStatus.result.schema.parse({
+      available: true,
+      status: { connection: { connected: true, online: null }, today: { sent: 3 }, memory: [{ label: '公开', path: '/tmp/AGENTS.md', bytes: null, maxBytes: 6144 }] },
+    })
+    expect(partial.status?.today).toMatchObject({ sent: 3 })
+    expect((partial.status?.connection as Record<string, unknown>).connected).toBe(true)
+    expect((partial.status?.connection as Record<string, unknown>).online).toBeUndefined() // null → 缺席（客户端显示「—」）
+    // 服务在位但取数抛错。
+    expect(getStatus.result.schema.parse({ available: true, error: '读取失败' })).toMatchObject({ available: true, error: '读取失败' })
+    // 完整快照原样通过。
+    const full = getStatus.result.schema.parse({
+      available: true,
+      status: {
+        connection: { connected: true, online: true, selfId: '2564812526', botQQ: '2564812526', host: '127.0.0.1', port: 8643 },
+        sessions: { private: 1, group: 2, list: [{ chatId: 'private:1', sessionId: 's1', workspaceAttached: false }] },
+        today: { sent: 12 },
+        proactive: { enabled: true, doneToday: 1, plannedToday: 4, nextAt: '15:30' },
+        stickers: { enabled: true, count: 10, maxCount: 300, today: 2, dailyMax: 20 },
+        memory: [{ label: '公开', path: '/tmp/AGENTS.md', bytes: 2048, maxBytes: 6144 }],
+        scheduled: [{ id: 'diary', time: '23:00', chatId: 'private:1', doneToday: false, nextAt: '23:00' }],
+        permissions: { admin: 'danger-full-access', member: 'read-only' },
+        generatedAt: 1700000000000,
+      },
+    })
+    expect((full.status?.sessions as { private: number }).private).toBe(1)
+    expect((full.status?.scheduled as unknown[]).length).toBe(1)
+    expect((full.status?.generatedAt as number)).toBe(1700000000000)
   })
 
   it('result codec 可解析宿主形态快照', () => {
@@ -1128,15 +1166,17 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     expect(byClass(view, 'qqc-conn')).toHaveLength(0)
   })
 
-  it('主体两栏：左导航（搜索 + 只看已改动 + 10 个子页），右内容（标题 / 副标题 / 卡片）', () => {
+  it('主体两栏：左导航（搜索 + 只看已改动 + 概览 + 10 个子页），右内容（标题 / 副标题 / 卡片）', () => {
     const view = SettingsView(viewProps())
     const body = byClass(view, 'qqc-body')[0]
     const nav = byClass(body, 'qqc-nav')[0]
     expect(byClass(nav, 'qqc-search')).toHaveLength(1)
     expect(byClass(nav, 'qqc-filter')).toHaveLength(1)
     const items = byClass(nav, 'qqc-nav-item')
-    expect(items).toHaveLength(10)
-    expect(items.map(item => textOf(byClass(item, 'qqc-nav-label')[0]))).toEqual(groups.map(group => group.title))
+    // §1.2：概览恒排第一（不含配置键），其余 10 个子页即 SETTINGS_GROUPS 的分组。
+    expect(items).toHaveLength(11)
+    expect(items.map(item => item.props['data-page'])).toEqual(['overview', ...groups.map(group => group.id)])
+    expect(items.map(item => textOf(byClass(item, 'qqc-nav-label')[0]))).toEqual(['概览', ...groups.map(group => group.title)])
     const main = byClass(body, 'qqc-main')[0]
     expect(textOf(byClass(main, 'qqc-page-title')[0])).toBe('连接')
     expect(textOf(byClass(main, 'qqc-page-desc')[0])).toBe(groups[0].desc)
@@ -1153,7 +1193,9 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const current = items.filter(item => item.props['aria-current'] === 'page')
     expect(current).toHaveLength(1)
     expect(current[0].props['data-page']).toBe('memory')
-    items[0].props.onClick()
+    // 首项是「概览」（§1.2：导航顺序第一）。
+    expect(items[0].props['data-page']).toBe('overview')
+    items[1].props.onClick()
     expect(changes).toEqual(['connection'])
   })
 
@@ -1221,7 +1263,7 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const view = SettingsView(viewProps({ embedded: true }))
     expect(view.props['data-embedded']).toBe('true')
     expect(byClass(view, 'qqc-header')).toHaveLength(0)
-    expect(byClass(view, 'qqc-nav-item')).toHaveLength(10) // 导航照常
+    expect(byClass(view, 'qqc-nav-item')).toHaveLength(11) // 导航照常（概览 + 10 个子页）
   })
 
   it('保存条：有改动才出现，显示「已修改 N 项」+ 还原 + 保存', () => {

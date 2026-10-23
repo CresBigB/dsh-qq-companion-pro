@@ -26,12 +26,45 @@ export interface CompanionStatusDeps {
 
 const kb = (n: number) => (n / 1024).toFixed(1) + 'KB'
 
-async function size(path: string): Promise<number | undefined> {
+/** 文件字节数（不存在 / 读不到 = undefined）。/doctor 与设置页概览共用。 */
+export async function fileSize(path: string): Promise<number | undefined> {
   try {
     return (await stat(path)).size
   } catch {
     return undefined
   }
+}
+
+/** 一个要统计大小的记忆文件（/doctor 的「记忆文件」行与概览快照同源）。 */
+export interface MemoryFileSpec {
+  label: string
+  path: string
+  /** 上限（字节）；undefined = 只报大小不报百分比。 */
+  max?: number
+}
+
+/** 收集要给 /doctor 与概览快照报大小的记忆文件：公开 / 私密（调用方传入）
+ *  + 每群一份 `<groupMemoryDir>/<群号>/AGENTS.md`。
+ *  `groupDirUnreadable` = 群记忆目录填了但读不到（/doctor 一直为此渲染一行说明）。 */
+export async function memoryFileSpecs(deps: {
+  memoryFiles?: Array<{ label: string; path: string; max?: number }>
+  groupMemoryDir?: string
+  groupMemoryMaxBytes?: number
+}): Promise<{ files: MemoryFileSpec[]; groupDirUnreadable: boolean }> {
+  const files: MemoryFileSpec[] = []
+  for (const f of deps.memoryFiles ?? []) {
+    if (f.path !== '') files.push({ label: f.label, path: f.path, max: f.max })
+  }
+  let groupDirUnreadable = false
+  if (deps.groupMemoryDir !== undefined && deps.groupMemoryDir !== '') {
+    try {
+      const groups = (await readdir(deps.groupMemoryDir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name).sort()
+      for (const g of groups) files.push({ label: '群' + g, path: join(deps.groupMemoryDir, g, 'AGENTS.md'), max: deps.groupMemoryMaxBytes })
+    } catch {
+      groupDirUnreadable = true
+    }
+  }
+  return { files, groupDirUnreadable }
 }
 
 function sized(label: string, bytes: number | undefined, max?: number): string {
@@ -67,17 +100,9 @@ export async function companionStatusLines(deps: CompanionStatusDeps): Promise<s
   const st = deps.stickers?.()
   if (st !== undefined) lines.push('表情包：' + st.count + '/' + st.maxCount + ' 张 · 今天新存 ' + st.today + '/' + st.dailyMax + ' 张')
   const files: string[] = []
-  for (const f of deps.memoryFiles ?? []) {
-    if (f.path !== '') files.push(sized(f.label, await size(f.path), f.max))
-  }
-  if (deps.groupMemoryDir !== undefined && deps.groupMemoryDir !== '') {
-    try {
-      const groups = (await readdir(deps.groupMemoryDir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name).sort()
-      for (const g of groups) files.push(sized('群' + g, await size(join(deps.groupMemoryDir, g, 'AGENTS.md')), deps.groupMemoryMaxBytes))
-    } catch {
-      files.push('群记忆目录读不到')
-    }
-  }
+  const collected = await memoryFileSpecs(deps)
+  for (const f of collected.files) files.push(sized(f.label, await fileSize(f.path), f.max))
+  if (collected.groupDirUnreadable) files.push('群记忆目录读不到')
   if (files.length > 0) lines.push('记忆文件：' + files.join(' · '))
   return lines
 }

@@ -7,7 +7,9 @@
  * 注册主入口，另以 keyed slot `plugins.row.config`（key = `<package>#dsh-onebot`）
  * 注册插件详情页的第二入口（同一面板，embedded 模式不渲染页头）；
  * 数据通道是 Typert Remote（`ctx.remote.$mount(ONEBOT_SETTINGS_REMOTE)` 后
- * `ctx.get('remote.onebotSettings')`），所有读写经 Remote 调宿主侧。
+ * `ctx.get('remote.onebotSettings')`），所有读写经 Remote 调宿主侧；概览子页
+ * （overview）的状态来自新增的只读方法 `getStatus()`（主插件挂在 cordis 上的
+ * qqCompanionStatus 服务）。
  */
 import { React } from './react-runtime.js'
 import { NS, PLUGIN_ID, REMOTE_NS, SECOND_ENTRY_KEY, SECOND_ENTRY_SLOT, SLOT_ID, SLOT_ORDER } from './constants.js'
@@ -112,9 +114,19 @@ export async function apply(ctx: ClientContext): Promise<() => void> {
   return () => { void disposeRemote() }
 }
 
-export { ONEBOT_SETTINGS_REMOTE, ONEBOT_SETTINGS_DESCRIPTORS, configSchema, patchSchema } from './schema.js'
+export { ONEBOT_SETTINGS_REMOTE, ONEBOT_SETTINGS_DESCRIPTORS, configSchema, patchSchema, statusResultSchema } from './schema.js'
 export { CSS } from './styles.js'
 export { en, zh } from './i18n.js'
+export {
+  OVERVIEW_MISSING,
+  OVERVIEW_PAGE_ID,
+  formatSize,
+  formatSizePair,
+  meterPercent,
+  meterTone,
+  renderOverview,
+  renderScheduledList,
+} from './overview.js'
 export { ALL_FIELDS, DEFAULTS, GROUP_KEYS, GROUPS } from './fields.js'
 export {
   appendTags,

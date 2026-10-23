@@ -383,6 +383,26 @@ export class ChatBridge {
     return this.registry.sessionIdsInUse()
   }
 
+  /** 设置页概览用：live 会话 + 映射里已知的聊天（只读，不触发 IO）。 */
+  chatSnapshot(): Array<{ chatId: string; sessionId: string; live: boolean }> {
+    return this.registry.chatSnapshot()
+  }
+
+  /** 设置页概览用：宿主 sessionTitle 里该聊天的当前标题（聊天不 live / 服务缺席 /
+   *  取数失败一律 undefined；绝不抛错）。 */
+  sessionTitleOf(chatId: string): string | undefined {
+    try {
+      const chat = this.chats.get(chatId as ChatId)
+      if (chat === undefined) return undefined
+      const service = this.deps.sessionTitle?.()
+      if (service === undefined || service === null || typeof service.get !== 'function') return undefined
+      const title = service.get(chat.agent.session)?.title
+      return typeof title === 'string' && title !== '' ? title : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   /** A session's logs were deleted by the old-session cleanup. */
   forgetSession(sessionId: string): void {
     this.registry.forgetSession(sessionId)

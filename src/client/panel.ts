@@ -23,6 +23,7 @@ import {
   unwrap,
   type RemoteResultLike,
 } from './logic.js'
+import { OVERVIEW_PAGE_ID } from './overview.js'
 import { renderWorkspacePicker, type Translate, type WorkspaceSummaryLike } from './render.js'
 import { collectRisks, validateDraft, type RiskEntry } from './validate.js'
 import { SettingsView, type WorkspaceViewState } from './view.js'
@@ -42,7 +43,19 @@ export interface OnebotSettingsRemoteLike {
   getSettings(): Promise<RemoteResultLike>
   updateSettings(patch: Record<string, unknown>, expectedRevision: number): Promise<RemoteResultLike>
   listWorkspaces(): Promise<RemoteResultLike>
+  /** 概览用的只读状态快照（F3）。旧宿主 / 旧桩可能没有这个方法——调用点已防御。 */
+  getStatus?(): Promise<RemoteResultLike>
 }
+
+/** 概览状态：available=false = 主插件未运行；status=null = 还没拉到 / 取数失败。 */
+interface StatusState {
+  available: boolean
+  status: Record<string, unknown> | null
+  error: string | null
+}
+
+/** 概览自动刷新间隔（§4.14：页面可见时每 30 秒一次）。 */
+export const OVERVIEW_REFRESH_MS = 30_000
 
 /** 面板 props（t 为宿主注入的翻译函数，语言切换自动重渲染）。 */
 export interface OnebotSettingsPanelProps {
@@ -96,10 +109,12 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
   const [riskDialog, setRiskDialog] = React.useState<RiskEntry[] | null>(null)
   // §5.6 有错误时跳到第一个错误字段并聚焦（渲染后由 effect 落到 DOM）。
   const [focusTarget, setFocusTarget] = React.useState<string | null>(null)
-  // 当前子页（§1.2：不写 URL，记在 state；F3 之前默认 connection）。
-  const [page, setPage] = React.useState('connection')
+  // 当前子页（§1.2：不写 URL，记在 state；F3 起默认打开概览）。
+  const [page, setPage] = React.useState(OVERVIEW_PAGE_ID)
   const [query, setQuery] = React.useState('')
   const [changedOnly, setChangedOnly] = React.useState(false)
+  // 概览状态（§4.14）：页头连接胶囊与概览子页共用同一份快照。
+  const [status, setStatus] = React.useState<StatusState>({ available: true, status: null, error: null })
   // 标签列表的输入框缓冲（key → 未提交的文本）。
   const [tagInputs, setTagInputs] = React.useState<Record<string, string>>({})
   // 「快速填入 workspace」数据态——面板打开时（挂载 effect）现拉一次。
@@ -121,6 +136,31 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     }).catch((cause: unknown) => {
       setError(messageOf(cause))
     })
+  }
+
+  /**
+   * 拉一次概览状态（§4.14）。三种结果：
+   * - 主插件在跑 → available:true + 快照；
+   * - 主插件没跑（服务缺席）→ available:false（概览页 info 横幅）；
+   * - Remote 本身失败 → 也按 available:false 处理（概览绝不因此报错）。
+   * 旧桩没有 getStatus 方法时静默跳过（不报错、不进状态）。
+   */
+  const loadStatus = () => {
+    void Promise.resolve()
+      .then(() => (typeof remote.getStatus === 'function' ? remote.getStatus() : null))
+      .then(result => {
+        if (result == null) return
+        const value = unwrap(result) as { available?: unknown; status?: unknown; error?: unknown } | null
+        const available = value != null && value.available === true
+        const detail = value != null && value.status != null && typeof value.status === 'object'
+          ? value.status as Record<string, unknown>
+          : null
+        const failure = value != null && typeof value.error === 'string' && value.error !== '' ? value.error : null
+        setStatus({ available, status: available ? detail : null, error: failure })
+      })
+      .catch(() => {
+        setStatus({ available: false, status: null, error: null })
+      })
   }
 
   React.useEffect(() => {
@@ -147,6 +187,19 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     })
     return () => { alive = false }
   }, [remote])
+
+  // 概览状态：挂载时拉一次（页头胶囊也用它）；旧桩没有 getStatus 时静默跳过。
+  React.useEffect(() => {
+    loadStatus()
+  }, [remote])
+
+  // §4.14 自动刷新：只在概览页可见时开定时器；离开概览页 / 卸载时清除
+  // （effect 的 cleanup，绝不注册全局事件监听）。
+  React.useEffect(() => {
+    if (page !== OVERVIEW_PAGE_ID) return
+    const timer = setInterval(() => { loadStatus() }, OVERVIEW_REFRESH_MS)
+    return () => { clearInterval(timer) }
+  }, [page, remote])
 
   // 提示（保存无改动等）3 秒后自动消失（§4.10）。
   React.useEffect(() => {
@@ -316,6 +369,10 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     draft: draft,
     config: config,
     botQQ: botQQ,
+    status: status.status,
+    statusAvailable: status.available,
+    statusError: status.error,
+    onRefreshStatus: () => { loadStatus() },
     secretSet: secretSet,
     clearSecret: clearSecret,
     tagInputs: tagInputs,

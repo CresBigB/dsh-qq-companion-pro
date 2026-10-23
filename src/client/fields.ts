@@ -1,6 +1,8 @@
 /**
  * 设置页字段定义：10 个子页（= 宿主 SETTINGS_GROUPS 的 10 个分组）的
  * 键集、顺序、类型、默认值与静态元数据（前端设计规范 §1.2 / §3 / §3.12）。
+ * 「概览」子页（§1.2 第 0 项）不含配置键，因此不在 GROUPS 里——它的 id 与渲染
+ * 在 src/client/overview.ts，导航在 view.ts 里单独排在最前面。
  *
  * - 分组 id / 键序与 src/settings-remote.ts 的 SETTINGS_GROUPS 完全同构；
  * - title / desc 用 §1.2 的名称与一句话说明；
@@ -425,6 +427,6 @@ export const CARD_NOTES: Record<string, CardNote[]> = {
     { section: '语音转写', mode: 'foot', text: '纠错表（sttReplacements）请在 cordis.patch.yml 里编辑' },
   ],
   proactive: [
-    { section: '定时任务', mode: 'card', text: '定时任务请在 cordis.patch.yml 的 scheduledPrompts 里编辑（F3 起这里显示只读列表）。' },
+    { section: '定时任务', mode: 'card', text: '定时任务在 cordis.patch.yml 的 scheduledPrompts 里编辑；下面是当前生效的列表。' },
   ],
 }

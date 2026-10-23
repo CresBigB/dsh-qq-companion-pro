@@ -129,6 +129,15 @@ export declare class ChatBridge {
     retireGroup(groupId: string): Promise<void>;
     /** Session ids some chat still uses (old-session cleanup never deletes these). */
     sessionIdsInUse(): Set<string>;
+    /** 设置页概览用：live 会话 + 映射里已知的聊天（只读，不触发 IO）。 */
+    chatSnapshot(): Array<{
+        chatId: string;
+        sessionId: string;
+        live: boolean;
+    }>;
+    /** 设置页概览用：宿主 sessionTitle 里该聊天的当前标题（聊天不 live / 服务缺席 /
+     *  取数失败一律 undefined；绝不抛错）。 */
+    sessionTitleOf(chatId: string): string | undefined;
     /** A session's logs were deleted by the old-session cleanup. */
     forgetSession(sessionId: string): void;
     /** On startup: retire sessions of groups that are no longer allowed (the

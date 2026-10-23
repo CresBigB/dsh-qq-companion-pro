@@ -29,6 +29,13 @@ export declare class ChatRegistry {
     sessionIdsInUse(): Set<string>;
     /** A session's logs were deleted (old-session cleanup). */
     forgetSession(sessionId: string): void;
+    /** 设置页概览用：live 会话 + 空闲已释放的聊天（只读浅拷贝，按 chatId 去重，
+     *  live 优先；不触发任何 IO）。 */
+    chatSnapshot(): Array<{
+        chatId: string;
+        sessionId: string;
+        live: boolean;
+    }>;
     /** Session ids whose logs are unusable (the ledger's live set). */
     get brokenSessions(): Set<string>;
     /** The (lazy-created) settings entry for one chat. */

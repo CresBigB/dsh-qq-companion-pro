@@ -8,8 +8,9 @@
  */
 import type { ReactElement } from 'react'
 import { React } from './react-runtime.js'
-import { ALL_FIELDS, DEFAULTS, GROUPS, type FieldMeta } from './fields.js'
+import { ALL_FIELDS, DEFAULTS, GROUPS, type CardNote, type FieldMeta } from './fields.js'
 import { computePatch, format, tagsOf } from './logic.js'
+import { OVERVIEW_PAGE_ID, renderOverview, renderScheduledList, type OverviewStatusLike } from './overview.js'
 import { searchFields } from './search.js'
 import {
   h,
@@ -52,6 +53,14 @@ export interface SettingsViewProps extends RenderFieldsOptions {
   changedOnly: boolean
   /** 头部胶囊用的 QQ 号（botQQ 生效值；空则不显示胶囊）。 */
   botQQ?: string
+  /** getStatus().status（概览页与页头连接胶囊的真实状态；null/缺省 = 未知）。 */
+  status?: OverviewStatusLike | null
+  /** getStatus().available：false = QQ 主插件未运行（概览页 info 横幅，其余子页照常可用）。 */
+  statusAvailable?: boolean
+  /** getStatus().error：服务在位但这一次取数失败。 */
+  statusError?: string | null
+  /** 重新拉取状态（概览页右上「刷新」/ 错误横幅的「重试」）。 */
+  onRefreshStatus?: () => void
   /** workspace 选择器数据。 */
   workspace?: WorkspaceViewState
   /** 保存中（禁用全部输入）。 */
@@ -135,6 +144,7 @@ export function groupCounts(keys: string[]): Record<string, number> {
 /**
  * 子页导航（§5.2）：当前项 aria-current=page，右侧显示计数——有校验错误显示红色
  * 计数（优先于改动计数），否则显示品牌色改动计数，都没有则不显示；↑↓ 移动焦点。
+ * 「概览」恒排第一（§1.2）：它不含配置键，所以永远没有改动 / 错误计数。
  */
 function renderNav(props: SettingsViewProps, dirtyKeys: string[], invalid: Record<string, string>): ReactElement {
   const t = props.t
@@ -143,6 +153,10 @@ function renderNav(props: SettingsViewProps, dirtyKeys: string[], invalid: Recor
   const onChangedOnlyChange = typeof props.onChangedOnlyChange === 'function' ? props.onChangedOnlyChange : () => {}
   const dirtyCounts = groupCounts(dirtyKeys)
   const errorCounts = groupCounts(Object.keys(invalid))
+  const pages: Array<{ id: string; title: string }> = [
+    { id: OVERVIEW_PAGE_ID, title: t('overview.title') },
+    ...GROUPS.map(group => ({ id: group.id, title: group.title })),
+  ]
   const badgeOf = (groupId: string): ReactElement | null => {
     const errorCount = errorCounts[groupId] == null ? 0 : errorCounts[groupId]
     if (errorCount > 0) return h(React, 'span', { className: 'qqc-count', 'data-tone': 'error' }, String(errorCount))
@@ -185,31 +199,57 @@ function renderNav(props: SettingsViewProps, dirtyKeys: string[], invalid: Recor
         const next = event.key === 'ArrowDown' ? (index + 1) % items.length : (index - 1 + items.length) % items.length
         items[next].focus()
       },
-    }, GROUPS.map(group => {
+    }, pages.map(page => {
       return h(React, 'button', {
         className: 'qqc-nav-item',
         type: 'button',
-        key: group.id,
-        'data-page': group.id,
-        'aria-current': props.page === group.id ? 'page' : undefined,
-        onClick: () => { onPageChange(group.id) },
+        key: page.id,
+        'data-page': page.id,
+        'aria-current': props.page === page.id ? 'page' : undefined,
+        onClick: () => { onPageChange(page.id) },
       },
-        h(React, 'span', { className: 'qqc-nav-label' }, group.title),
-        badgeOf(group.id))
+        h(React, 'span', { className: 'qqc-nav-label' }, page.title),
+        badgeOf(page.id))
     })))
 }
 
-/** 页头（§2.1）：标题 + 副标题 + 右侧连接胶囊（F2a 只有 idle 点 + 生效的 QQ 号）。 */
+/**
+ * 页头（§2.1）：标题 + 副标题 + 右侧连接胶囊。
+ * 胶囊用**真实状态**（F3）：ok=已连接且 QQ 在线、warn=已连接但 QQ 离线、
+ * error=未连接、idle=未知（没有状态快照时保持旧的「QQ 号 …」形态）。
+ */
 function renderHeader(props: SettingsViewProps): ReactElement {
   const t = props.t
   const botQQ = props.botQQ == null ? '' : String(props.botQQ)
+  const status = props.status == null ? null : props.status
+  const connection = status == null || status.connection == null ? null : status.connection
+  const selfId = connection == null || connection.selfId == null ? '' : String(connection.selfId)
+  const id = selfId !== '' ? selfId : botQQ
+  let state: 'ok' | 'warn' | 'error' | 'idle' = 'idle'
+  let label = ''
+  if (connection == null) {
+    // 没有状态（主插件未运行 / 还没拉到）：保持 F2a 的形态。
+    if (botQQ !== '') label = format(t('conn.qq'), { qq: botQQ })
+  } else if (connection.connected !== true) {
+    state = 'error'
+    label = t('conn.disconnected')
+  } else if (connection.online === true) {
+    state = 'ok'
+    label = format(t('conn.withId'), { state: t('conn.online'), id: id !== '' ? id : '—' })
+  } else if (connection.online === false) {
+    state = 'warn'
+    label = format(t('conn.withId'), { state: t('conn.offline'), id: id !== '' ? id : '—' })
+  } else {
+    state = 'idle'
+    label = format(t('conn.withId'), { state: t('conn.unknown'), id: id !== '' ? id : '—' })
+  }
   return h(React, 'header', { className: 'qqc-header' },
     h(React, 'div', { className: 'qqc-header-text' },
       h(React, 'h2', { className: 'qqc-title' }, t('settings.title')),
       h(React, 'p', { className: 'qqc-subtitle' }, t('settings.desc'))),
-    botQQ === '' ? null : h(React, 'span', { className: 'qqc-conn' },
-      h(React, 'span', { className: 'qqc-dot', 'data-state': 'idle', 'aria-hidden': 'true' }),
-      format(t('conn.qq'), { qq: botQQ })))
+    label === '' ? null : h(React, 'span', { className: 'qqc-conn' },
+      h(React, 'span', { className: 'qqc-dot', 'data-state': state, 'aria-hidden': 'true' }),
+      label))
 }
 
 /** 横幅（§4.10）。 */
@@ -387,6 +427,22 @@ function fieldOptions(props: SettingsViewProps, extra: Partial<RenderFieldsOptio
     onTagRemove: props.onTagRemove,
     onTagBackspace: props.onTagBackspace,
     renderExtraRow: props.renderExtraRow,
+    // §3.8：主动聊天页的「定时任务」只读卡片——F3 起用 getStatus() 的真实列表
+    // （快照缺席时退回空态说明），提示文案仍指向 cordis.patch.yml 的 scheduledPrompts。
+    renderCardNote: (note: CardNote) => {
+      if (note.mode !== 'card' || note.section !== '定时任务') return null
+      const tasks = props.status == null || props.status.scheduled == null ? null : props.status.scheduled
+      return h(React, 'section', {
+        className: 'qqc-card',
+        'data-section': note.section,
+        'data-role': 'proactive-scheduled',
+        key: 'note-' + note.section,
+      },
+        h(React, 'div', { className: 'qqc-card-head' },
+          h(React, 'h3', { className: 'qqc-card-title' }, note.section),
+          h(React, 'p', { className: 'qqc-card-desc' }, note.text)),
+        ...renderScheduledList(React, { tasks: tasks, t: props.t }))
+    },
     ...extra,
   }
 }
@@ -447,6 +503,21 @@ export function SettingsView(props: SettingsViewProps): ReactElement {
         h(React, 'p', { className: 'qqc-page-title', key: 'search-title' }, t('search.results')),
         resultGroups)
     }
+  } else if (props.page === OVERVIEW_PAGE_ID) {
+    // §1.2 / §4.14：概览子页不含配置键，也不受搜索与「只看已改动」影响
+    // （搜索非空时上面已切到搜索结果）；内容全部来自 getStatus() 的快照。
+    const overviewNodes = renderOverview(React, {
+      t: t,
+      status: props.status,
+      available: props.statusAvailable !== false,
+      error: props.statusError,
+      onRefresh: props.onRefreshStatus,
+      onGoToPage: (pageId: string) => { if (typeof props.onPageChange === 'function') props.onPageChange(pageId) },
+    })
+    content = h(React, 'div', { className: 'qqc-main' },
+      ...conflictTop,
+      ...overviewNodes,
+      renderSavebar(props, dirtyKeys, invalid))
   } else {
     const group = GROUPS.find(item => item.id === props.page) != null
       ? GROUPS[GROUPS.findIndex(item => item.id === props.page)]

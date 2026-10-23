@@ -76,6 +76,22 @@ export class ChatRegistry {
     this.ledger.forgetSession(sessionId)
   }
 
+  /** 设置页概览用：live 会话 + 空闲已释放的聊天（只读浅拷贝，按 chatId 去重，
+   *  live 优先；不触发任何 IO）。 */
+  chatSnapshot(): Array<{ chatId: string; sessionId: string; live: boolean }> {
+    const out: Array<{ chatId: string; sessionId: string; live: boolean }> = []
+    const seen = new Set<string>()
+    for (const chat of this.chats.values()) {
+      out.push({ chatId: chat.chatId, sessionId: chat.sessionId, live: true })
+      seen.add(chat.chatId)
+    }
+    for (const [chatId, entry] of this.evictedChats) {
+      if (seen.has(chatId)) continue
+      out.push({ chatId, sessionId: entry.session, live: false })
+    }
+    return out
+  }
+
   /** Session ids whose logs are unusable (the ledger's live set). */
   get brokenSessions(): Set<string> {
     return this.ledger.broken

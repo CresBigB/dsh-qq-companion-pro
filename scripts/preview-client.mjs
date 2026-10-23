@@ -181,6 +181,11 @@ function baseProps(overrides = {}) {
     draft: draft,
     config: config,
     botQQ: String(config.botQQ),
+    // F3 概览：默认不带状态快照（各子页与交互态预览用不到），概览页单独覆盖。
+    status: null,
+    statusAvailable: true,
+    statusError: null,
+    onRefreshStatus: noop,
     secretSet: true,
     clearSecret: false,
     tagInputs: {},
@@ -304,6 +309,75 @@ const statesCss = `/* 仅预览：让 fixed 覆盖层落在各自的演示块里
 const statesFile = join(OUT_DIR, 'settings-states.html')
 writeFileSync(statesFile, pageHtml('交互状态总览', client.CSS, statesBody, statesCss))
 written.push(statesFile)
+
+/* ------------------------------------------------------------------ *
+ * settings-overview.html：F3 的「概览」子页（§4.14）
+ *   ① 一份假快照：六格状态 + 记忆用量 meter + 定时任务 + 会话卡片
+ *   ② 主插件未运行（available:false）：只加 info 横幅，各格「—」
+ * 假快照只存在于本脚本产物中，绝不进 bundle。
+ * ------------------------------------------------------------------ */
+
+/** 概览用的假快照（与 src/status.ts 的 CompanionStatusSnapshot 同构）。 */
+const overviewStatus = {
+  connection: { connected: true, online: true, selfId: '2564812526', botQQ: '2564812526', host: '127.0.0.1', port: 8643 },
+  sessions: {
+    private: 1,
+    group: 1,
+    list: [
+      { chatId: 'private:2824149798', sessionId: 'onebot-private-2824149798-a1b2c3', title: 'QQ私聊 2824149798 · 10-23', workspaceAttached: true },
+      { chatId: 'group:123456789', sessionId: 'onebot-group-123456789-d4e5f6', workspaceAttached: false },
+    ],
+  },
+  today: { sent: 42 },
+  proactive: { enabled: true, doneToday: 2, plannedToday: 5, nextAt: '15:30' },
+  stickers: { enabled: false, count: 0, maxCount: 300, today: 0, dailyMax: 20 },
+  memory: [
+    { label: '公开', path: 'E:\\To DeepSeek\\AGENTS.md', bytes: 5701, maxBytes: 6144 },
+    { label: '私密', path: 'E:\\To DeepSeek\\private\\AGENTS.md', bytes: 9216, maxBytes: 24576 },
+  ],
+  scheduled: [
+    { id: 'diary', time: '23:00', chatId: 'private:2824149798', doneToday: false, nextAt: '23:00' },
+    { id: 'morning', time: '08:30', chatId: 'private:2824149798', doneToday: true, nextAt: '08:30' },
+  ],
+  permissions: { admin: 'danger-full-access', member: 'read-only' },
+  generatedAt: Date.now(),
+}
+
+/** 干净的草稿（概览页没有改动，保存条不出现）。 */
+const cleanDraft = client.draftFromSnapshot({ config: config })
+
+const overviewRunning = renderToStaticMarkup(React.createElement(client.SettingsView, baseProps({
+  page: 'overview',
+  draft: cleanDraft,
+  status: overviewStatus,
+  statusAvailable: true,
+})))
+const overviewDown = renderToStaticMarkup(React.createElement(client.SettingsView, baseProps({
+  page: 'overview',
+  draft: cleanDraft,
+  status: null,
+  statusAvailable: false,
+})))
+
+const overviewBody = `
+<section class="state">
+<h2 class="state-title">① 概览 · 主插件运行中</h2>
+<p class="state-note">六格状态（连接 / 会话 / 今天 / 主动聊天 / 表情包 / 定时任务）+ 记忆用量 meter + 定时任务 + 会话卡片；右上「刷新」，页面可见时每 30 秒自动刷新一次。表情包未开启的格子带「去开启」跳到媒体与语音子页。</p>
+<div class="qqc-preview">
+${overviewRunning}
+</div>
+</section>
+<section class="state">
+<h2 class="state-title">② 概览 · QQ 主插件未运行</h2>
+<p class="state-note">getStatus() 返回 available:false：只加一条 info 横幅「QQ 主插件未运行，暂时看不到状态」，各格显示「—」；其余子页照常可用。</p>
+<div class="qqc-preview">
+${overviewDown}
+</div>
+</section>`
+
+const overviewFile = join(OUT_DIR, 'settings-overview.html')
+writeFileSync(overviewFile, pageHtml('概览', client.CSS, overviewBody, statesCss))
+written.push(overviewFile)
 
 console.log('=== 设置页静态预览完成：' + written.length + ' 个文件 ===')
 for (const file of written) console.log('  ' + file)

@@ -17,6 +17,10 @@
  *     dsh-workspace 注册表，供设置页「快速填入 workspace」；registry 缺席/list()
  *     失败一律降级为 {available:false, workspaces:[]}，不抛错——辅助查询绝不
  *     阻塞 getSettings/updateSettings 主链路，也绝不打开 registry 内部态）
+ *   getStatus()                              → StatusResult（只读查询主插件在
+ *     apply 里挂到 cordis 的 `qqCompanionStatus` 状态服务；服务缺席（主插件未
+ *     运行）→ {available:false}；snapshot() 抛错 → {available:true, error}；
+ *     绝不抛错，也绝不静态 inject 主插件）
  *
  * 持久层 = profile patch 中插件条目（行 id `dsh-onebot`）的 config 覆盖行（设置页
  * /手改 patch/宿主原生设置页三方同源，无第二优先级）。写入经宿主
@@ -50,6 +54,7 @@ import type { Context } from '@deepseek-ai/cordis'
 /** 宿主 dsh-workspace 注册表（本模块只读消费 list()，不打开 registry 内部态）。 */
 import type { WorkspaceRegistryLike } from './bridge.js'
 import { Config } from './config.js'
+import { STATUS_SERVICE } from './status.js'
 
 /** patch 中插件主条目的行 id（沿用原版的 dsh-onebot，已有配置不用改）。 */
 export const ENTRY_ID = 'dsh-onebot'
@@ -295,6 +300,46 @@ function resolveWorkspaceRegistry(ctx: { get(key: string): unknown } | undefined
   return registry !== undefined && registry !== null && typeof registry.list === 'function' ? registry : undefined
 }
 
+/** 主插件挂到 cordis 上的只读状态服务面（src/status.ts 的
+ *  `{ snapshot(): Promise<CompanionStatusSnapshot> }`）。 */
+export interface CompanionStatusServiceLike {
+  snapshot(): Promise<unknown> | unknown
+}
+
+/** getStatus 返回值。available=false = 主插件（qqCompanionStatus 服务）不在位
+ *  ——插件未挂载 / 未激活；error 非空 = 服务在位但这一次取数抛错。 */
+export interface StatusResult {
+  available: boolean
+  status?: unknown
+  error?: string
+}
+
+/** getStatus 纯实现（descriptor 方法体与降级类共用；**绝不抛错**）。
+ *  - 服务缺席 → { available: false }；
+ *  - snapshot() 抛错 → { available: true, error: 消息 }；
+ *  - 正常 → { available: true, status }。 */
+export async function getStatus(service: CompanionStatusServiceLike | undefined): Promise<StatusResult> {
+  if (service === undefined || service === null || typeof service.snapshot !== 'function') return { available: false }
+  try {
+    return { available: true, status: await service.snapshot() }
+  } catch (error) {
+    return { available: true, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/** 惰性解析主插件挂的状态服务（不经 static inject——主插件缺席时本条目照常
+ *  挂载，仅 getStatus 降级 available:false）。 */
+function resolveCompanionStatus(
+  ctx: { get(key: string): unknown } | undefined,
+): CompanionStatusServiceLike | undefined {
+  try {
+    const service = ctx?.get?.(STATUS_SERVICE) as CompanionStatusServiceLike | undefined
+    return service !== undefined && service !== null && typeof service.snapshot === 'function' ? service : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** 设置页各键的生效值 = 配置定义的默认值 ← 条目 config 覆盖。 */
 export function effectiveConfig(raw: Record<string, unknown>): Record<string, unknown> {
   const effective: Record<string, unknown> = {}
@@ -438,20 +483,24 @@ export async function updateSettings(
 
 /** 组装 descriptor 方法对象（测试与降级类共用；与类方法同一实现）。
  *  workspaceRegistry 可选注入——省略时 listWorkspaces 降级 unavailable
- *  （与类分支的惰性 ctx 解析同一 listWorkspaces 纯函数出口）。 */
+ *  （与类分支的惰性 ctx 解析同一 listWorkspaces 纯函数出口）；
+ *  statusService 可选注入——省略时 getStatus 降级 available:false（主插件未运行）。 */
 export function createOnebotSettingsMethods(
   editor: ConfigEditorLike,
   state: RevisionState = createRevisionState(),
   workspaceRegistry?: WorkspaceRegistryLike,
+  statusService?: CompanionStatusServiceLike,
 ): {
   getSettings(): Promise<OnebotSettingsSnapshot> | OnebotSettingsSnapshot
   updateSettings(patch: unknown, expectedRevision?: number): Promise<OnebotSettingsSnapshot>
   listWorkspaces(): Promise<WorkspaceListResult>
+  getStatus(): Promise<StatusResult>
 } {
   return {
     getSettings: () => getSettings(editor, state),
     updateSettings: (patch, expectedRevision) => updateSettings(editor, state, patch, expectedRevision),
     listWorkspaces: async () => listWorkspaces(workspaceRegistry),
+    getStatus: async () => getStatus(statusService),
   }
 }
 
@@ -508,10 +557,16 @@ if (protocol?.TypertRemoteService) {
     async listWorkspaces(): Promise<WorkspaceListResult> {
       return listWorkspaces(resolveWorkspaceRegistry(this.ownerCtx))
     }
+
+    /** 只读查询主插件挂的状态服务（惰性解析；未挂载降级 available:false，不抛错）。 */
+    async getStatus(): Promise<StatusResult> {
+      return getStatus(resolveCompanionStatus(this.ownerCtx))
+    }
   }
   markRemote(OnebotSettingsRemote, 'getSettings')
   markRemote(OnebotSettingsRemote, 'updateSettings')
   markRemote(OnebotSettingsRemote, 'listWorkspaces')
+  markRemote(OnebotSettingsRemote, 'getStatus')
   OnebotSettingsService = OnebotSettingsRemote
 } else {
   console.warn('[qq-companion] @deepseek-ai/dsh-typert-protocol unavailable — onebotSettings remote degrades to a plain cordis service')
@@ -540,6 +595,11 @@ if (protocol?.TypertRemoteService) {
     /** 与 typert 分支同一惰性解析 + 降级语义。 */
     async listWorkspaces(): Promise<WorkspaceListResult> {
       return listWorkspaces(resolveWorkspaceRegistry(this.ctx))
+    }
+
+    /** 与 typert 分支同一惰性解析 + 降级语义。 */
+    async getStatus(): Promise<StatusResult> {
+      return getStatus(resolveCompanionStatus(this.ctx))
     }
   }
   OnebotSettingsService = OnebotSettingsPlain

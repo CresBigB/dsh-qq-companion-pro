@@ -17,6 +17,10 @@
  *     dsh-workspace 注册表，供设置页「快速填入 workspace」；registry 缺席/list()
  *     失败一律降级为 {available:false, workspaces:[]}，不抛错——辅助查询绝不
  *     阻塞 getSettings/updateSettings 主链路，也绝不打开 registry 内部态）
+ *   getStatus()                              → StatusResult（只读查询主插件在
+ *     apply 里挂到 cordis 的 `qqCompanionStatus` 状态服务；服务缺席（主插件未
+ *     运行）→ {available:false}；snapshot() 抛错 → {available:true, error}；
+ *     绝不抛错，也绝不静态 inject 主插件）
  *
  * 持久层 = profile patch 中插件条目（行 id `dsh-onebot`）的 config 覆盖行（设置页
  * /手改 patch/宿主原生设置页三方同源，无第二优先级）。写入经宿主
@@ -124,6 +128,23 @@ export interface WorkspaceListResult {
  *  校验——与 requireConfigEditor 同款「运行期再校验形状」风格，但绝不抛错：
  *  缺席/形状不符/list() 失败都归一为 unavailable 空列表）。 */
 export declare function listWorkspaces(registry: WorkspaceRegistryLike | undefined): WorkspaceListResult;
+/** 主插件挂到 cordis 上的只读状态服务面（src/status.ts 的
+ *  `{ snapshot(): Promise<CompanionStatusSnapshot> }`）。 */
+export interface CompanionStatusServiceLike {
+    snapshot(): Promise<unknown> | unknown;
+}
+/** getStatus 返回值。available=false = 主插件（qqCompanionStatus 服务）不在位
+ *  ——插件未挂载 / 未激活；error 非空 = 服务在位但这一次取数抛错。 */
+export interface StatusResult {
+    available: boolean;
+    status?: unknown;
+    error?: string;
+}
+/** getStatus 纯实现（descriptor 方法体与降级类共用；**绝不抛错**）。
+ *  - 服务缺席 → { available: false }；
+ *  - snapshot() 抛错 → { available: true, error: 消息 }；
+ *  - 正常 → { available: true, status }。 */
+export declare function getStatus(service: CompanionStatusServiceLike | undefined): Promise<StatusResult>;
 /** 设置页各键的生效值 = 配置定义的默认值 ← 条目 config 覆盖。 */
 export declare function effectiveConfig(raw: Record<string, unknown>): Record<string, unknown>;
 /** updateSettings 入参校验。未知键整单
@@ -157,11 +178,13 @@ export declare function describeEditFailure(cause: unknown): string;
 export declare function updateSettings(editor: ConfigEditorLike, state: RevisionState, patch: unknown, expectedRevision?: number): Promise<OnebotSettingsSnapshot>;
 /** 组装 descriptor 方法对象（测试与降级类共用；与类方法同一实现）。
  *  workspaceRegistry 可选注入——省略时 listWorkspaces 降级 unavailable
- *  （与类分支的惰性 ctx 解析同一 listWorkspaces 纯函数出口）。 */
-export declare function createOnebotSettingsMethods(editor: ConfigEditorLike, state?: RevisionState, workspaceRegistry?: WorkspaceRegistryLike): {
+ *  （与类分支的惰性 ctx 解析同一 listWorkspaces 纯函数出口）；
+ *  statusService 可选注入——省略时 getStatus 降级 available:false（主插件未运行）。 */
+export declare function createOnebotSettingsMethods(editor: ConfigEditorLike, state?: RevisionState, workspaceRegistry?: WorkspaceRegistryLike, statusService?: CompanionStatusServiceLike): {
     getSettings(): Promise<OnebotSettingsSnapshot> | OnebotSettingsSnapshot;
     updateSettings(patch: unknown, expectedRevision?: number): Promise<OnebotSettingsSnapshot>;
     listWorkspaces(): Promise<WorkspaceListResult>;
+    getStatus(): Promise<StatusResult>;
 };
 /** 服务装配：协议在位 → TypertRemoteService 子类（网关按 typertRemote 绑定 +
  *  原型 descriptor 发现）；否则降级为普通 cordis 服务（同名方法面，仅无网关

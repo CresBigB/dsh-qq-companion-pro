@@ -7,7 +7,7 @@
  */
 import type { ReactElement } from 'react'
 import { CARD_NOTES } from './fields.js'
-import type { FieldMeta, OnebotField, OnebotGroup } from './fields.js'
+import type { CardNote, FieldMeta, OnebotField, OnebotGroup } from './fields.js'
 import type { ReactLike } from './react-runtime.js'
 import { zh } from './i18n.js'
 import {
@@ -80,6 +80,9 @@ export interface RenderFieldsOptions {
   onTagBackspace?: (field: FieldMeta) => void
   /** 字段行后追加组内附加行（connection 组 workspacePath 下方的选择器）。 */
   renderExtraRow?: (field: FieldMeta) => ReactElement | null
+  /** 覆盖 CARD_NOTES 里 mode='card' 的只读卡片内容（§3.8：F3 起主动聊天页的
+   *  「定时任务」卡片显示 getStatus() 的真实列表）。返回 null = 用默认静态卡片。 */
+  renderCardNote?: (note: CardNote) => ReactElement | null
 }
 
 /** renderGroup 的选项（与字段行选项同形）。 */
@@ -454,9 +457,17 @@ export function renderGroup(ReactImpl: ReactLike, group: OnebotGroup, opts?: Ren
       key: card.section,
     }, children))
   }
-  // §3.8：定时任务只读卡片（F3 之前只给一句去 patch 里编辑的提示）
+  // §3.8：定时任务只读卡片（F3 起由 renderCardNote 提供真实列表，缺省仍是
+  // 「去 cordis.patch.yml 的 scheduledPrompts 里编辑」的静态提示）。
   for (const note of notes) {
     if (note.mode !== 'card') continue
+    if (typeof options.renderCardNote === 'function') {
+      const custom = options.renderCardNote(note)
+      if (custom != null) {
+        cards.push(custom)
+        continue
+      }
+    }
     cards.push(h(ReactImpl, 'section', {
       className: 'qqc-card',
       'data-section': note.section,
