@@ -99,6 +99,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     agentPreset: my-chat                   # 默认（群聊、其他人）用只能聊天的预设
     adminPreset: my-full                   # 管理员私聊用完整预设
     adminPermission: danger-full-access    # 管理员私聊每个新会话自动切换的宿主权限
+    memberPermission: read-only            # 其他会话（群聊、非管理员私聊）新会话自动切换的宿主权限
     autoAcceptAdminRequests: true
     autoAllowInvitedGroups: true
     splitLines: true
@@ -136,6 +137,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `typingDelayPerCharMs` / `typingDelayMinMs` / `typingDelayMaxMs` | `80` / `500` / `2500` | 打字速度：开 `humanTypingPace` 时每条消息都按它等，关时只用在拆句的后续几行之间 |
 | `adminPreset` | 空 | 管理员私聊默认预设（`/preset` 覆盖优先） |
 | `adminPermission` | 空 | 管理员私聊每个新会话自动执行的宿主 `/permission` 预设 |
+| `memberPermission` | 空 | 非管理员私聊与所有群聊每个新会话自动执行的宿主 `/permission` 预设，建议 `read-only`；留空 = 继承宿主默认预设（默认是完整权限的话群友也能让她执行命令、读写文件） |
 | `adminWorkspacePath` | 空 | 管理员私聊的工作目录 |
 | `groupMemoryDir` | 空 | 每个群一个工作目录 `<根>/<群号>`，自动建 `AGENTS.md` 模板 |
 | `groupMemoryMaxBytes` | `8192` | 群记忆满了就拒绝追加 |

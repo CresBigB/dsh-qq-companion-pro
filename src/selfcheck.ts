@@ -18,6 +18,8 @@ export interface SelfCheckInput {
   allowFrom: readonly string[]
   groupAllowFrom: readonly string[]
   allowAllUsers: boolean
+  /** 非管理员私聊与所有群聊的新会话自动切换的宿主权限预设（'' = 不动）。 */
+  memberPermission: string
   workspacePath: string
   adminWorkspacePath: string
   groupMemoryDir: string
@@ -50,7 +52,18 @@ export function selfCheck(c: SelfCheckInput): string[] {
   if (c.botQQ !== '' && !QQ.test(c.botQQ)) problems.push('botQQ「' + c.botQQ + '」不像 QQ 号（留空会自动学习）')
   if (c.dmPolicy === 'allowlist' && c.allowFrom.length === 0) problems.push('dmPolicy 是 allowlist 但 allowFrom 为空：所有私聊都会被拒绝')
   if (c.groupPolicy === 'allowlist' && c.groupAllowFrom.length === 0) problems.push('groupPolicy 是 allowlist 但 groupAllowFrom 为空：在用 /group allow 添加之前，所有群都不会回复')
-  if (c.allowAllUsers) problems.push('allowAllUsers 已开启：任何人都能私聊她（只适合调试）')
+  // 非管理员能进门（非管理员私聊或群聊）却没有收窄权限预设：这些会话会继承
+  // 宿主默认预设——若宿主默认是完整权限，群友和陆生人就能让她执行命令、
+  // 读写文件。allowAllUsers 的旧告警紧跟其后，用「上述权限」指回这条。
+  const memberReachable = c.allowAllUsers
+    || (c.dmPolicy === 'allowlist' && c.allowFrom.some(id => !c.adminUsers.includes(id)))
+    || c.groupPolicy !== 'disabled'
+  if (memberReachable && c.memberPermission === '') {
+    problems.push('群聊 / 非管理员私聊会继承宿主默认权限预设；若默认是完整权限，群友和陆生人能让她执行命令、读写文件。建议设 memberPermission: read-only')
+  }
+  if (c.allowAllUsers) {
+    problems.push('allowAllUsers 已开启：任何人都能私聊她（只适合调试）' + (c.memberPermission === '' ? '，并且拿到上述权限' : ''))
+  }
   const dirs: Array<[string, string]> = [['workspacePath', c.workspacePath], ['adminWorkspacePath', c.adminWorkspacePath], ['groupMemoryDir', c.groupMemoryDir]]
   for (const [key, dir] of dirs) if (dir !== '' && !existsSync(dir) && key !== 'groupMemoryDir') problems.push(key + ' 目录不存在：' + dir)
   if (c.groupMemoryDir !== '' && !existsSync(dirname(c.groupMemoryDir))) problems.push('groupMemoryDir 的上级目录不存在：' + dirname(c.groupMemoryDir))

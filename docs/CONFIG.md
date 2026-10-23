@@ -29,7 +29,7 @@
 | `interimRecall` | boolean | `true` | 中间消息撤回开关：true（默认）=每条中间消息在 interimRecallMs 后自动撤回，回合结束先发整轮 t2i 小结卡再立即撤回原消息；false=只发不撤——中间消息照常实时发出但保留在聊天里：不排自动撤回定时器、回合结束不发小结卡也不撤回原消息，只发最终回复 |
 | `sendErrorNotice` | boolean | `true` | 一轮运行出错时向用户发送 ⚠️ 错误提示 |
 | `rateLimitPerMinute` | number | `30` | 每 chat 每分钟允许的普通消息条数上限（60 秒滑动窗口）；命令消息不计入也不受限；超限时每窗口最多提示一次；0=禁用频控 |
-| `restrictedMemberPrefix` | boolean | `true` | 群聊非管理员消息注入 [受限用户:仅问答] 前缀（软限制） |
+| `restrictedMemberPrefix` | boolean | `true` | 群聊与非管理员私聊的消息注入 [受限用户:仅问答] 前缀（软限制） |
 | `sensitivePatterns` | string[] | `[]` | 出站敏感内容审计正则（默认内置 rm -rf/关机/删库/密钥 等模式；留空用默认） |
 | `mediaDir` | string | `""` | 入站媒体与映射文件目录；留空默认 <dsh-home>/media/onebot |
 | `tempTtlHours` | number | `6` | 入站临时媒体文件保留时长（小时），到期自动清理 |
@@ -62,6 +62,7 @@
 | `agentPreset` | string | `""` | QQ 会话加入的 agent 预设 id；留空用部署默认（settings 的 agent-presets.default，当前为 router-flash）。创建时总是解析有效预设并写入会话 header，Web 界面可见；resume 优先恢复会话自己记录的预设 |
 | `adminPreset` | string | `""` | 管理员私聊默认使用的 agent preset（留空=同 agentPreset；/preset 覆盖优先） |
 | `adminPermission` | string | `""` | 管理员私聊每个新会话自动切换的宿主权限预设，如 danger-full-access（留空=宿主默认） |
+| `memberPermission` | string | `""` | 非管理员的私聊与所有群聊，每个新会话自动切换的宿主权限预设，建议 read-only（留空=宿主默认预设；如果宿主默认是完整权限，群友和陆生人也会拿到完整权限）。群聊里管理员发言也使用该群会话的权限（一个群只有一个会话） |
 | `adminWorkspacePath` | string | `""` | 管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。管理员私聊设置后覆盖 workspacePath（这类会话用本目录）；群聊用 workspacePath，读不到这里的 AGENTS.md |
 | `idleResetHours` | number | `0` | 超过这么多小时没说话，下一条消息开新会话，并附上最后几句作交接（0=关闭） |
 | `sessionTitleTemplate` | string | `"{kind} {target} · {date}"` | 新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 2824149798 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名 |

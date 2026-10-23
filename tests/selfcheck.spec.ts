@@ -6,6 +6,7 @@ import type { SelfCheckInput } from '../src/selfcheck.js'
 const good: SelfCheckInput = {
   host: '127.0.0.1', accessToken: 'x', botQQ: '123450002', adminUsers: ['123450001'],
   dmPolicy: 'open', groupPolicy: 'allowlist', allowFrom: [], groupAllowFrom: ['888000001'], allowAllUsers: false,
+  memberPermission: 'read-only',
   workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '', publicMemoryFile: '',
   scheduledPrompts: [{ id: 'diary', time: '01:30', chatId: 'private:123450001', prompt: '写日记' }],
   proactiveEnabled: true, proactiveChatId: 'private:123450001', proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00',
@@ -31,5 +32,39 @@ describe('selfCheck', () => {
 
   it('warns when proactive chat targets a non-admin', () => {
     expect(selfCheck({ ...good, proactiveChatId: 'private:999999' }).join()).toContain('不是管理员的私聊')
+  })
+})
+
+describe('selfCheck member permission', () => {
+  const memberWarning = '群聊 / 非管理员私聊会继承宿主默认权限预设'
+
+  it('warns when a non-admin can reach her and memberPermission is empty', () => {
+    // 群聊可达（groupPolicy 不是 disabled）
+    const groupOpen = selfCheck({ ...good, memberPermission: '' }).join('\n')
+    expect(groupOpen).toContain(memberWarning)
+    expect(groupOpen).toContain('建议设 memberPermission: read-only')
+
+    // allowAllUsers：任何人都能私聊
+    const allUsers = selfCheck({ ...good, memberPermission: '', allowAllUsers: true, groupPolicy: 'disabled', dmPolicy: 'open' }).join('\n')
+    expect(allUsers).toContain(memberWarning)
+
+    // dmPolicy=allowlist 且 allowFrom 里有非管理员
+    const allowlisted = selfCheck({ ...good, memberPermission: '', dmPolicy: 'allowlist', allowFrom: ['123450001', '123450009'], groupPolicy: 'disabled' }).join('\n')
+    expect(allowlisted).toContain(memberWarning)
+  })
+
+  it('does not warn when memberPermission is set, or when no non-admin can reach her', () => {
+    expect(selfCheck(good).join('\n')).not.toContain(memberWarning)
+    // 非管理员进不来：allowlist 里只有管理员，群也关掉了
+    const closed = { ...good, memberPermission: '', dmPolicy: 'allowlist' as const, allowFrom: ['123450001'], groupPolicy: 'disabled' as const }
+    expect(selfCheck(closed).join('\n')).not.toContain(memberWarning)
+  })
+
+  it('the allowAllUsers warning mentions the inherited permission only when memberPermission is empty', () => {
+    const empty = selfCheck({ ...good, memberPermission: '', allowAllUsers: true }).join('\n')
+    expect(empty).toContain('allowAllUsers 已开启：任何人都能私聊她（只适合调试），并且拿到上述权限')
+    const narrowed = selfCheck({ ...good, memberPermission: 'read-only', allowAllUsers: true }).join('\n')
+    expect(narrowed).toContain('allowAllUsers 已开启：任何人都能私聊她（只适合调试）')
+    expect(narrowed).not.toContain('并且拿到上述权限')
   })
 })

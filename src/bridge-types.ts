@@ -65,6 +65,10 @@ export interface BridgeConfig {
   /** host permission preset applied to each NEW admin private
    * session, e.g. 'danger-full-access' ('' = leave the host default). */
   adminPermission?: string
+  /** host permission preset applied to every NEW session that is NOT an
+   * admin's private chat (non-admin private chats and all group chats),
+   * e.g. 'read-only' ('' = leave the host default untouched). */
+  memberPermission?: string
   /** cwd of an admin's private chat ('' = workspacePath). */
   adminWorkspacePath?: string
   /** hours of silence after which the next message starts a

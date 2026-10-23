@@ -65,7 +65,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   permissions: ['requireMention', 'adminUsers', 'dmPolicy', 'groupPolicy', 'allowAllUsers', 'allowFrom', 'groupAllowFrom'],
   behavior: ['interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote'],
   diagnostics: ['actionAuditEnabled', 'traceEnabled'],
-  companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'groupSplitLines', 'humanTypingPace', 'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs'],
+  companion: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'memberPermission', 'adminWorkspacePath', 'splitLines', 'splitMaxMessages', 'textImageThreshold', 'inboundImageMaxPx', 'autoAcceptAdminRequests', 'autoAllowInvitedGroups', 'groupSplitLines', 'humanTypingPace', 'typingDelayPerCharMs', 'typingDelayMinMs', 'typingDelayMaxMs'],
   stickers: ['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'],
   memory: ['idleResetHours', 'privateResetDays', 'groupResetDays', 'publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes', 'sessionTitleTemplate'],
   proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],

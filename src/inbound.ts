@@ -373,9 +373,13 @@ export class InboundPipeline {
         const context = chatter.takeContext(groupId)
         if (context !== '') final += '\n' + context
       }
-      if (!isAdmin && this.ctx.config.restrictedMemberPrefix) {
-        final = RESTRICTED_PREFIX + final
-      }
+    }
+    // The restricted-member soft limit covers every non-admin sender: group
+    // members AND non-admin private chats (the same preset that
+    // memberPermission narrows). Still outside the <user_message> boundary —
+    // framework metadata, never sender text.
+    if (!isAdmin && this.ctx.config.restrictedMemberPrefix) {
+      final = RESTRICTED_PREFIX + final
     }
     const role: UserRole = isAdmin ? 'admin' : 'member'
     // the busy-turn policy seam runs AFTER every gate above (dedup /

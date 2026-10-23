@@ -1,7 +1,9 @@
 /**
  * an admin's private chat defaults to config.adminPreset and
- * each NEW admin private session gets config.adminPermission; group chats and
- * other users keep config.agentPreset and the host default permission.
+ * each NEW admin private session gets config.adminPermission; other sessions —
+ * non-admin private chats and every group chat — default to config.agentPreset
+ * and are switched to config.memberPermission when that is set (empty = the
+ * host default, i.e. the old behavior).
  * @module dsh-qq-companion/tests/companion-admin-defaults
  */
 import { describe, expect, it, vi } from 'vitest'
@@ -63,7 +65,7 @@ describe('admin private-chat defaults', () => {
     await h.connection.stop()
   })
 
-  it('group chats keep agentPreset and get no permission switch, even for the admin', async () => {
+  it('group chats without memberPermission keep agentPreset and get no permission switch, even for the admin', async () => {
     const presets = makePresets()
     const { commands, lines } = makeCommands()
     const h = await makeCmdHarness({ agentPresets: presets, commands, adminPreset: 'companion', adminPermission: 'danger-full-access' })
@@ -87,6 +89,101 @@ describe('admin private-chat defaults', () => {
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
+  })
+})
+
+describe('memberPermission（非管理员会话收口）', () => {
+  it('non-admin private and group sessions each get /permission <memberPermission> on creation; the admin in a group reuses that group session', async () => {
+    const presets = makePresets()
+    const { commands, lines } = makeCommands()
+    const h = await makeCmdHarness({ agentPresets: presets, commands, memberPermission: 'read-only', allowAllUsers: true })
+    // 非管理员私聊：新会话切到 memberPermission
+    h.sendTextAs('你好', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    expect(lines).toEqual(['/permission read-only'])
+
+    // 群聊：新会话同样切到 memberPermission
+    h.sendGroupTextAs('大家好', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(lines).toEqual(['/permission read-only', '/permission read-only'])
+
+    // 一个群只有一个会话：管理员在群里发言不会再切一次（也不会用 adminPermission）
+    h.sendGroupTextAs('管理员也说话', 10001)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
+    expect(lines).toEqual(['/permission read-only', '/permission read-only'])
+
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('an admin private chat still uses adminPermission and never memberPermission', async () => {
+    const presets = makePresets()
+    const { commands, lines } = makeCommands()
+    const h = await makeCmdHarness({ agentPresets: presets, commands, adminPermission: 'danger-full-access', memberPermission: 'read-only' })
+    h.sendText('你好')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    expect(lines).toEqual(['/permission danger-full-access'])
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('an empty memberPermission leaves the host default untouched (private member + group)', async () => {
+    const presets = makePresets()
+    const { commands, lines } = makeCommands()
+    const h = await makeCmdHarness({ agentPresets: presets, commands, allowAllUsers: true })
+    h.sendTextAs('你好', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    h.sendGroupTextAs('大家好', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(lines).toEqual([])
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('a failing switch only logs a warning and the message still gets through', async () => {
+    const presets = makePresets()
+    const warns: string[] = []
+    const execute = vi.fn(async () => { throw new Error('boom') })
+    const h = await makeCmdHarness({
+      agentPresets: presets, commands: { execute }, memberPermission: 'read-only', allowAllUsers: true,
+      log: (level, message) => { if (level === 'warn') warns.push(message) },
+    })
+    h.sendTextAs('你好', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    expect(warns.some(message => message.includes('member permission default apply failed'))).toBe(true)
+    expect(execute).toHaveBeenCalledWith(expect.anything(), '/permission read-only', [], expect.anything())
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('a resumed session does not apply the switch again', async () => {
+    const { mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const mediaDir = mkdtempSync(join(tmpdir(), 'member-perm-resume-'))
+    const h1 = await makeCmdHarness({ agentPresets: makePresets(), commands: makeCommands().commands, memberPermission: 'read-only', allowAllUsers: true, mediaDir })
+    h1.sendTextAs('你好', 20003)
+    await vi.waitFor(() => expect(h1.captured.followups).toHaveLength(1))
+    const firstSession = h1.sessionIds[0]
+    h1.client.close()
+    await h1.bridge.stop()
+    await h1.connection.stop()
+
+    // 重启：旧会话被 resume（不是新建），所以不再切权限
+    const { commands, lines } = makeCommands()
+    const h2 = await makeCmdHarness({ agentPresets: makePresets(), commands, memberPermission: 'read-only', allowAllUsers: true, mediaDir, resumeOk: true })
+    await vi.waitFor(() => expect(h2.chats().has('private:20003')).toBe(true))
+    h2.sendTextAs('重启后第一条', 20003)
+    await vi.waitFor(() => expect(h2.captured.followups).toHaveLength(1))
+    expect(h2.sessionIds).toEqual([firstSession])
+    expect(lines).toEqual([])
+    h2.client.close()
+    await h2.bridge.stop()
+    await h2.connection.stop()
   })
 })
 

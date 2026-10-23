@@ -82,6 +82,8 @@ export interface Config {
   agentPreset: string
   adminPreset: string
   adminPermission: string
+  /** 非管理员私聊与所有群聊的新会话自动切换的宿主权限预设（空 = 不动）。 */
+  memberPermission: string
   adminWorkspacePath: string
   idleResetHours: number
   /** Automatic session-title template for new (and untitled resumed) QQ
@@ -218,7 +220,7 @@ export const Config: Z<Config> = z.object({
   rateLimitPerMinute: z.number().default(30)
     .description('每 chat 每分钟允许的普通消息条数上限（60 秒滑动窗口）；命令消息不计入也不受限；超限时每窗口最多提示一次；0=禁用频控'),
   restrictedMemberPrefix: z.boolean().default(true)
-    .description('群聊非管理员消息注入 [受限用户:仅问答] 前缀（软限制）'),
+    .description('群聊与非管理员私聊的消息注入 [受限用户:仅问答] 前缀（软限制）'),
   sensitivePatterns: z.array(z.string()).default([])
     .description('出站敏感内容审计正则（默认内置 rm -rf/关机/删库/密钥 等模式；留空用默认）'),
   mediaDir: z.string().default('')
@@ -283,6 +285,8 @@ export const Config: Z<Config> = z.object({
     .description('管理员私聊默认使用的 agent preset（留空=同 agentPreset；/preset 覆盖优先）'),
   adminPermission: z.string().default('')
     .description('管理员私聊每个新会话自动切换的宿主权限预设，如 danger-full-access（留空=宿主默认）'),
+  memberPermission: z.string().default('')
+    .description('非管理员的私聊与所有群聊，每个新会话自动切换的宿主权限预设，建议 read-only（留空=宿主默认预设；如果宿主默认是完整权限，群友和陆生人也会拿到完整权限）。群聊里管理员发言也使用该群会话的权限（一个群只有一个会话）'),
   adminWorkspacePath: z.string().default('')
     .description('管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。管理员私聊设置后覆盖 workspacePath（这类会话用本目录）；群聊用 workspacePath，读不到这里的 AGENTS.md'),
   idleResetHours: z.number().default(0)

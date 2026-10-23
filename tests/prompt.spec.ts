@@ -16,5 +16,7 @@ describe('buildPlatformPrompt', () => {
   it('keeps the restricted-member prefix note only when enabled', () => {
     expect(buildPlatformPrompt(false)).not.toContain('来自受限用户')
     expect(buildPlatformPrompt(true)).toContain('来自受限用户')
+    // 受限前缀覆盖群聊里的普通群友与非管理员私聊两类发送者
+    expect(buildPlatformPrompt(true)).toContain('群聊里的普通群友，或非管理员私聊')
   })
 })

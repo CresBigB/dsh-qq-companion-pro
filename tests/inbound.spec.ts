@@ -297,6 +297,36 @@ describe('inbound pipeline', () => {
     await h.bridge.stop()
     await h.connection.stop()
   })
+
+  it('非管理员私聊同样注入 RESTRICTED_PREFIX（在 <user_message> 边界之外），管理员私聊不带', async () => {
+    const h = await makeCmdHarness({ restrictedMemberPrefix: true, allowAllUsers: true })
+    h.sendTextAs('成员私聊提问', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const memberText = h.captured.followups[0].text
+    expect(memberText.startsWith('[受限用户:仅问答] ')).toBe(true)
+    // 前缀是框架元数据：紧贴在边界标签之前，不在 <user_message> 里面
+    expect(memberText.startsWith('[受限用户:仅问答] <user_message ')).toBe(true)
+    expect(memberText).not.toContain('[受限用户:仅问答] 成员私聊提问')
+    // 管理员私聊不带前缀
+    h.sendText('管理员私聊提问')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups[1].text.startsWith('<user_message ')).toBe(true)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('restrictedMemberPrefix=false 时群聊与非管理员私聊都不带前缀', async () => {
+    const h = await makeCmdHarness({ restrictedMemberPrefix: false, allowAllUsers: true })
+    h.sendTextAs('成员私聊', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    h.sendGroupTextAs('群友提问', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    for (const followup of h.captured.followups) expect(followup.text).not.toContain('[受限用户:仅问答]')
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
 })
 
 describe('normalizeOneBot11', () => {

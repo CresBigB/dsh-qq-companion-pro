@@ -289,10 +289,14 @@ export declare class ChatBridge {
     private resetChat;
     /** an admin's own private chat (admin defaults apply). */
     private isAdminPrivate;
-    /** switch a NEW admin private session to the configured host
-     * permission preset (config.adminPermission) — the same host /permission
-     * command the admin would type, so the host stays the only authority. */
-    private applyAdminPermission;
+    /** switch a NEW session to its configured host permission preset —
+     * an admin's private chat uses config.adminPermission, every other session
+     * (non-admin private chats and all group chats) uses config.memberPermission
+     * — through the same host /permission command the user would type, so the
+     * host stays the only authority. An empty preset leaves the host default
+     * untouched (a group has ONE session, so the admin's own words in a group
+     * ride that group session's preset too). A failed switch only logs. */
+    private applyDefaultPermission;
     /**
      * Compose the QQ channel's scoped world for one agent: the QQ platform
      * prompt section and the qq_* tools. Registered on `agentCtx` (the agent's

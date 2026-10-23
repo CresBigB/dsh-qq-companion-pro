@@ -45,6 +45,9 @@ export interface HealthDeps {
   retryState: { reverseRetryAttempts?: number }
   /** Dedup window snapshot. */
   dedup: { entries: number; windowSeconds: number }
+  /** /doctor 权限行：管理员私聊与其他会话各自自动切换的宿主权限预设
+   * （'' = 宿主默认预设）；absent = 报告省略该行。 */
+  permissions?: { admin: string; member: string }
   /** Write-gate snapshot. */
   /** The already-redacted config snapshot (see redactSnapshot). */
   configSnapshot: Record<string, unknown>
@@ -117,6 +120,11 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
   lines.push('连接：' + conn + '（' + deps.transport.host + ':' + deps.transport.port + '，selfId=' + (deps.connection.selfId !== '' ? deps.connection.selfId : '未学习') + '）')
   lines.push('端口占用重试：' + (deps.retryState.reverseRetryAttempts ?? '未知') + ' 次')
   lines.push('去重窗口：' + deps.dedup.entries + ' 条在窗（dedupWindowSeconds=' + deps.dedup.windowSeconds + '）')
+  if (deps.permissions !== undefined) {
+    const admin = deps.permissions.admin !== '' ? deps.permissions.admin : '宿主默认'
+    const member = deps.permissions.member !== '' ? deps.permissions.member : '宿主默认（⚠ 未收窄）'
+    lines.push('权限：管理员私聊 ' + admin + '，其他会话 ' + member)
+  }
   const files: string[] = []
   for (const [name, rotated] of [[TRACE_FILE, traceRotatedFile]] as const) {
     const size = await fileSize(join(deps.mediaDir, name))

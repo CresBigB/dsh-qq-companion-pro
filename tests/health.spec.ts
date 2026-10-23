@@ -57,6 +57,19 @@ describe('health report (src/health.ts)', () => {
     expect(report).toContain('端口占用重试：未知 次')
     expect(report).toContain('最近 ok:false 事件：无（或 trace 未开启）')
   })
+
+  it('renders the permission line: the configured presets, or 宿主默认 with the un-narrowed marker', async () => {
+    const mediaDir = mkdtempSync(join(tmpdir(), 'onebot-health-'))
+    const narrowed = await healthReport(baseDeps(mediaDir, {
+      permissions: { admin: 'danger-full-access', member: 'read-only' },
+    }))
+    expect(narrowed).toContain('权限：管理员私聊 danger-full-access，其他会话 read-only')
+    const inherited = await healthReport(baseDeps(mediaDir, { permissions: { admin: '', member: '' } }))
+    expect(inherited).toContain('权限：管理员私聊 宿主默认，其他会话 宿主默认（⚠ 未收窄）')
+    // 没有权限快照（老调用方）时这一行整体省略
+    const absent = await healthReport(baseDeps(mediaDir, {}))
+    expect(absent).not.toContain('权限：管理员私聊')
+  })
 })
 
 describe('secret redaction', () => {
@@ -150,6 +163,28 @@ describe('/doctor command', () => {
     h.sendText('/doctor what')
     await vi.waitFor(() => {
       expect(h.outbound.some(f => JSON.stringify(f.params).includes('用法：/doctor'))).toBe(true)
+    }, { timeout: 15_000 })
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  }, 30_000)
+
+  it('/doctor 输出权限行（管理员私聊与其他会话各自的预设来自配置）', async () => {
+    const h = await makeCmdHarness({ adminPermission: 'danger-full-access', memberPermission: 'read-only' })
+    h.sendText('/doctor')
+    await vi.waitFor(() => {
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('权限：管理员私聊 danger-full-access，其他会话 read-only'))).toBe(true)
+    }, { timeout: 15_000 })
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  }, 30_000)
+
+  it('/doctor 在 memberPermission 为空时标出「未收窄」', async () => {
+    const h = await makeCmdHarness()
+    h.sendText('/doctor')
+    await vi.waitFor(() => {
+      expect(h.outbound.some(f => JSON.stringify(f.params).includes('其他会话 宿主默认（⚠ 未收窄）'))).toBe(true)
     }, { timeout: 15_000 })
     h.client.close()
     await h.bridge.stop()

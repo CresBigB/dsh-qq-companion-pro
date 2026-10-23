@@ -179,10 +179,14 @@ export async function makeCmdHarness(opts?: {
   deferredTimeoutMs?: number
   /** media dir override（重启恢复测试复用同一目录的注册表/映射文件）。 */
   mediaDir?: string
+  /** 重启恢复测试：让 agents.resume 成功（缺省 = resume 失败，走新建）。 */
+  resumeOk?: boolean
   commands?: unknown
   /** Admin private-chat defaults. */
   adminPreset?: string
   adminPermission?: string
+  /** 非管理员私聊与所有群聊的新会话自动切换的宿主权限预设。 */
+  memberPermission?: string
   adminWorkspacePath?: string
   idleResetHours?: number
   groupMemoryDir?: string
@@ -222,7 +226,7 @@ export async function makeCmdHarness(opts?: {
   // steers are captured alongside followups so the /steer and
   // 'steer'-policy tests can assert the exact steered text.
   const captured = { followups: [] as Array<{ text: string; sessionId: string }>, steers: [] as Array<{ text: string; sessionId: string }>, createdMeta: capturedMeta }
-  const agents = makeFakeAgents(sessionIds, captured)
+  const agents = makeFakeAgents(sessionIds, captured, opts?.resumeOk !== undefined ? { resumeOk: opts.resumeOk } : undefined)
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
   const connection = new OneBotConnection({
@@ -272,6 +276,7 @@ export async function makeCmdHarness(opts?: {
       agentPreset: 'standard', workspacePath: mediaDir,
       ...(opts?.adminPreset !== undefined ? { adminPreset: opts.adminPreset } : {}),
       ...(opts?.adminPermission !== undefined ? { adminPermission: opts.adminPermission } : {}),
+      ...(opts?.memberPermission !== undefined ? { memberPermission: opts.memberPermission } : {}),
       ...(opts?.adminWorkspacePath !== undefined ? { adminWorkspacePath: opts.adminWorkspacePath } : {}),
       ...(opts?.idleResetHours !== undefined ? { idleResetHours: opts.idleResetHours } : {}),
       ...(opts?.groupMemoryDir !== undefined ? { groupMemoryDir: opts.groupMemoryDir } : {}),

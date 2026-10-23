@@ -8,6 +8,8 @@ export interface SelfCheckInput {
     allowFrom: readonly string[];
     groupAllowFrom: readonly string[];
     allowAllUsers: boolean;
+    /** 非管理员私聊与所有群聊的新会话自动切换的宿主权限预设（'' = 不动）。 */
+    memberPermission: string;
     workspacePath: string;
     adminWorkspacePath: string;
     groupMemoryDir: string;

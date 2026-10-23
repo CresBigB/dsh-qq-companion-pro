@@ -24,6 +24,12 @@ export interface HealthDeps {
         entries: number;
         windowSeconds: number;
     };
+    /** /doctor 权限行：管理员私聊与其他会话各自自动切换的宿主权限预设
+     * （'' = 宿主默认预设）；absent = 报告省略该行。 */
+    permissions?: {
+        admin: string;
+        member: string;
+    };
     /** Write-gate snapshot. */
     /** The already-redacted config snapshot (see redactSnapshot). */
     configSnapshot: Record<string, unknown>;

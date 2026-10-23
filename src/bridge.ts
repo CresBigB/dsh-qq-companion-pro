@@ -121,7 +121,7 @@ export class ChatBridge {
       },
       installChannelScope: (agentCtx, chatId) => this.installChannelScope(agentCtx, chatId),
       isAdminPrivate: chatId => this.isAdminPrivate(chatId),
-      onSessionCreated: chat => this.applyAdminPermission(chat),
+      onSessionCreated: chat => this.applyDefaultPermission(chat),
     })
     this.companion = new CompanionHooks({
       config: deps.config,
@@ -679,9 +679,9 @@ export class ChatBridge {
     // The restricted-member soft limit ([受限用户:仅问答]) is never widened by
     // the steer policy: restricted senders' messages queue like everyone
     // else's media. The condition mirrors the RESTRICTED_PREFIX application
-    // in the inbound pipeline (group + non-admin + restrictedMemberPrefix).
-    const restricted = splitChatId(chatId).kind === 'group'
-      && role !== 'admin' && this.deps.config.restrictedMemberPrefix
+    // in the inbound pipeline (non-admin + restrictedMemberPrefix — group
+    // members and non-admin private chats alike).
+    const restricted = role !== 'admin' && this.deps.config.restrictedMemberPrefix
     // auto-steer eligibility — 'admin' (default) = admins only; 'all' =
     // anyone. Restricted members stay excluded under both; /steer remains
     // admin-only regardless of this knob; queue mode is untouched.
@@ -761,6 +761,11 @@ export class ChatBridge {
       dedup: {
         entries: this.inbound.dedupWindowEntries,
         windowSeconds: this.deps.config.dedupWindowSeconds ?? 300,
+      },
+      // /doctor 权限行：两类会话各自自动切换的宿主权限预设（'' = 宿主默认）。
+      permissions: {
+        admin: this.deps.config.adminPermission ?? '',
+        member: this.deps.config.memberPermission ?? '',
       },
       configSnapshot: this.deps.configSnapshot?.() ?? {},
       // the recent fault references for the report section.
@@ -982,18 +987,28 @@ export class ChatBridge {
     return ref.kind === 'private' && classifyUserRole(ref.target, this.deps.policy.adminUsers) === 'admin'
   }
 
-  /** switch a NEW admin private session to the configured host
-   * permission preset (config.adminPermission) — the same host /permission
-   * command the admin would type, so the host stays the only authority. */
-  private async applyAdminPermission(chat: ChatAgent): Promise<void> {
-    const preset = this.deps.config.adminPermission
-    if (preset === undefined || preset === '' || !this.isAdminPrivate(chat.chatId)) return
+  /** switch a NEW session to its configured host permission preset —
+   * an admin's private chat uses config.adminPermission, every other session
+   * (non-admin private chats and all group chats) uses config.memberPermission
+   * — through the same host /permission command the user would type, so the
+   * host stays the only authority. An empty preset leaves the host default
+   * untouched (a group has ONE session, so the admin's own words in a group
+   * ride that group session's preset too). A failed switch only logs. */
+  private async applyDefaultPermission(chat: ChatAgent): Promise<void> {
+    const admin = this.isAdminPrivate(chat.chatId)
+    const preset = admin ? this.deps.config.adminPermission : this.deps.config.memberPermission
+    if (preset === undefined || preset === '') return
     const commands = this.deps.commands as unknown as {
       execute?(agent: unknown, line: string, attachments: readonly unknown[], signal: AbortSignal): Promise<unknown>
     } | undefined
     if (commands?.execute === undefined) return
-    await commands.execute(chat.agent, '/permission ' + preset, [], new AbortController().signal)
-    this.deps.log('info', 'admin permission default applied for ' + chat.chatId + ': ' + preset)
+    try {
+      await commands.execute(chat.agent, '/permission ' + preset, [], new AbortController().signal)
+    } catch (error) {
+      this.deps.log('warn', (admin ? 'admin' : 'member') + ' permission default apply failed for ' + chat.chatId + ': ' + describeError(error))
+      return
+    }
+    this.deps.log('info', (admin ? 'admin' : 'member') + ' permission default applied for ' + chat.chatId + ': ' + preset)
   }
 
   /**
