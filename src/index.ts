@@ -12,7 +12,7 @@
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
 import { buildCompanionStatusSnapshot, provideCompanionStatus } from './status.js'
-import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, personaBlocks, promptFingerprint, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -137,11 +137,22 @@ export function apply(ctx: Context, config: Config): void {
   const groupAccess = new GroupAccess({ policy, mediaDir, log })
   const groupAccessLoaded = groupAccess.load()
   // chat activity (idle reset / handoff / diary input).
-  // The prompt version of a chat (persona text + its guide + plugin version):
-  // a session started under another version is renewed at the next message,
-  // since dsh would keep sending the old system prompt beside the new one.
+  // The prompt version of a chat (plugin version + persona text + its guide +
+  // its platform section): a session started under another version is renewed
+  // at the next message, since dsh would keep sending the old system prompt
+  // beside the new one.
   const persona = personaBlocks(join(dshHome(), 'profiles', 'web', 'cordis.patch.yml'))
-  const promptVersion = (chatId: string): string => promptFingerprint(packageVersion() ?? '', persona, companionGuide(chatId))
+  // 平台段（order 90）也算进指纹（T7）：能力开关一变，提示词里「能用哪些工具」
+  // 就变了，旧会话必须换新，否则 dsh 会把新提示追加在旧的后面、两套规则同时生效。
+  // 后绑定：bridge 在 activity 之后创建，这里先用 let 占位，建好再接线。
+  // ⚠ 平台段必须逐字稳定（同一状态 100 次调用结果相同），否则每回合都换会话。
+  let platformPromptOf: ((chatId: string) => string) | undefined
+  const promptVersion = (chatId: string): string => chatPromptVersion({
+    version: packageVersion() ?? '',
+    persona,
+    guide: companionGuide(chatId),
+    platform: platformPromptOf?.(chatId) ?? '',
+  })
   const activity = new ChatActivity({ mediaDir, log, promptVersion })
   const activityLoaded = activity.load()
   // how she takes part in group chats beyond an @ (context, names, follow-ups, looks).
@@ -343,6 +354,11 @@ export function apply(ctx: Context, config: Config): void {
   // returned reference to its own log line, so host logs and qq-trace.jsonl
   // share the same number for one fault.
   connection.onFailure = (stage: string, detail: string): string => bridge.registerConnectionFailure(stage, detail)
+
+  // 平台段指纹的后绑定接线：从这一刻起 promptVersion 才能算上平台段。
+  // 在 bridge 创建之前（activity 构造、启动自检）调用 promptVersion 会拿到
+  // 空串——那时还没有任何会话按新指纹记录过，不影响正确性。
+  platformPromptOf = (chatId: string): string => bridge.platformPromptText(chatId)
 
   // A group that leaves the allowlist (/group remove, kicked, or dropped from
   // the config while dsh was down) has its session retired.

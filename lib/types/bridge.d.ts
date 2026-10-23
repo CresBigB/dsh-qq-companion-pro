@@ -317,8 +317,26 @@ export declare class ChatBridge {
      * 工具注册由能力注册表驱动（src/capabilities.ts）：先按配置 / 运行时依赖 /
      * 会话类型算出这个聊天能有哪些能力，再只注册这些能力对应的工具。工具 execute
      * 里既有的回合级判定（例如表情包改删的 canEditFiles）保持不变。
+     *
+     * 能力**先算**（在注册提示词段之前）：平台段里「能用哪些工具」的句子也由这份
+     * 解析结果生成，于是「提示词里提到的工具」与「实际注册的工具」同源——关掉的
+     * 能力既不会注册，也不会被提示词叫用。
      */
     private installChannelScope;
+    /**
+     * 平台段文本的**唯一实现**：提示词注册（installChannelScope）与指纹
+     * （{@link platformPromptText}）共用，不两处各算一遍。
+     *
+     * 纯函数式：同样的配置 + 同样的运行时依赖 → 同样的文本（指纹的稳定性依赖这一点）。
+     */
+    private composePlatformPrompt;
+    /**
+     * 这个聊天的平台段文本（order 90 那段），供人设指纹用：平台段变了 → 指纹变 →
+     * 下一回合换新会话。与真实注册进 agent 的文本是同一次计算，不会漂移。
+     *
+     * 同一状态重复调用结果恒定（调用方按稳定性做指纹）。
+     */
+    platformPromptText(chatId: ChatId): string;
     /** 按一个聊天算能力（会话类型 + 管理员私聊 + 当前进程的运行时依赖）。 */
     private resolveChatCapabilities;
     /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件）。 */
