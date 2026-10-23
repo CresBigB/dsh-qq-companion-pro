@@ -18,3 +18,10 @@ export const NS = 'qq-companion'
 export const SLOT_ID = 'onebot-settings'
 /** 设置页在 nav 里的排序。 */
 export const SLOT_ORDER = 18
+
+/** 第二入口的 slot 名（插件详情页里某一行 bundle 的「配置」按钮，keyed slot）。 */
+export const SECOND_ENTRY_SLOT = 'plugins.row.config'
+/** 第二入口对应 bundle 声明的行 id（cordis.patch.yml 里的 `- id: dsh-onebot`）。 */
+export const SECOND_ENTRY_ROW_ID = 'dsh-onebot'
+/** 第二入口的 key（宿主约定：`<package name>#<row id>`）。 */
+export const SECOND_ENTRY_KEY = PLUGIN_ID + '#' + SECOND_ENTRY_ROW_ID

@@ -1,21 +1,29 @@
 /**
- * QQ Bot 设置面板组件（hooks 全在这一层；控件树来自 render.ts 的纯函数）。
+ * QQ 陪伴设置面板组件（hooks 全在这一层；视图树在 view.ts，纯函数）。
+ *
+ * 数据通道：宿主 Typert Remote（`remote.onebotSettings`）——getSettings() /
+ * updateSettings(patch, expectedRevision) / listWorkspaces()。
+ * 保存链路不变：computePatch（纯函数）→ updateSettings(patch, revision)。
  */
 import { React } from './react-runtime.js'
-import { ALL_FIELDS, DEFAULTS, GROUPS } from './fields.js'
+import { ALL_FIELDS, DEFAULTS, type FieldMeta } from './fields.js'
+import { zh } from './i18n.js'
 import {
+  appendTags,
   computePatch,
-  draftFromDefaults,
   draftFromSnapshot,
   fillWorkspacePath,
   format,
   isConflictError,
   messageOf,
+  removeTagAt,
+  snapshotValueToDraft,
+  tagsOf,
   unwrap,
-  valueEquals,
   type RemoteResultLike,
 } from './logic.js'
-import { h, renderGroup, renderWorkspacePicker, type RenderGroupOptions, type WorkspaceSummaryLike } from './render.js'
+import { renderWorkspacePicker, type Translate, type WorkspaceSummaryLike } from './render.js'
+import { SettingsView, type WorkspaceViewState } from './view.js'
 
 /** 宿主快照（OnebotSettingsSnapshot；accessToken 已脱敏为 ''）。 */
 export interface OnebotSettingsSnapshot {
@@ -36,26 +44,26 @@ export interface OnebotSettingsRemoteLike {
 
 /** 面板 props（t 为宿主注入的翻译函数，语言切换自动重渲染）。 */
 export interface OnebotSettingsPanelProps {
-  t: (key: string) => string
+  t?: (key: string) => string
   remote: OnebotSettingsRemoteLike
+  /** 第二入口（plugins.row.config）：不渲染页头。 */
+  embedded?: boolean
 }
 
-/** 「快速填入 workspace」的数据态。 */
-interface WorkspaceState {
-  loaded: boolean
-  available: boolean
-  workspaces: WorkspaceSummaryLike[]
-  selectedId: string
+/** 缺省翻译（宿主未注入 t 时兜底读 zh 词条）。 */
+function fallbackT(key: string): string {
+  return zh[key] != null ? zh[key] : key
 }
 
 /**
- * QQ Bot 设置面板。
- * @param props t 为宿主注入的翻译函数（locale: NS，语言切换自动重渲染）；
- *        remote 为挂载后的 `remote.onebotSettings` API。
+ * QQ 设置面板（有状态容器）。
+ * @param props t 为宿主的翻译函数；remote 为挂载后的 `remote.onebotSettings`；
+ *        embedded=true 时按第二入口（插件详情页）渲染，不显示页头。
  */
 export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
-  const t = props.t
+  const t: Translate = typeof props.t === 'function' ? props.t : fallbackT
   const remote = props.remote
+  const embedded = props.embedded === true
   const [snapshot, setSnapshot] = React.useState<OnebotSettingsSnapshot | null>(null)
   const [draft, setDraft] = React.useState<Record<string, unknown> | null>(null)
   const [secretDraft, setSecretDraft] = React.useState('')
@@ -63,14 +71,20 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState('')
-  // 「快速填入 workspace」数据态——面板打开时（挂载 effect）对
-  // remote.listWorkspaces() 现拉一次，不缓存跨会话的陈旧列表。
-  const [workspace, setWorkspace] = React.useState<WorkspaceState>({ loaded: false, available: false, workspaces: [], selectedId: '' })
+  // 当前子页（§1.2：不写 URL，记在 state；F3 之前默认 connection）。
+  const [page, setPage] = React.useState('connection')
+  const [query, setQuery] = React.useState('')
+  const [changedOnly, setChangedOnly] = React.useState(false)
+  // 标签列表的输入框缓冲（key → 未提交的文本）。
+  const [tagInputs, setTagInputs] = React.useState<Record<string, string>>({})
+  // 「快速填入 workspace」数据态——面板打开时（挂载 effect）现拉一次。
+  const [workspace, setWorkspace] = React.useState<WorkspaceViewState>({ loaded: false, available: false, workspaces: [], selectedId: '' })
 
   /** 接受新快照：草稿按快照重置（accessToken 明文绝不进入草稿）。 */
   const accept = (next: OnebotSettingsSnapshot) => {
     setSnapshot(next)
     setDraft(draftFromSnapshot(next))
+    setTagInputs({})
   }
 
   React.useEffect(() => {
@@ -78,11 +92,11 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     void remote.getSettings().then(result => {
       if (!alive) return
       accept(unwrap(result) as OnebotSettingsSnapshot)
+      setError(null)
     }).catch((cause: unknown) => {
       if (alive) setError(messageOf(cause))
     })
-    // 辅助查询独立拉取——失败（含 RPC 异常）降级为 unavailable 提示行，
-    // 绝不阻塞/污染 getSettings 主链路与错误横幅。
+    // 辅助查询独立拉取——失败（含 RPC 异常）降级为说明行，绝不阻塞主链路。
     void Promise.resolve().then(() => remote.listWorkspaces()).then(result => {
       if (!alive) return
       const value = unwrap(result) as { available?: boolean; workspaces?: WorkspaceSummaryLike[] } | null
@@ -98,6 +112,13 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     return () => { alive = false }
   }, [remote])
 
+  // 保存成功的提示 3 秒后自动消失（§4.10）。
+  React.useEffect(() => {
+    if (notice === '') return
+    const timer = setTimeout(() => { setNotice('') }, 3000)
+    return () => { clearTimeout(timer) }
+  }, [notice])
+
   const refetch = () => {
     void remote.getSettings().then(result => {
       accept(unwrap(result) as OnebotSettingsSnapshot)
@@ -108,7 +129,7 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     })
   }
 
-  /** 保存统一通道：updateSettings(patch, expectedRevision)；冲突时提示并重拉快照。 */
+  /** 保存统一通道：updateSettings(patch, expectedRevision)。 */
   const save = () => {
     if (busy || snapshot == null || draft == null) return
     setError(null)
@@ -129,54 +150,102 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     setBusy(true)
     void Promise.resolve().then(() => remote.updateSettings(computed.patch, snapshot.revision)).then(result => {
       accept(unwrap(result) as OnebotSettingsSnapshot)
-      setNotice(t('save.done')) // 生效方式提示：热生效、插件秒级重启、桥重连
+      setNotice(t('save.done'))
       setClearSecret(false)
       setSecretDraft('')
     }).catch((cause: unknown) => {
-      if (isConflictError(cause)) {
-        // revision 不一致 → 提示并重拉快照，用户核对后重放
-        setError(t('conflict.title'))
-        refetch()
-      } else {
-        setError(messageOf(cause))
-      }
+      // 冲突（§5.6）与其它错误都用错误横幅；草稿保留，重试由用户决定（F2b 补完整流程）。
+      if (isConflictError(cause)) setError(t('conflict.title'))
+      else setError(messageOf(cause))
     }).finally(() => {
       setBusy(false)
     })
   }
 
-  if (snapshot === null || draft === null) {
-    return h(React, 'div', { className: 'obx-panel' },
-      h(React, 'p', { className: 'obx-hint' }, t('settings.loading')),
-      error === null ? null : h(React, 'div', { className: 'obx-error', role: 'alert' }, t('status.error') + '：' + error))
+  /** 还原：丢弃全部草稿改动。 */
+  const revert = () => {
+    if (snapshot == null) return
+    setDraft(draftFromSnapshot(snapshot))
+    setSecretDraft('')
+    setClearSecret(false)
+    setTagInputs({})
+    setError(null)
+    setNotice('')
+  }
+
+  /** 恢复单个字段的默认值（只改草稿）。 */
+  const resetField = (field: FieldMeta) => {
+    if (draft == null) return
+    setDraft(Object.assign({}, draft, { [field.key]: snapshotValueToDraft(field, DEFAULTS[field.key]) }))
+  }
+
+  const commitTags = (field: FieldMeta, text: string) => {
+    if (draft == null) return
+    setDraft(Object.assign({}, draft, { [field.key]: appendTags(tagsOf(draft[field.key]), text) }))
+    setTagInputs(Object.assign({}, tagInputs, { [field.key]: '' }))
+  }
+
+  const backspaceTags = (field: FieldMeta) => {
+    if (draft == null) return
+    const current = tagsOf(draft[field.key])
+    if (current.length === 0) return
+    setDraft(Object.assign({}, draft, { [field.key]: removeTagAt(current, current.length - 1) }))
   }
 
   let secretSet = false
-  if (Array.isArray(snapshot.secrets)) {
+  if (snapshot != null && Array.isArray(snapshot.secrets)) {
     for (const secretEntry of snapshot.secrets) {
       if (secretEntry != null && Array.isArray(secretEntry.path) && secretEntry.path.indexOf('accessToken') >= 0 && secretEntry.set === true) secretSet = true
     }
   }
-  if (clearSecret === true) secretSet = false // 勾选清除后按“将清空”展示
+  const config = snapshot == null ? null : snapshot.config
+  const botQQ = config == null || config.botQQ == null ? '' : String(config.botQQ)
 
-  // W6「非默认」徽标数据源：快照生效值 vs schema 默认值（DEFAULTS），
-  // 反映已保存状态；草稿未保存的改动不打徽标。
-  const nonDefaultKeys: string[] = []
-  if (snapshot.config != null) {
-    for (const field of ALL_FIELDS) {
-      if (valueEquals(snapshot.config[field.key], DEFAULTS[field.key]) === false) nonDefaultKeys.push(field.key)
-    }
-  }
-
-  const changeHandlers: RenderGroupOptions = {
-    disabled: busy,
+  return React.createElement(SettingsView, {
+    t: t,
+    embedded: embedded,
+    loading: draft == null,
+    error: error,
+    notice: notice === '' ? null : notice,
+    entryActive: snapshot == null ? true : snapshot.entryActive === true,
+    page: page,
+    query: query,
+    changedOnly: changedOnly,
+    draft: draft,
+    config: config,
+    botQQ: botQQ,
     secretSet: secretSet,
     clearSecret: clearSecret,
-    nonDefaultKeys: nonDefaultKeys,
-    draft: draft,
-    // workspacePath 字段行下方的「快速填入 workspace」行（独立于
-    // obx-field 行；onApply 只写草稿不保存——保存仍走 save() 显式通道）。
-    renderExtraRow: field => {
+    tagInputs: tagInputs,
+    workspace: workspace,
+    busy: busy,
+    onPageChange: (next: string) => { setPage(next) },
+    onQueryChange: (next: string) => { setQuery(next) },
+    onChangedOnlyChange: (next: boolean) => { setChangedOnly(next) },
+    onRetry: () => { refetch() },
+    onSave: () => { save() },
+    onRevert: () => { revert() },
+    onChange: (field: FieldMeta, next: unknown) => {
+      if (draft == null) return
+      setDraft(Object.assign({}, draft, { [field.key]: next }))
+    },
+    onSecretChange: (nextText: string) => {
+      setSecretDraft(nextText)
+      if (draft == null) return
+      setDraft(Object.assign({}, draft, { accessToken: nextText }))
+    },
+    onClearSecretChange: (next: boolean) => { setClearSecret(next) },
+    onResetField: (field: FieldMeta) => { resetField(field) },
+    onTagInput: (field: FieldMeta, text: string) => {
+      setTagInputs(Object.assign({}, tagInputs, { [field.key]: text }))
+    },
+    onTagCommit: (field: FieldMeta, text: string) => { commitTags(field, text) },
+    onTagRemove: (field: FieldMeta, index: number) => {
+      if (draft == null) return
+      setDraft(Object.assign({}, draft, { [field.key]: removeTagAt(tagsOf(draft[field.key]), index) }))
+    },
+    onTagBackspace: (field: FieldMeta) => { backspaceTags(field) },
+    renderExtraRow: (field: FieldMeta) => {
       if (field.key !== 'workspacePath') return null
       return renderWorkspacePicker(React, {
         loaded: workspace.loaded,
@@ -184,6 +253,7 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
         workspaces: workspace.workspaces,
         selectedId: workspace.selectedId,
         disabled: busy,
+        t: t,
         onSelectedChange: (nextId: string) => {
           setWorkspace(Object.assign({}, workspace, { selectedId: nextId }))
         },
@@ -192,30 +262,5 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
         },
       })
     },
-    onChange: (field, nextValue) => {
-      setDraft(Object.assign({}, draft, { [field.key]: nextValue }))
-    },
-    onSecretChange: (nextText: string) => {
-      setSecretDraft(nextText)
-      setDraft(Object.assign({}, draft, { accessToken: nextText }))
-    },
-    onClearSecretChange: (nextChecked: boolean) => {
-      setClearSecret(nextChecked)
-    },
-  }
-
-  return h(React, 'div', { className: 'obx-panel' },
-    h(React, 'h2', { className: 'obx-title' }, t('settings.title')),
-    h(React, 'p', { className: 'obx-desc' }, t('settings.desc')),
-    h(React, 'div', { className: 'obx-toolbar' },
-      h(React, 'span', { className: 'obx-meta' }, t('revision.label') + ' ' + String(snapshot.revision)),
-      snapshot.entryActive === true ? null : h(React, 'span', { className: 'obx-meta obx-warn' }, t('effect.entryInactive')),
-      h(React, 'span', { className: 'obx-spacer' }),
-      h(React, 'button', { className: 'obx-btn', type: 'button', disabled: busy, onClick: refetch }, t('settings.reload')),
-      h(React, 'button', { className: 'obx-btn', type: 'button', disabled: busy, onClick: () => { setDraft(draftFromDefaults()) } }, t('settings.reset')),
-      h(React, 'button', { className: 'obx-btn primary', type: 'button', disabled: busy, onClick: save }, busy ? t('save.saving') : t('save.submit'))),
-    h(React, 'div', { className: 'obx-effect' }, t('effect.hint')),
-    GROUPS.map(group => renderGroup(React, group, changeHandlers)),
-    error === null ? null : h(React, 'div', { className: 'obx-error', role: 'alert' }, t('status.error') + '：' + error),
-    notice === '' ? null : h(React, 'p', { className: 'obx-notice' }, notice))
+  })
 }

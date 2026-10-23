@@ -62,11 +62,140 @@ export function isConflictError(cause: unknown): boolean {
   return error.code === 'onebot-settings/conflict' || CONFLICT_RE.test(String(error.message || ''))
 }
 
+/** 标签列表的单项拆分（§4.5）：换行 / 英文逗号 / 中文逗号都算分隔符；
+ *  逐项去首尾空格、丢弃空串、保序去重。纯函数，供回车 / 逗号 / 粘贴共用。 */
+export function parseTagInput(text: unknown): string[] {
+  const raw = String(text == null ? '' : text)
+  const out: string[] = []
+  for (const piece of raw.split(/[\r\n,，]+/)) {
+    const item = piece.trim()
+    if (item === '') continue
+    if (out.indexOf(item) >= 0) continue
+    out.push(item)
+  }
+  return out
+}
+
+/** 草稿里的标签数组形态（数组原样清洗；文本按 parseTagInput 拆分）。 */
+export function tagsOf(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    const out: string[] = []
+    for (const entry of raw) {
+      const item = String(entry == null ? '' : entry).trim()
+      if (item === '' || out.indexOf(item) >= 0) continue
+      out.push(item)
+    }
+    return out
+  }
+  return parseTagInput(raw)
+}
+
+/** 追加一批标签（去重去空），返回新数组。 */
+export function appendTags(list: unknown, text: unknown): string[] {
+  const out = tagsOf(list)
+  for (const item of parseTagInput(text)) {
+    if (out.indexOf(item) < 0) out.push(item)
+  }
+  return out
+}
+
+/** 删除第 index 个标签，返回新数组（越界原样返回副本）。 */
+export function removeTagAt(list: unknown, index: number): string[] {
+  const out = tagsOf(list)
+  if (Number.isInteger(index) && index >= 0 && index < out.length) out.splice(index, 1)
+  return out
+}
+
+/** 单位的中文显示（§4.3 的 .qqc-unit）。 */
+const UNIT_LABELS: Record<string, string> = {
+  ms: '毫秒',
+  s: '秒',
+  min: '分钟',
+  h: '小时',
+  day: '天',
+  byte: '字节',
+  px: '像素',
+  char: '字',
+  count: '条',
+  perDay: '次/天',
+  perMin: '条/分钟',
+}
+
+/** 单位的显示文案（无单位 → ''）。 */
+export function unitLabel(unit: string | undefined): string {
+  if (unit == null) return ''
+  return UNIT_LABELS[unit] != null ? UNIT_LABELS[unit] : unit
+}
+
+/** 一位小数、去掉尾部 .0。 */
+function oneDecimal(value: number): string {
+  const text = value.toFixed(1)
+  return text.endsWith('.0') ? text.slice(0, -2) : text
+}
+
+/**
+ * 数字字段的单位换算展示（§4.3）。返回 '= 4 MB' / '= 1.5 分钟' / '= 关闭' 这类
+ * 文案；无换算（值非法、单位不支持、未到换算门槛）返回 ''。
+ * 规则：0 且字段带 zeroMeans → 「= 关闭」/「= 不限」；ms 超 1000 → 秒、超 60000 → 分钟；
+ * s 超 60 → 分钟；min 超 60 → 小时；h 超 24 → 天；byte 按 1024 进制 → KB / MB。
+ */
+export function unitConversion(field: OnebotField, raw: unknown): string {
+  const text = typeof raw === 'number' ? String(raw) : String(raw == null ? '' : raw).trim()
+  if (text === '') return ''
+  const value = Number(text)
+  if (!Number.isFinite(value)) return ''
+  if (value === 0 && field.zeroMeans != null) return '= ' + field.zeroMeans
+  switch (field.unit) {
+    case 'ms':
+      if (value >= 60000) return '= ' + oneDecimal(value / 60000) + ' 分钟'
+      if (value >= 1000) return '= ' + oneDecimal(value / 1000) + ' 秒'
+      return ''
+    case 's':
+      if (value >= 60) return '= ' + oneDecimal(value / 60) + ' 分钟'
+      return ''
+    case 'min':
+      if (value >= 60) return '= ' + oneDecimal(value / 60) + ' 小时'
+      return ''
+    case 'h':
+      if (value >= 24) return '= ' + oneDecimal(value / 24) + ' 天'
+      return ''
+    case 'byte':
+      if (value >= 1024 * 1024) return '= ' + oneDecimal(value / (1024 * 1024)) + ' MB'
+      if (value >= 1024) return '= ' + oneDecimal(value / 1024) + ' KB'
+      return ''
+    default:
+      return ''
+  }
+}
+
+/** 控件右侧的完整单位文案：单位 + （可选）换算结果；0 值语义优先只显示换算。 */
+export function unitText(field: OnebotField, raw: unknown): string {
+  const conversion = unitConversion(field, raw)
+  const label = unitLabel(field.unit)
+  if (conversion !== '') {
+    // 0 且语义为关闭/不限：单位无意义，只显示换算。
+    if (String(raw == null ? '' : raw).trim() === '0') return conversion
+    return label === '' ? conversion : label + ' ' + conversion
+  }
+  return label
+}
+
+/** 默认值的人类可读形态（「恢复默认值」按钮的 aria-label / title）。 */
+export function formatDefaultValue(field: OnebotField, value: unknown): string {
+  if (field.type === 'boolean') return value === true ? '开' : '关'
+  if (field.type === 'stringArray') {
+    const list = tagsOf(value)
+    return list.length === 0 ? '空' : list.join('、')
+  }
+  if (value === undefined || value === null || value === '') return '空'
+  return String(value)
+}
+
 /** 快照生效值 → 表单草稿（展示形态：number/stringArray/secret 均为可编辑文本；
  *  accessToken 恒 ''，明文绝不进入草稿——host 快照已脱敏）。 */
 export function snapshotValueToDraft(field: OnebotField, value: unknown): unknown {
   if (field.type === 'secret') return '' // 脱敏回显：密码框恒空
-  if (field.type === 'stringArray') return Array.isArray(value) ? value.join('\n') : ''
+  if (field.type === 'stringArray') return tagsOf(value)
   if (field.type === 'number') return value === undefined || value === null ? '' : String(value)
   if (field.type === 'boolean') return value === true
   return value === undefined || value === null ? '' : String(value)
@@ -92,9 +221,7 @@ export function coerceValue(field: OnebotField, raw: unknown): unknown {
     return Number.isFinite(n) ? n : NaN
   }
   if (field.type === 'boolean') return raw === true
-  if (field.type === 'stringArray') {
-    return String(raw == null ? '' : raw).split(/\r?\n/).map(line => line.trim()).filter(line => line !== '')
-  }
+  if (field.type === 'stringArray') return tagsOf(raw)
   return String(raw == null ? '' : raw)
 }
 
