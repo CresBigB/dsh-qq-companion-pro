@@ -150,7 +150,9 @@ export function buildGroupMessagePrefix(nickname: string, userId: string, mentio
   return '[' + hh + ':' + mm + ' ' + nickname + '(' + userId + ')]' + mention + ' '
 }
 
-/** Soft-cap prefix for restricted (member-role) group users. */
+/** 历史前缀（T10a 前非管理员消息的软限制绸标）。新消息改用 src/relation.ts
+ *  的关系绸标（describeRelation）；本常量只为兼容历史会话的解析与剥标签保留，
+ *  不再由入站管线注入。 */
 export const RESTRICTED_PREFIX = '[受限用户:仅问答] '
 
 /**

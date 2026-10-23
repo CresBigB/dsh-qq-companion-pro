@@ -11,8 +11,8 @@
  * - steer：普通纯文字（无媒体/无引用/无转发）经 bridge 单一 steerMessage
  *   写点（agent.steer + plugin:dsh-onebot source）作为补充指令进当前任务，
  *   在最近 step 边界被读取，不新开回合；每条提交回复一次提交提示。
- * - 例外：媒体/引用/合并转发消息与 [受限用户:仅问答] 群成员两种模式下都按
- *   排队处理（软限制不放宽，媒体管线不被绕过）。
+ * - 例外：媒体/引用/合并转发消息与带关系绸标的非管理员消息（群友 / 陌生人）
+ *   两种模式下都按排队处理（软限制不放宽，媒体管线不被绕过）。
  * - (用户裁决 2026-10-12)：steer 模式下自动插话资格由 autoSteerPolicy
  *   控制（admin=仅管理员，缺省；all=不限）；不具备资格的消息走 queue 行为；
  *   受限用户任何档都不自动插话；/steer 命令始终仅管理员。
@@ -177,7 +177,7 @@ describe('插话例外规则（两种模式都不进 steer）', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('受限用户（[受限用户:仅问答]）自动插话不放宽：steer 模式下群成员消息仍按排队', async () => {
+  it('受限用户（带关系绸标）自动插话不放宽：steer 模式下群成员消息仍按排队', async () => {
     const h = await makeCmdHarness({ newMessagePolicy: 'steer', restrictedMemberPrefix: true })
     // 群管理员先开任务（sendGroupTextAs 自带 @ 满足 requireMention）
     h.sendGroupTextAs('启动群任务', 10001)
@@ -187,8 +187,8 @@ describe('插话例外规则（两种模式都不进 steer）', () => {
     h.sendGroupTextAs('群成员想插话', 20003)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.steers).toHaveLength(0)
-    // 软限制前缀原样保留：排队消息仍带 [受限用户:仅问答]
-    expect(h.captured.followups[1].text).toContain('[受限用户:仅问答]')
+    // 关系绸标原样保留：排队消息仍带 [关系:…]
+    expect(h.captured.followups[1].text).toContain('[关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]')
     expect(h.captured.followups[1].text).toContain('群成员想插话')
     await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)
@@ -237,7 +237,7 @@ describe('autoSteerPolicy—— steer 模式下自动插话资格', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('受限用户任何档都不自动插话：all 档下 [受限用户:仅问答] 群成员消息仍按排队', async () => {
+  it('受限用户任何档都不自动插话：all 档下带关系绸标的群成员消息仍按排队', async () => {
     const h = await makeCmdHarness({ newMessagePolicy: 'steer', autoSteerPolicy: 'all', restrictedMemberPrefix: true })
     h.sendGroupTextAs('启动群任务', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -246,7 +246,7 @@ describe('autoSteerPolicy—— steer 模式下自动插话资格', () => {
     h.sendGroupTextAs('受限成员的补充', 20003)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.steers).toHaveLength(0)
-    expect(h.captured.followups[1].text).toContain('[受限用户:仅问答]')
+    expect(h.captured.followups[1].text).toContain('[关系:群友')
     expect(h.captured.followups[1].text).toContain('受限成员的补充')
     await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)

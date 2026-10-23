@@ -229,6 +229,12 @@ export async function makeCmdHarness(opts?: {
   publicMemoryFile?: string
   /** 全局关闭的能力 id（absent = 全部开启；能力矩阵测试用）。 */
   capabilitiesDeny?: string[]
+  /** 好友名单（关系矩阵测试用；absent = 空）。 */
+  friendUsers?: string[]
+  /** 关系矩阵的三个比例（absent = 配置默认值）。 */
+  memberObedience?: number
+  friendObedience?: number
+  friendIntimacy?: number
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -310,6 +316,10 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.typingPacer !== undefined ? { humanTypingPace: true } : {}),
       ...(opts?.groupReasoningEffort !== undefined ? { groupReasoningEffort: opts.groupReasoningEffort } : {}),
       ...(opts?.groupAutoQuote !== undefined ? { groupAutoQuote: opts.groupAutoQuote } : {}),
+      ...(opts?.friendUsers !== undefined ? { friendUsers: opts.friendUsers } : {}),
+      ...(opts?.memberObedience !== undefined ? { memberObedience: opts.memberObedience } : {}),
+      ...(opts?.friendObedience !== undefined ? { friendObedience: opts.friendObedience } : {}),
+      ...(opts?.friendIntimacy !== undefined ? { friendIntimacy: opts.friendIntimacy } : {}),
     },
     ...(opts?.typingPacer !== undefined ? { typingPacer: opts.typingPacer } : {}),
     ...(opts?.sendCounter !== undefined ? { sendCounter: opts.sendCounter } : {}),

@@ -11,7 +11,7 @@
 | `botQQ` | string | `""` | 机器人自身 QQ 号；留空则从 meta 事件自动学习 |
 | `requireMention` | boolean | `true` | 群聊是否仅在 @机器人（或回复其消息）时响应 |
 | `unknownCommand` | "intercept" / "passthrough" | `"intercept"` | 未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为） |
-| `newMessagePolicy` | "queue" / "steer" | `"queue"` | 任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与 [受限用户:仅问答] 消息两种模式下都按排队处理，/steer 命令两种模式下均可用 |
+| `newMessagePolicy` | "queue" / "steer" | `"queue"` | 任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用 |
 | `autoSteerPolicy` | "admin" / "all" | `"admin"` | steer 模式下自动插话的发送者资格：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变 |
 | `deferredTimeoutMs` | number | `600000` | 等待模型回复超时阈值（毫秒超时补发）：回合超过该时长没有任何模型输出时提示超时并登记补发跟踪，任务完成后向原聊天自动补发最终文字（走既有出站管线）；发送明确失败最多尝试 3 次（退避），结果不确定时保留记录停止自动重试；/stop 终止该聊天的补发跟踪；0=关闭超时补发 |
 | `dmPolicy` | "open" / "allowlist" / "disabled" | `"open"` | 私聊策略：open=仅管理员（allowAllUsers 打开则所有人都能私聊）；allowlist=仅 allowFrom；disabled=拒绝所有私聊 |
@@ -22,6 +22,10 @@
 | `allowAllUsers` | boolean | `false` | 放行所有用户（仅开发用；也可用 ONEBOT_ALLOW_ALL_USERS=true） |
 | `autoAcceptAdminRequests` | boolean | `false` | 管理员发来的好友申请和进群邀请自动同意（其他人的一律不同意，并私聊告诉管理员） |
 | `ownerTitle` | string | `"管理员"` | 机器人在系统提示和通知里对管理员的称呼，例如「主人」 |
+| `friendUsers` | string[] | `[]` | 好友名单（QQ 号，每行一个）：比群友亲近，但不等同于主人 |
+| `memberObedience` | number | `0.2` | 非主人（群友 / 陌生人）的服从度：0 = 完全不听，1 = 基本都听。只管“要求要不要照做、拒绝时怎么解释”，不管听不听话；不管多少都不许骂人 |
+| `friendObedience` | number | `0.5` | 好友的服从度：0 = 完全不听，1 = 基本都听。只管“要求要不要照做、拒绝时怎么解释”，不管听不听话；不管多少都不许骂人 |
+| `friendIntimacy` | number | `0.6` | 好友的亲密度（影响称呼与语气亲近程度，0.6 = 比群友亲近但不越界） |
 | `autoAllowInvitedGroups` | boolean | `false` | 管理员拉机器人进的群自动加入群白名单（运行期白名单，保存在 mediaDir/group-allowlist.json） |
 | `ignoreSelf` | boolean | `true` | 忽略机器人自己发出的消息（防自循环） |
 | `interimMessages` | boolean | `true` | 是否把模型每步（含工具调用之间的中间回复）的文本立即发出；false 则只发最终回复。true 时：中间消息实时可见、每条在 interimRecallMs 后自动单独撤回、回合结束先发一张整轮 t2i 小结卡再发最终回复 |
@@ -29,7 +33,7 @@
 | `interimRecall` | boolean | `true` | 中间消息撤回开关：true（默认）=每条中间消息在 interimRecallMs 后自动撤回，回合结束先发整轮 t2i 小结卡再立即撤回原消息；false=只发不撤——中间消息照常实时发出但保留在聊天里：不排自动撤回定时器、回合结束不发小结卡也不撤回原消息，只发最终回复 |
 | `sendErrorNotice` | boolean | `true` | 一轮运行出错时向用户发送 ⚠️ 错误提示 |
 | `rateLimitPerMinute` | number | `30` | 每 chat 每分钟允许的普通消息条数上限（60 秒滑动窗口）；命令消息不计入也不受限；超限时每窗口最多提示一次；0=禁用频控 |
-| `restrictedMemberPrefix` | boolean | `true` | 群聊与非管理员私聊的消息注入 [受限用户:仅问答] 前缀（软限制） |
+| `restrictedMemberPrefix` | boolean | `true` | 群聊与非管理员私聊的消息前加一条关系绸标（形如 [关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]，写明关系 / 语气 / 服从度 / 亲密 / 能否指挥；软限制） |
 | `sensitivePatterns` | string[] | `[]` | 出站敏感内容审计正则（默认内置 rm -rf/关机/删库/密钥 等模式；留空用默认） |
 | `mediaDir` | string | `""` | 入站媒体与映射文件目录；留空默认 <dsh-home>/media/onebot |
 | `tempTtlHours` | number | `6` | 入站临时媒体文件保留时长（小时），到期自动清理 |

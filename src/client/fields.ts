@@ -10,7 +10,7 @@
  *   dependsOnText 是 §3 表格的静态投影；函数型元数据 dependsOn（F2a）与
  *   danger（F2b，§5.5 危险判定）直接写在字段上，由 validate.ts 的
  *   collectRisks 统一按「草稿 ≠ 生效值」把关；
- * - DEFAULTS 全量覆盖上页的 105 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
+ * - DEFAULTS 全量覆盖上页的 109 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
  * - 不上页的 5 个键（imageMaxSize / maxImageBytes / maxInboundFileBytes /
  *   scheduledPrompts / sttReplacements）见宿主的 EXCLUDED_KEYS。
  */
@@ -113,7 +113,7 @@ export function draftText(draft: Record<string, unknown> | null | undefined, key
   return raw === undefined || raw === null ? '' : String(raw)
 }
 
-/** 10 组 105 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
+/** 10 组 109 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
 export const GROUPS: GroupMeta[] = [
   {
     id: 'connection',
@@ -136,7 +136,11 @@ export const GROUPS: GroupMeta[] = [
     title: '谁能找她',
     desc: '谁能私聊、哪些群能用、群里的人能让她做什么',
     fields: [
-      { key: 'adminUsers', label: '管理员（主人）QQ', type: 'stringArray', hint: '每行一个 QQ 号。', section: '私聊' },
+      { key: 'adminUsers', label: '管理员（主人）QQ', type: 'stringArray', hint: '每行一个 QQ 号。', section: '关系' },
+      { key: 'friendUsers', label: '好友名单 QQ', type: 'stringArray', hint: '每行一个 QQ 号：比群友亲近，但不等同于主人。', section: '关系' },
+      { key: 'memberObedience', label: '群友 / 陌生人的服从度', type: 'number', hint: '0 = 完全不听，1 = 基本都听。只管“要求要不要照做、拒绝时怎么解释”，不管听不听话；不管多少都不许骂人。', section: '关系', min: 0, max: 1 },
+      { key: 'friendObedience', label: '好友的服从度', type: 'number', hint: '0 = 完全不听，1 = 基本都听。只管“要求要不要照做、拒绝时怎么解释”，不管听不听话。', section: '关系', min: 0, max: 1 },
+      { key: 'friendIntimacy', label: '好友的亲密度', type: 'number', hint: '影响称呼与语气亲近程度，0.6 = 比群友亲近但不越界。', section: '关系', min: 0, max: 1 },
       { key: 'dmPolicy', label: '私聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '仅管理员（开了"允许所有用户"则所有人）', allowlist: '白名单', disabled: '不接私聊' }, hint: 'open = 仅管理员；allowlist = 仅私聊白名单；disabled = 拒绝所有私聊。', section: '私聊', danger: (next, prev, draft) => (next === 'open' && draftBool(draft, 'allowAllUsers') ? 'risk.dmOpenAll' : null) },
       { key: 'allowFrom', label: '私聊白名单', type: 'stringArray', hint: '每行一个 QQ 号，仅白名单策略生效。', section: '私聊', dependsOnText: '仅在私聊策略为白名单时生效', dependsOn: draft => draftText(draft, 'dmPolicy') === 'allowlist' },
       // §5.5 的跨字段最终状态判断：与 dmPolicy 共用同一条风险（collectRisks 按说明去重）。
@@ -144,7 +148,7 @@ export const GROUPS: GroupMeta[] = [
       { key: 'groupPolicy', label: '群聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '所有群', allowlist: '白名单', disabled: '不接群聊' }, hint: 'open = 所有群；allowlist = 仅群聊白名单；disabled = 拒绝所有群聊。', section: '群聊', danger: next => (next === 'open' ? 'risk.groupOpen' : null) },
       { key: 'groupAllowFrom', label: '群聊白名单', type: 'stringArray', hint: '每行一个群号，仅白名单策略生效。', section: '群聊', dependsOnText: '仅在群聊策略为白名单时生效', dependsOn: draft => draftText(draft, 'groupPolicy') === 'allowlist' },
       { key: 'requireMention', label: '群聊必须 @ 机器人', type: 'boolean', section: '群聊' },
-      { key: 'restrictedMemberPrefix', label: '群友消息加"受限用户"标记', type: 'boolean', hint: '群里非管理员的消息前加 [受限用户:仅问答]，提示她只回答问题、不做文件和终端操作。关掉后提示词里群友和主人没有区别。', section: '群聊', danger: next => (next === false ? 'risk.restrictedPrefixOff' : null) },
+      { key: 'restrictedMemberPrefix', label: '非管理员消息加关系绸标', type: 'boolean', hint: '群里和非管理员私聊的消息前加一条关系绸标（如 [关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]），写明关系 / 语气 / 服从度 / 亲密 / 能否指挥。关掉后提示词里群友和主人没有区别。', section: '群聊', danger: next => (next === false ? 'risk.restrictedPrefixOff' : null) },
       { key: 'autoAcceptAdminRequests', label: '自动同意管理员的好友/拉群请求', type: 'boolean', hint: '别人的请求不同意，会私聊告诉管理员。', section: '自动处理请求' },
       { key: 'autoAllowInvitedGroups', label: '管理员拉进的群自动加白名单', type: 'boolean', hint: '管理员把机器人拉进的群自动加入群白名单，保存在 mediaDir/group-allowlist.json。', section: '自动处理请求' },
       { key: 'capabilitiesDeny', label: '关闭的功能', type: 'stringArray', hint: '每行一个能力 id，关掉的功能在主人私聊里也不再提供（对应工具不注册给模型）。可填：qq.send.image（发图片）、qq.send.voice（发语音）、qq.send.video（发视频）、qq.send.file（发文件）、qq.send.forward（合并转发）、qq.napcat.api（NapCat 接口）、qq.group.history（群历史消息）、qq.message.open（打开消息）、qq.memory.note（群记忆笔记）、qq.sticker.use（表情包存/搜/发）、qq.sticker.manage（表情包改/删）；留空 = 全部开启。', section: '功能开关' },
@@ -192,8 +196,8 @@ export const GROUPS: GroupMeta[] = [
     title: '会话与任务',
     desc: '忙的时候来新消息怎么办、多久换新会话、旧会话怎么清理',
     fields: [
-      { key: 'newMessagePolicy', label: '任务运行中的新消息', type: 'enum', options: ['queue', 'steer'], optionLabels: { queue: '排队', steer: '插话' }, hint: '任务运行中收到新普通消息：排队=当前任务结束后按序处理（每回合至多提示一次）；插话=作为补充指令加入当前任务。图片/文件/语音/引用消息与受限用户始终按排队处理。', section: '忙的时候' },
-      { key: 'autoSteerPolicy', label: '自动插话资格', type: 'enum', options: ['admin', 'all'], optionLabels: { admin: '仅管理员', all: '所有成员' }, hint: '插话模式下运行中收到的新普通纯文字消息谁可自动插话：仅管理员（默认）或所有成员。不具备资格的消息按排队处理；/steer 命令始终仅管理员；受限用户任何档都不自动插话。', section: '忙的时候', dependsOnText: '仅在「任务运行中的新消息」为插话时生效', dependsOn: draft => draftText(draft, 'newMessagePolicy') === 'steer' },
+      { key: 'newMessagePolicy', label: '任务运行中的新消息', type: 'enum', options: ['queue', 'steer'], optionLabels: { queue: '排队', steer: '插话' }, hint: '任务运行中收到新普通消息：排队=当前任务结束后按序处理（每回合至多提示一次）；插话=作为补充指令加入当前任务。图片/文件/语音/引用消息与带关系绸标的非管理员消息始终按排队处理。', section: '忙的时候' },
+      { key: 'autoSteerPolicy', label: '自动插话资格', type: 'enum', options: ['admin', 'all'], optionLabels: { admin: '仅管理员', all: '所有成员' }, hint: '插话模式下运行中收到的新普通纯文字消息谁可自动插话：仅管理员（默认）或所有成员。不具备资格的消息按排队处理；/steer 命令始终仅管理员；带关系绸标的非管理员消息任何档都不自动插话。', section: '忙的时候', dependsOnText: '仅在「任务运行中的新消息」为插话时生效', dependsOn: draft => draftText(draft, 'newMessagePolicy') === 'steer' },
       { key: 'deferredTimeoutMs', label: '等待模型回复超时（毫秒）', type: 'number', hint: '回合超过该时长无任何模型输出时提示超时并登记补发跟踪，任务完成后自动补发最终文字（超时补发）；发送失败最多重试 3 次，结果不确定时停止自动重试；/stop 终止该聊天的补发跟踪。0=关闭。', section: '忙的时候', unit: 'ms', min: 0, zeroMeans: '关闭' },
       { key: 'unknownCommand', label: '未知命令处理', type: 'enum', options: ['intercept', 'passthrough'], optionLabels: { intercept: '拦截', passthrough: '透传' }, hint: '未知斜杠命令：拦截 = 提示相近命令或 /help；透传 = 交给模型处理。', section: '命令与频控' },
       { key: 'rateLimitPerMinute', label: '每分钟消息频率上限', type: 'number', hint: '每 chat 每分钟普通消息条数上限；命令消息不计入；0 = 不限。', section: '命令与频控', unit: 'perMin', min: 0, zeroMeans: '不限' },
@@ -297,7 +301,7 @@ export const GROUPS: GroupMeta[] = [
   },
 ]
 
-/** 全部 105 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
+/** 全部 109 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
 export const ALL_FIELDS: FieldMeta[] = []
 for (const group of GROUPS) {
   for (const field of group.fields) ALL_FIELDS.push(field)
@@ -313,6 +317,10 @@ export const DEFAULTS: Record<string, unknown> = {
   workspacePath: '',
   attachWorkspaceMode: 'existing',
   adminUsers: [],
+  friendUsers: [],
+  memberObedience: 0.2,
+  friendObedience: 0.5,
+  friendIntimacy: 0.6,
   dmPolicy: 'open',
   allowFrom: [],
   allowAllUsers: false,

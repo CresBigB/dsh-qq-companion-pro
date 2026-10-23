@@ -1,6 +1,7 @@
 /** {@link buildPlatformPrompt} 的入参。 */
 export interface PlatformPromptInput {
-    /** 是否提醒「[受限用户:仅问答]」前缀的语义（restrictedMemberPrefix）。 */
+    /** 是否提醒「[关系:…]」关系绸标的语义（restrictedMemberPrefix：非管理员
+     *  消息前的关系绸标开关）。 */
     restrictedMembers: boolean;
     /** 这个聊天实际启用的能力 id（resolveCapabilities 的结果；顺序无关）。 */
     enabledCapabilityIds: readonly string[];

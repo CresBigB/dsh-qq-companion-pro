@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 105 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 109 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -469,10 +469,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(105)
+    expect(ALL_KEYS).toHaveLength(109)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 105 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 109 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -538,6 +538,12 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     }
   })
 
+  it('access 子页的「关系」卡片：管理员与好友名单、服从度、亲密度同卡片相邻（T10a 关系矩阵）', () => {
+    const access = groups.find((group) => group.id === 'access')!
+    const relationKeys = access.fields.filter((field) => field.section === '关系').map((field) => field.key)
+    expect(relationKeys).toEqual(['adminUsers', 'friendUsers', 'memberObedience', 'friendObedience', 'friendIntimacy'])
+  })
+
   it('hint 不再带「（配置键 xxx）」尾巴（键名改由统一的 .qqc-key 展示）', () => {
     for (const field of allFields) {
       if (field.hint === undefined) continue
@@ -546,14 +552,19 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     }
   })
 
-  it('数字字段带 §3.12 的区间：port 1–65535，其余 min 0 且不设上限；单位只取规范枚举', () => {
+  it('数字字段带 §3.12 的区间：port 1–65535，关系矩阵比例 0–1，其余 min 0 且不设上限；单位只取规范枚举', () => {
     const UNITS = ['ms', 's', 'min', 'h', 'day', 'byte', 'px', 'char', 'count', 'perDay', 'perMin']
     const CONTROLS = ['path', 'time', 'time24']
+    /** 0–1 比例键（关系矩阵 T10a）：上下界都在设置页钉住。 */
+    const RATIO_KEYS = ['memberObedience', 'friendObedience', 'friendIntimacy']
     for (const field of allFields) {
       if (field.type === 'number') {
         if (field.key === 'port') {
           expect(field.min).toBe(1)
           expect(field.max).toBe(65535)
+        } else if (RATIO_KEYS.includes(field.key)) {
+          expect(field.min).toBe(0)
+          expect(field.max).toBe(1)
         } else {
           expect(field.min).toBe(0)
           expect(field.max).toBeUndefined()
@@ -581,8 +592,8 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
     expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
     expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
-    expect(configSchemaKeys).toHaveLength(105)
-    expect(patchSchemaKeys).toHaveLength(105)
+    expect(configSchemaKeys).toHaveLength(109)
+    expect(patchSchemaKeys).toHaveLength(109)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {
@@ -1461,7 +1472,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（105 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（109 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

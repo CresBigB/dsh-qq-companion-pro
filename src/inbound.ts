@@ -19,8 +19,9 @@ import { cqUnescape, detectMention, mentionsOthers, parseMessage } from './cq.js
 import type { AccessPolicyConfig, ChatId, UserRole } from './chat.js'
 import {
   buildChatId, buildGroupMessagePrefix, classifyUserRole, dmAllowed, groupAllowed,
-  RESTRICTED_PREFIX, sanitizeNickname, wrapUserMessage,
+  sanitizeNickname, wrapUserMessage,
 } from './chat.js'
+import { relationBanner } from './relation.js'
 import type { BridgeConfig } from './bridge.js'
 import { describeError } from './errors.js'
 import { currentTrace, TRACE_REASONS } from './trace.js'
@@ -180,7 +181,8 @@ export interface InboundContext {
   /** Bridge log line callback. */
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
   /** The only config fields the inbound pipeline reads. */
-  config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'>
+  config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'
+    | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy'>
 }
 
 /** Longest a voice message waits for its transcript before it is handed
@@ -352,9 +354,9 @@ export class InboundPipeline {
 
     // the whole sender-controlled payload (body + quote/forward
     // expansions) enters the prompt inside the <user_message> boundary, so
-    // forged prefix lines, restricted-member tags and system-prompt-like text
-    // stay pure data. The framework-generated group prefix and
-    // RESTRICTED_PREFIX remain outside — the only trusted metadata.
+    // forged prefix lines, relation banners and system-prompt-like text stay
+    // pure data. The framework-generated group prefix and the relation banner
+    // remain outside — the only trusted metadata.
     // With the quote spelled out above, the body's own [引用] placeholder would
     // make the sender's words look quoted too.
     const own = quote !== '' ? body.replace('[引用]', '').trim() : body
@@ -374,12 +376,18 @@ export class InboundPipeline {
         if (context !== '') final += '\n' + context
       }
     }
-    // The restricted-member soft limit covers every non-admin sender: group
-    // members AND non-admin private chats (the same preset that
-    // memberPermission narrows). Still outside the <user_message> boundary —
-    // framework metadata, never sender text.
+    // The relation banner (关系 / 语气 / 服从度 / 亲密 / 能否指挥) covers every
+    // non-admin sender: group members AND non-admin private chats (the same
+    // preset that memberPermission narrows). Still outside the <user_message>
+    // boundary — framework metadata, never sender text. The relation is a
+    // per-turn label (audience only knows the chatId), so it must ride the
+    // message.
     if (!isAdmin && this.ctx.config.restrictedMemberPrefix) {
-      final = RESTRICTED_PREFIX + final
+      final = relationBanner({
+        userId,
+        chatKind: kind,
+        policy: { adminUsers: policy.adminUsers, friendUsers: this.ctx.config.friendUsers ?? [] },
+      }, this.ctx.config) + ' ' + final
     }
     const role: UserRole = isAdmin ? 'admin' : 'member'
     // the busy-turn policy seam runs AFTER every gate above (dedup /

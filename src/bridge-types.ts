@@ -82,6 +82,14 @@ export interface BridgeConfig {
   /** How the companion refers to the admin in system prompts and notices
    * (e.g. 主人); default 管理员. */
   ownerTitle?: string
+  /** 好友名单（QQ 号）：比群友亲近，但不等同于主人（关系矩阵，见 src/relation.ts）。 */
+  friendUsers?: readonly string[]
+  /** 非主人（群友 / 陌生人）的服从度 0–1；absent → 0.2。 */
+  memberObedience?: number
+  /** 好友的服从度 0–1；absent → 0.5。 */
+  friendObedience?: number
+  /** 好友的亲密度 0–1；absent → 0.6。 */
+  friendIntimacy?: number
   /** public memory size cap for qq_memory_note (bytes). */
   publicMemoryMaxBytes?: number
   /** per-group memory root; '' = shared. */
@@ -121,8 +129,8 @@ export interface BridgeConfig {
   newMessagePolicy?: 'queue' | 'steer'
   /** steer 模式下自动插话的发送者资格档位；
    * absent → 'admin'（缺省）。'admin' = 仅管理员可自动插话；'all' = 所有
-   * 非受限发送者均可。不改变 /steer 命令（始终仅管理员）与 queue 模式行为，
-   * 也不放宽受限用户软限制（受限消息任何档都排队）。 */
+   * 不带关系绸标的发送者均可。不改变 /steer 命令（始终仅管理员）与 queue 模式行为，
+   * 也不放宽非管理员的软限制（带绸标的消息任何档都排队）。 */
   autoSteerPolicy?: 'admin' | 'all'
   /** 等待模型回复超时阈值（ms）——回合超过该时长没有任何模型输出
    * 时提示超时并登记补发跟踪（deferred delivery），回合完成后向原聊天补发

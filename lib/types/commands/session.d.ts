@@ -58,14 +58,15 @@ export declare function isRealUserMessageSource(source: {
 export declare function truncatePreview(text: string, maxLength: number): string;
 /** QQ inbound user messages reach the session wrapped in the
  * <user_message> boundary (chat.ts wrapUserMessage), and inbound.ts may
- * prepend trusted framework metadata OUTSIDE that boundary: the restricted
- * member tag and the group prefix line ([HH:MM 昵称(QQ)][@我] —
- * buildGroupMessagePrefix). Strip that metadata, then return the
- * human-typed body between the opening tag's `>` and the LAST
- * `</user_message>`. Anything that is not a complete wrapped message
- * (different head, missing closer, empty body) comes back unchanged so the
- * caller's existing preview path applies — an unwrap failure never empties
- * the preview. */
+ * prepend trusted framework metadata OUTSIDE that boundary: the relation
+ * banner (per-turn 关系绸标, see src/relation.ts — the legacy
+ * [受限用户:仅问答] tag from older sessions is stripped too) and the group
+ * prefix line ([HH:MM 昵称(QQ)][@我] — buildGroupMessagePrefix). Strip that
+ * metadata, then return the human-typed body between the opening tag's `>`
+ * and the LAST `</user_message>`. Anything that is not a complete wrapped
+ * message (different head, missing closer, empty body) comes back unchanged
+ * so the caller's existing preview path applies — an unwrap failure never
+ * empties the preview. */
 export declare function unwrapUserMessageText(text: string): string;
 /** One-line preview text of one logged user message: every text block
  * concatenated, whitespace runs (newlines included) collapsed so the result

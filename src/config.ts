@@ -39,6 +39,14 @@ export interface Config {
   autoAcceptAdminRequests: boolean
   autoAllowInvitedGroups: boolean
   ownerTitle: string
+  /** 好友名单（QQ 号）：比群友亲近，但不等同于主人。 */
+  friendUsers: string[]
+  /** 非主人（群友 / 陌生人）的服从度 0–1。 */
+  memberObedience: number
+  /** 好友的服从度 0–1。 */
+  friendObedience: number
+  /** 好友的亲密度 0–1。 */
+  friendIntimacy: number
   ignoreSelf: boolean
   interimMessages: boolean
   /** Per-interim auto-recall delay (ms) from each interim's send completion. */
@@ -192,7 +200,7 @@ export const Config: Z<Config> = z.object({
   unknownCommand: z.union([z.const('intercept'), z.const('passthrough')]).default('intercept')
     .description('未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为）'),
   newMessagePolicy: z.union([z.const('queue'), z.const('steer')]).default('queue')
-    .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与 [受限用户:仅问答] 消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
+    .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
   autoSteerPolicy: z.union([z.const('admin'), z.const('all')]).default('admin')
     .description('steer 模式下自动插话的发送者资格：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变'),
   deferredTimeoutMs: z.number().default(600_000)
@@ -213,6 +221,14 @@ export const Config: Z<Config> = z.object({
     .description('管理员发来的好友申请和进群邀请自动同意（其他人的一律不同意，并私聊告诉管理员）'),
   ownerTitle: z.string().default('管理员')
     .description('机器人在系统提示和通知里对管理员的称呼，例如「主人」'),
+  friendUsers: z.array(z.string()).default([])
+    .description('好友名单（QQ 号，每行一个）：比群友亲近，但不等同于主人'),
+  memberObedience: z.percent().default(0.2)
+    .description('非主人（群友 / 陌生人）的服从度：0 = 完全不听，1 = 基本都听。只管“要求要不要照做、拒绝时怎么解释”，不管听不听话；不管多少都不许骂人'),
+  friendObedience: z.percent().default(0.5)
+    .description('好友的服从度：0 = 完全不听，1 = 基本都听。只管“要求要不要照做、拒绝时怎么解释”，不管听不听话；不管多少都不许骂人'),
+  friendIntimacy: z.percent().default(0.6)
+    .description('好友的亲密度（影响称呼与语气亲近程度，0.6 = 比群友亲近但不越界）'),
   autoAllowInvitedGroups: z.boolean().default(false)
     .description('管理员拉机器人进的群自动加入群白名单（运行期白名单，保存在 mediaDir/group-allowlist.json）'),
   ignoreSelf: z.boolean().default(true)
@@ -228,7 +244,7 @@ export const Config: Z<Config> = z.object({
   rateLimitPerMinute: z.number().default(30)
     .description('每 chat 每分钟允许的普通消息条数上限（60 秒滑动窗口）；命令消息不计入也不受限；超限时每窗口最多提示一次；0=禁用频控'),
   restrictedMemberPrefix: z.boolean().default(true)
-    .description('群聊与非管理员私聊的消息注入 [受限用户:仅问答] 前缀（软限制）'),
+    .description('群聊与非管理员私聊的消息前加一条关系绸标（形如 [关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]，写明关系 / 语气 / 服从度 / 亲密 / 能否指挥；软限制）'),
   sensitivePatterns: z.array(z.string()).default([])
     .description('出站敏感内容审计正则（默认内置 rm -rf/关机/删库/密钥 等模式；留空用默认）'),
   mediaDir: z.string().default('')

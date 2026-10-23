@@ -25,6 +25,14 @@ export interface Config {
     autoAcceptAdminRequests: boolean;
     autoAllowInvitedGroups: boolean;
     ownerTitle: string;
+    /** 好友名单（QQ 号）：比群友亲近，但不等同于主人。 */
+    friendUsers: string[];
+    /** 非主人（群友 / 陌生人）的服从度 0–1。 */
+    memberObedience: number;
+    /** 好友的服从度 0–1。 */
+    friendObedience: number;
+    /** 好友的亲密度 0–1。 */
+    friendIntimacy: number;
     ignoreSelf: boolean;
     interimMessages: boolean;
     /** Per-interim auto-recall delay (ms) from each interim's send completion. */

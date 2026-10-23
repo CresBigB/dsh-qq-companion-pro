@@ -81,7 +81,8 @@ export const EXCLUDED_KEYS: readonly string[] = [
 export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   connection: ['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'attachWorkspaceMode'],
   access: [
-    'adminUsers', 'dmPolicy', 'allowFrom', 'allowAllUsers',
+    'adminUsers', 'friendUsers', 'memberObedience', 'friendObedience', 'friendIntimacy',
+    'dmPolicy', 'allowFrom', 'allowAllUsers',
     'groupPolicy', 'groupAllowFrom', 'requireMention', 'restrictedMemberPrefix',
     'autoAcceptAdminRequests', 'autoAllowInvitedGroups',
     'capabilitiesDeny',

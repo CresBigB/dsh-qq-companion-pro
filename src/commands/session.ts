@@ -6,7 +6,8 @@ import { CommandContext, CommandSender } from './types.js'
 import { resolveNumericSelection } from './selection.js'
 import { SessionId as makeSessionId } from '@deepseek-ai/dsh-session'
 
-import { RESTRICTED_PREFIX, type ChatId, wrapUserMessage } from '../chat.js'
+import { type ChatId, wrapUserMessage } from '../chat.js'
+import { stripRelationPrefix } from '../relation.js'
 import type { SessionPreviewEvent, SessionReadHandleLike } from '../bridge.js'
 import { describeError } from '../errors.js'
 import { failureRefSuffix } from '../ref.js'
@@ -140,17 +141,17 @@ export function truncatePreview(text: string, maxLength: number): string {
 
 /** QQ inbound user messages reach the session wrapped in the
  * <user_message> boundary (chat.ts wrapUserMessage), and inbound.ts may
- * prepend trusted framework metadata OUTSIDE that boundary: the restricted
- * member tag and the group prefix line ([HH:MM 昵称(QQ)][@我] —
- * buildGroupMessagePrefix). Strip that metadata, then return the
- * human-typed body between the opening tag's `>` and the LAST
- * `</user_message>`. Anything that is not a complete wrapped message
- * (different head, missing closer, empty body) comes back unchanged so the
- * caller's existing preview path applies — an unwrap failure never empties
- * the preview. */
+ * prepend trusted framework metadata OUTSIDE that boundary: the relation
+ * banner (per-turn 关系绸标, see src/relation.ts — the legacy
+ * [受限用户:仅问答] tag from older sessions is stripped too) and the group
+ * prefix line ([HH:MM 昵称(QQ)][@我] — buildGroupMessagePrefix). Strip that
+ * metadata, then return the human-typed body between the opening tag's `>`
+ * and the LAST `</user_message>`. Anything that is not a complete wrapped
+ * message (different head, missing closer, empty body) comes back unchanged
+ * so the caller's existing preview path applies — an unwrap failure never
+ * empties the preview. */
 export function unwrapUserMessageText(text: string): string {
-  let rest = text
-  if (rest.startsWith(RESTRICTED_PREFIX)) rest = rest.slice(RESTRICTED_PREFIX.length)
+  let rest = stripRelationPrefix(text)
   const groupPrefix = /^\[\d{2}:\d{2} .*?\(\d+\)\](?:\[@我\])? /.exec(rest)
   if (groupPrefix !== null) rest = rest.slice(groupPrefix[0].length)
   if (!rest.startsWith('<user_message ')) return text

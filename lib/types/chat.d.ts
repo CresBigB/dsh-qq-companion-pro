@@ -101,7 +101,9 @@ export declare function sanitizeNickname(nickname: string): string;
  * @returns the prefix string (never empty: always at least the time stamp).
  */
 export declare function buildGroupMessagePrefix(nickname: string, userId: string, mentioned: boolean | string): string;
-/** Soft-cap prefix for restricted (member-role) group users. */
+/** 历史前缀（T10a 前非管理员消息的软限制绸标）。新消息改用 src/relation.ts
+ *  的关系绸标（describeRelation）；本常量只为兼容历史会话的解析与剥标签保留，
+ *  不再由入站管线注入。 */
 export declare const RESTRICTED_PREFIX = "[\u53D7\u9650\u7528\u6237:\u4EC5\u95EE\u7B54] ";
 /**
  * message-id whitelist: a OneBot message_id is alphanumeric plus hyphens

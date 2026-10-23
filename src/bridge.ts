@@ -32,6 +32,7 @@ import { parseControlBlock, parseReplyPass, type ControlBlock, type ParseControl
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
 import { ChatRegistry, type ChatAgent } from './registry.js'
+import { stripRelationPrefix } from './relation.js'
 import { parseLeadingQuote, SELF_QUOTE_TOKEN, SeenMessageIds, type QuoteMarker } from './reply-quote.js'
 import { registerStickerTools } from './sticker-tools.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
@@ -809,11 +810,12 @@ export class ChatBridge {
   private async interceptBusyTurn(chatId: ChatId, text: string, role: UserRole, nickname: string | undefined, plain: boolean, messageId?: string): Promise<boolean> {
     const chat = this.chats.get(chatId)
     if (chat === undefined || chat.agent.status !== 'running') return false
-    // The restricted-member soft limit ([受限用户:仅问答]) is never widened by
-    // the steer policy: restricted senders' messages queue like everyone
-    // else's media. The condition mirrors the RESTRICTED_PREFIX application
-    // in the inbound pipeline (non-admin + restrictedMemberPrefix — group
-    // members and non-admin private chats alike).
+    // The non-admin relation-banner soft limit ([关系:…], see
+    // src/relation.ts) is never widened by the steer policy: restricted
+    // senders' messages queue like everyone else's media. The condition
+    // mirrors the relation-banner application in the inbound pipeline
+    // (non-admin + restrictedMemberPrefix — group members and non-admin
+    // private chats alike).
     const restricted = role !== 'admin' && this.deps.config.restrictedMemberPrefix
     // auto-steer eligibility — 'admin' (default) = admins only; 'all' =
     // anyone. Restricted members stay excluded under both; /steer remains
@@ -1274,12 +1276,11 @@ export class ChatBridge {
 export { OneBotNotConnectedError, OneBotActionError } from './connection.js'
 
 /** the readable text of a dispatched user turn (drops the
- * plugin's <user_message> wrapper and the [HH:MM 昵称(QQ)] / restricted
+ * plugin's <user_message> wrapper and the [HH:MM 昵称(QQ)] / relation-banner
  * prefixes) for the activity record. */
 function plainUserText(text: string): string {
-  return text
+  return stripRelationPrefix(text)
     .replace(/<\/?user_message[^>]*>/g, ' ')
-    .replace(/\[受限用户:仅问答\]\s*/g, '')
     .replace(/<group_context>[\s\S]*?<\/group_context>/g, ' ')
     .replace(/\[\d{2}:\d{2} [^\]]*\(\d+\)\](\[(@我|叫到我|接着和我说)\])?/g, '')
     .trim()
