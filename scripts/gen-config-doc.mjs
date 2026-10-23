@@ -4,7 +4,7 @@
 // Usage: npm run docs:config   (tests/config-doc.spec.ts fails when stale)
 import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const typeOf = schema => {
   if (schema.type === 'union') return schema.list.map(item => JSON.stringify(item.value ?? item.type)).join(' / ')
@@ -39,9 +39,9 @@ export function renderConfigDoc(Config) {
   ].join('\n')
 }
 
-if (import.meta.url === 'file://' + process.argv[1]) {
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-  const { Config } = await import(join(root, 'lib', 'config.js'))
+  const { Config } = await import(pathToFileURL(join(root, 'lib', 'config.js')).href)
   writeFileSync(join(root, 'docs', 'CONFIG.md'), renderConfigDoc(Config))
   console.log('docs/CONFIG.md: ' + Object.keys(Config.dict).length + ' 项')
 }
