@@ -46,6 +46,15 @@ export function matchField(field: FieldMeta, group: Pick<GroupMeta, 'title'>, qu
   if (field.hint != null && includesNeedle(field.hint, needle)) hits.push('hint')
   if (includesNeedle(group.title, needle)) hits.push('group')
   if (includesNeedle(field.section, needle)) hits.push('section')
+  // 下拉选项的可见文案也算匹配范围（§5.3 + F2b）：用户可能只记得选项名。
+  if (field.optionLabels != null) {
+    for (const optionLabel of Object.values(field.optionLabels)) {
+      if (includesNeedle(String(optionLabel), needle)) {
+        hits.push('option')
+        break
+      }
+    }
+  }
   return hits
 }
 

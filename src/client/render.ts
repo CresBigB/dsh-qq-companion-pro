@@ -21,6 +21,7 @@ import {
   valueEquals,
 } from './logic.js'
 import { highlightSegments, type FieldMatch } from './search.js'
+import type { RiskEntry } from './validate.js'
 
 /** createElement 的薄封装（与产物里的 h(ReactImpl, tag, props, ...children) 同形）。 */
 export function h(ReactImpl: ReactLike, tag: unknown, props: unknown, ...children: unknown[]): ReactElement {
@@ -55,6 +56,10 @@ export interface RenderFieldsOptions {
   tagInputs?: Record<string, string>
   /** 搜索高亮词（命中文字包 .qqc-mark）。 */
   highlight?: string
+  /** 实时校验结果（键 → 错误文案）：命中行 data-invalid + 控件 aria-invalid + 错误文字。 */
+  invalid?: Record<string, string> | null
+  /** 草稿触发危险的字段 key：这些行加「有风险」warn 徽标（§4.1 徽标顺序最后一位）。 */
+  riskKeys?: string[]
   /** 只看已改动：跳过既非已改动也非非默认的行。 */
   onlyChanged?: boolean
   /** (field, nextDisplayValue) => void */
@@ -88,6 +93,11 @@ export function fieldControlId(key: string): string {
 /** 说明文字 id（控件的 aria-describedby 指向它）。 */
 export function fieldHintId(key: string): string {
   return 'qqc-h-' + key
+}
+
+/** 错误文字 id（§4.1：校验失败时一并进控件的 aria-describedby）。 */
+export function fieldErrorId(key: string): string {
+  return 'qqc-e-' + key
 }
 
 /** 草稿里的展示值。 */
@@ -146,11 +156,12 @@ function richText(ReactImpl: ReactLike, text: string, query: string | undefined)
 }
 
 /** 构造行内控件（不含单位 / 恢复默认按钮）。 */
-function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFieldsOptions, t: Translate, describedBy?: string): ReactElement {
+function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFieldsOptions, t: Translate, describedBy?: string, invalid?: boolean): ReactElement {
   const value = draftOf(options, field)
   const disabled = options.disabled === true
   const id = fieldControlId(field.key)
   const onChange = typeof options.onChange === 'function' ? options.onChange : () => {}
+  const ariaInvalid = invalid === true ? 'true' : undefined
 
   if (field.type === 'boolean') {
     const on = value === true
@@ -160,6 +171,7 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
       role: 'switch',
       id: id,
       'aria-checked': on,
+      'aria-invalid': ariaInvalid,
       'aria-describedby': describedBy,
       disabled: disabled,
       onClick: () => { onChange(field, !on) },
@@ -174,6 +186,7 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
       id: id,
       value: String(value == null ? '' : value),
       disabled: disabled,
+      'aria-invalid': ariaInvalid,
       'aria-describedby': describedBy,
       onChange: (event: { target: { value: string } }) => { onChange(field, event.target.value) },
     }, enumOptions.map(option => {
@@ -207,6 +220,7 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
         disabled: disabled,
         placeholder: tags.length === 0 ? t('tags.placeholder') : '',
         'aria-label': field.label,
+        'aria-invalid': ariaInvalid,
         'aria-describedby': describedBy,
         spellCheck: false,
         onChange: (event: { target: { value: string } }) => { onTagInput(field, event.target.value) },
@@ -252,6 +266,7 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
         disabled: disabled || options.clearSecret === true,
         placeholder: t('secret.placeholder'),
         autoComplete: 'new-password',
+        'aria-invalid': ariaInvalid,
         'aria-describedby': describedBy,
         onChange: (event: { target: { value: string } }) => { onSecretChange(event.target.value) },
       }),
@@ -277,6 +292,7 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
     placeholder: field.placeholder != null ? field.placeholder : (kind === 'time' || kind === 'time24' ? 'HH:MM' : undefined),
     spellCheck: field.control === 'path' ? false : undefined,
     autoComplete: field.control === 'path' ? 'off' : undefined,
+    'aria-invalid': ariaInvalid,
     'aria-describedby': describedBy,
     onChange: (event: { target: { value: string } }) => { onChange(field, event.target.value) },
   })
@@ -284,7 +300,8 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
 
 /**
  * 渲染一个字段行（§4.1）：左 label + key + hint（stack 行控件在说明下方），右控件。
- * 数据属性：data-dirty / data-inactive（data-invalid 的实时校验属 F2b）。
+ * 数据属性：data-dirty（草稿 ≠ 生效值）/ data-inactive（依赖未满足）/
+ * data-invalid（§5.4 实时校验失败：控件红框 + 下方错误文字 + aria-invalid）。
  */
 export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: RenderFieldsOptions): ReactElement {
   const options: RenderFieldsOptions = opts == null ? {} : opts
@@ -293,6 +310,8 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
   const nonDefault = isFieldNonDefault(field, options)
   const inactive = isFieldInactive(field, options)
   const willClear = field.type === 'secret' && options.clearSecret === true
+  const risk = Array.isArray(options.riskKeys) && options.riskKeys.indexOf(field.key) >= 0
+  const error = options.invalid == null ? undefined : options.invalid[field.key]
   const stack = field.type === 'stringArray'
 
   const badges: Array<ReactElement | null> = []
@@ -300,6 +319,8 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
   if (nonDefault) badges.push(h(ReactImpl, 'span', { className: 'qqc-badge', key: 'badge-non-default' }, t('badge.nonDefault')))
   if (inactive) badges.push(h(ReactImpl, 'span', { className: 'qqc-badge', key: 'badge-inactive' }, t('badge.inactive')))
   if (willClear) badges.push(h(ReactImpl, 'span', { className: 'qqc-badge', 'data-tone': 'warn', key: 'badge-will-clear' }, t('badge.willClear')))
+  // §4.1 徽标顺序的最后一位：草稿触发 danger 的字段加「有风险」。
+  if (risk) badges.push(h(ReactImpl, 'span', { className: 'qqc-badge', 'data-tone': 'warn', key: 'badge-risk' }, t('badge.risk')))
 
   const hintNodes: Array<ReactElement | null> = []
   const hasHint = field.hint != null && field.hint !== ''
@@ -314,10 +335,14 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
       id: hasHint ? undefined : fieldHintId(field.key),
     }, field.dependsOnText))
   }
-  // 只有确实渲染了说明段落时才挂 aria-describedby（避免指向不存在的 id）。
-  const describedBy = hasHint || hasInactiveNote ? fieldHintId(field.key) : undefined
+  // 只有确实渲染了说明段落时才挂 aria-describedby（避免指向不存在的 id）；
+  // 校验失败时错误文字（qqc-e-<key>）一并进 aria-describedby。
+  const describedIds: string[] = []
+  if (hasHint || hasInactiveNote) describedIds.push(fieldHintId(field.key))
+  if (error != null) describedIds.push(fieldErrorId(field.key))
+  const describedBy = describedIds.length === 0 ? undefined : describedIds.join(' ')
 
-  const control = controlOf(ReactImpl, field, options, t, describedBy)
+  const control = controlOf(ReactImpl, field, options, t, describedBy, error != null)
   const unitTextValue = field.type === 'number' ? unitText(field, draftOf(options, field)) : ''
   const unit = unitTextValue === '' ? null : h(ReactImpl, 'span', { className: 'qqc-unit' }, unitTextValue)
   const resetButton = canResetField(field, options) && typeof options.onResetField === 'function'
@@ -331,6 +356,7 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
       onClick: () => { if (typeof options.onResetField === 'function') options.onResetField(field) },
     }, '↺')
     : null
+  const errorNode = error == null ? null : h(ReactImpl, 'p', { className: 'qqc-error', id: fieldErrorId(field.key) }, error)
 
   let controlNode: ReactElement
   if (field.type === 'boolean') {
@@ -339,17 +365,20 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
       h(ReactImpl, 'div', { className: 'qqc-switch-line' },
         control,
         h(ReactImpl, 'span', { className: 'qqc-switch-text' }, on ? t('switch.on') : t('switch.off')),
-        resetButton))
+        resetButton),
+      errorNode)
   } else if (field.type === 'stringArray') {
     controlNode = h(ReactImpl, 'div', { className: 'qqc-control' },
       h(ReactImpl, 'div', { className: 'qqc-control-line' },
         h(ReactImpl, 'div', { style: { flex: '1 1 auto', minWidth: 0 } }, control),
-        resetButton))
+        resetButton),
+      errorNode)
   } else if (field.type === 'secret') {
-    controlNode = h(ReactImpl, 'div', { className: 'qqc-control' }, control)
+    controlNode = h(ReactImpl, 'div', { className: 'qqc-control' }, control, errorNode)
   } else {
     controlNode = h(ReactImpl, 'div', { className: 'qqc-control' },
-      h(ReactImpl, 'div', { className: 'qqc-control-line' }, control, unit, resetButton))
+      h(ReactImpl, 'div', { className: 'qqc-control-line' }, control, unit, resetButton),
+      errorNode)
   }
 
   const props: Record<string, unknown> = {
@@ -359,6 +388,7 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
   }
   if (dirty) props['data-dirty'] = 'true'
   if (inactive) props['data-inactive'] = 'true'
+  if (error != null) props['data-invalid'] = 'true'
 
   return h(ReactImpl, 'div', props,
     h(ReactImpl, 'div', { className: 'qqc-row-meta' },
@@ -573,4 +603,103 @@ export function dropTag(list: unknown, index: number): string[] {
 /** 便捷：数字控件的单位换算（面板与测试共用同一份纯函数）。 */
 export function conversionOf(field: OnebotField, value: unknown): string {
   return unitConversion(field, value)
+}
+
+/** 对话框键盘事件的最小结构（Esc 关闭 / Tab 循环）。 */
+interface DialogKeyEventLike {
+  key: string
+  shiftKey?: boolean
+  target: unknown
+  currentTarget: unknown
+  preventDefault(): void
+}
+
+/** 对话框内的可聚焦集合（Tab 循环范围）。 */
+interface FocusScopeLike {
+  querySelectorAll(selector: string): ArrayLike<{ focus(): void }>
+}
+
+/** 危险确认对话框的选项（§4.12）。 */
+export interface RenderRiskDialogOptions {
+  /** collectRisks 的结果（空数组 / 缺省 → 不渲染）。 */
+  risks?: RiskEntry[]
+  /** 翻译函数（缺省 zh）。 */
+  t?: Translate
+  /** 「取消」（Esc 同义）。 */
+  onCancel?: () => void
+  /** 「仍然保存」。 */
+  onConfirm?: () => void
+}
+
+/**
+ * 危险确认对话框（§4.12 + §5.5）。
+ *
+ * 覆盖层 `.qqc-overlay` 挂在**面板根节点内**（position:fixed，绝不往 document.body
+ * 挂节点）；标题 / 风险列表 / 「取消」+「仍然保存」；打开时焦点到「取消」
+ * （autoFocus + id 供面板的焦点 effect 兜底）、Esc 关闭、Tab 在对话框内循环。
+ */
+export function renderRiskDialog(ReactImpl: ReactLike, opts?: RenderRiskDialogOptions): ReactElement | null {
+  const options: RenderRiskDialogOptions = opts == null ? {} : opts
+  const risks = Array.isArray(options.risks) ? options.risks : []
+  if (risks.length === 0) return null
+  const t: Translate = typeof options.t === 'function' ? options.t : fallbackTranslate
+  const onCancel = (): void => { if (typeof options.onCancel === 'function') options.onCancel() }
+  const onConfirm = (): void => { if (typeof options.onConfirm === 'function') options.onConfirm() }
+  return h(ReactImpl, 'div', { className: 'qqc-overlay', 'data-role': 'risk-overlay', key: 'risk-overlay' },
+    h(ReactImpl, 'div', {
+      className: 'qqc-dialog',
+      'data-role': 'risk-dialog',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-labelledby': 'qqc-risk-title',
+      onKeyDown: (event: DialogKeyEventLike) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+          return
+        }
+        if (event.key !== 'Tab') return
+        const scope = event.currentTarget as FocusScopeLike | null
+        if (scope == null || typeof scope.querySelectorAll !== 'function') return
+        const focusables = Array.prototype.slice.call(scope.querySelectorAll('.qqc-btn')) as Array<{ focus(): void }>
+        if (focusables.length === 0) return
+        let index = -1
+        for (let i = 0; i < focusables.length; i += 1) {
+          if (focusables[i] === event.target) index = i
+        }
+        event.preventDefault()
+        if (index < 0) {
+          focusables[event.shiftKey === true ? focusables.length - 1 : 0].focus()
+          return
+        }
+        const next = event.shiftKey === true
+          ? (index - 1 + focusables.length) % focusables.length
+          : (index + 1) % focusables.length
+        focusables[next].focus()
+      },
+    },
+      h(ReactImpl, 'h3', { className: 'qqc-dialog-title', id: 'qqc-risk-title' }, t('risk.title')),
+      h(ReactImpl, 'p', { className: 'qqc-dialog-text' }, t('risk.text')),
+      h(ReactImpl, 'ul', { className: 'qqc-risk-list' }, risks.map((risk, index) => h(ReactImpl, 'li', {
+        className: 'qqc-risk',
+        key: 'risk-' + index,
+        'data-key': risk.keys.join(' '),
+      },
+        h(ReactImpl, 'span', { className: 'qqc-risk-field' }, risk.label),
+        t(risk.messageKey)))),
+      h(ReactImpl, 'div', { className: 'qqc-dialog-actions' },
+        h(ReactImpl, 'button', {
+          className: 'qqc-btn',
+          type: 'button',
+          id: 'qqc-risk-cancel',
+          autoFocus: true,
+          onClick: () => { onCancel() },
+        }, t('risk.cancel')),
+        h(ReactImpl, 'button', {
+          className: 'qqc-btn',
+          type: 'button',
+          'data-variant': 'danger',
+          id: 'qqc-risk-confirm',
+          onClick: () => { onConfirm() },
+        }, t('risk.confirm')))))
 }

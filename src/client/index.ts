@@ -136,7 +136,8 @@ export {
   valueEquals,
 } from './logic.js'
 export { groupMatches, highlightSegments, matchField, normalizeQuery, searchFields } from './search.js'
-export { groupCards, renderFieldRow, renderGroup, renderSearchResults, renderWorkspacePicker } from './render.js'
+export { collectRisks, riskFieldKeys, validateDraft } from './validate.js'
+export { fieldControlId, fieldErrorId, fieldHintId, groupCards, renderFieldRow, renderGroup, renderRiskDialog, renderSearchResults, renderWorkspacePicker } from './render.js'
 export { OnebotSettingsPanel } from './panel.js'
-export { SettingsView, changeKeys } from './view.js'
+export { SettingsView, changeKeys, groupCounts } from './view.js'
 export { SECOND_ENTRY_KEY, SECOND_ENTRY_SLOT, SLOT_ID, SLOT_ORDER } from './constants.js'

@@ -5,8 +5,9 @@
  * - 分组 id / 键序与 src/settings-remote.ts 的 SETTINGS_GROUPS 完全同构；
  * - title / desc 用 §1.2 的名称与一句话说明；
  * - 每个字段的 section（卡片名）、control、unit、min/max、placeholder、
- *   dependsOnText 是 §3 表格的静态投影；dependsOn / danger 这两个函数型
- *   元数据留给 F2（本文件只放静态数据，便于快照/契约测试比对）；
+ *   dependsOnText 是 §3 表格的静态投影；函数型元数据 dependsOn（F2a）与
+ *   danger（F2b，§5.5 危险判定）直接写在字段上，由 validate.ts 的
+ *   collectRisks 统一按「草稿 ≠ 生效值」把关；
  * - DEFAULTS 全量覆盖上页的 102 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
  * - 不上页的 5 个键（imageMaxSize / maxImageBytes / maxInboundFileBytes /
  *   scheduledPrompts / sttReplacements）见宿主的 EXCLUDED_KEYS。
@@ -52,6 +53,13 @@ export interface FieldMeta {
   /** 依赖条件（§3「依赖」列的函数化投影）：返回 false = 未生效——整行弱化、
    *  加「未生效」徽标、在说明下追加 dependsOnText，但控件仍可编辑。 */
   dependsOn?: (draft: Record<string, unknown>) => boolean
+  /** 危险改动判定（§3.12 / §5.5）：返回**风险说明的词条 key**（`risk.*`，由视图
+   *  用 t() 解析成说明）表示这次改动有风险，返回 null 表示无风险。
+   *  - `next` = 草稿里的强制值（coerceValue 之后），`prev` = 生效值，
+   *    `draft` = 整份草稿（跨字段规则如「dmPolicy=open 且 allowAllUsers」读它）；
+   *  - 「没改动就不算风险」由 collectRisks 统一把关：只有草稿 ≠ 生效值的字段才会
+   *    走到这里的返回值，所以已经是 open+allowAllUsers 的生效配置不会弹窗。 */
+  danger?: (next: unknown, prev: unknown, draft: Record<string, unknown>) => string | null
   /** 0 值的语义（§4.3）：数值为 0 时换算区显示「= 关闭」/「= 不限」。 */
   zeroMeans?: '关闭' | '不限'
 }
@@ -110,9 +118,10 @@ export const GROUPS: GroupMeta[] = [
     title: '连接',
     desc: 'NapCat 怎么连到这个插件，QQ 会话默认放在哪个工作区',
     fields: [
-      { key: 'host', label: '监听地址', type: 'string', hint: 'NapCat 反向 WebSocket 连接的地址，一般保持 127.0.0.1。', section: 'NapCat 连接' },
-      { key: 'port', label: '监听端口', type: 'number', hint: 'NapCat 反向 WebSocket 连接的端口。', section: 'NapCat 连接', min: 1, max: 65535 },
-      { key: 'accessToken', label: '访问令牌（AccessToken）', type: 'secret', hint: '与 NapCat 侧一致的鉴权令牌；留空 = 不修改，点「清空」后保存 = 清空。', section: 'NapCat 连接' },
+      // §5.5：改 host / port 必须同步改 NapCat 侧，否则断连；清空令牌 = 不再校验（§4.6）。
+      { key: 'host', label: '监听地址', type: 'string', hint: 'NapCat 反向 WebSocket 连接的地址，一般保持 127.0.0.1。', section: 'NapCat 连接', danger: () => 'risk.hostPort' },
+      { key: 'port', label: '监听端口', type: 'number', hint: 'NapCat 反向 WebSocket 连接的端口。', section: 'NapCat 连接', min: 1, max: 65535, danger: () => 'risk.hostPort' },
+      { key: 'accessToken', label: '访问令牌（AccessToken）', type: 'secret', hint: '与 NapCat 侧一致的鉴权令牌；留空 = 不修改，点「清空」后保存 = 清空。', section: 'NapCat 连接', danger: () => 'risk.tokenClear' },
       { key: 'botQQ', label: '机器人 QQ 号', type: 'string', hint: '留空则连上后自动识别。', section: 'NapCat 连接' },
       // workspacePath 的语义（对齐 README「会话工作区选择」）：修改只对新会话生效；
       // 已设 per-chat /workspace 覆盖的会话不受影响。
@@ -126,13 +135,14 @@ export const GROUPS: GroupMeta[] = [
     desc: '谁能私聊、哪些群能用、群里的人能让她做什么',
     fields: [
       { key: 'adminUsers', label: '管理员（主人）QQ', type: 'stringArray', hint: '每行一个 QQ 号。', section: '私聊' },
-      { key: 'dmPolicy', label: '私聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '仅管理员（开了"允许所有用户"则所有人）', allowlist: '白名单', disabled: '不接私聊' }, hint: 'open = 仅管理员；allowlist = 仅私聊白名单；disabled = 拒绝所有私聊。', section: '私聊' },
+      { key: 'dmPolicy', label: '私聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '仅管理员（开了"允许所有用户"则所有人）', allowlist: '白名单', disabled: '不接私聊' }, hint: 'open = 仅管理员；allowlist = 仅私聊白名单；disabled = 拒绝所有私聊。', section: '私聊', danger: (next, prev, draft) => (next === 'open' && draftBool(draft, 'allowAllUsers') ? 'risk.dmOpenAll' : null) },
       { key: 'allowFrom', label: '私聊白名单', type: 'stringArray', hint: '每行一个 QQ 号，仅白名单策略生效。', section: '私聊', dependsOnText: '仅在私聊策略为白名单时生效', dependsOn: draft => draftText(draft, 'dmPolicy') === 'allowlist' },
-      { key: 'allowAllUsers', label: '允许所有用户', type: 'boolean', hint: '开发用。打开后任何人都能私聊她。', section: '私聊' },
-      { key: 'groupPolicy', label: '群聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '所有群', allowlist: '白名单', disabled: '不接群聊' }, hint: 'open = 所有群；allowlist = 仅群聊白名单；disabled = 拒绝所有群聊。', section: '群聊' },
+      // §5.5 的跨字段最终状态判断：与 dmPolicy 共用同一条风险（collectRisks 按说明去重）。
+      { key: 'allowAllUsers', label: '允许所有用户', type: 'boolean', hint: '开发用。打开后任何人都能私聊她。', section: '私聊', danger: (next, prev, draft) => (next === true && draftText(draft, 'dmPolicy') === 'open' ? 'risk.dmOpenAll' : null) },
+      { key: 'groupPolicy', label: '群聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '所有群', allowlist: '白名单', disabled: '不接群聊' }, hint: 'open = 所有群；allowlist = 仅群聊白名单；disabled = 拒绝所有群聊。', section: '群聊', danger: next => (next === 'open' ? 'risk.groupOpen' : null) },
       { key: 'groupAllowFrom', label: '群聊白名单', type: 'stringArray', hint: '每行一个群号，仅白名单策略生效。', section: '群聊', dependsOnText: '仅在群聊策略为白名单时生效', dependsOn: draft => draftText(draft, 'groupPolicy') === 'allowlist' },
       { key: 'requireMention', label: '群聊必须 @ 机器人', type: 'boolean', section: '群聊' },
-      { key: 'restrictedMemberPrefix', label: '群友消息加"受限用户"标记', type: 'boolean', hint: '群里非管理员的消息前加 [受限用户:仅问答]，提示她只回答问题、不做文件和终端操作。关掉后提示词里群友和主人没有区别。', section: '群聊' },
+      { key: 'restrictedMemberPrefix', label: '群友消息加"受限用户"标记', type: 'boolean', hint: '群里非管理员的消息前加 [受限用户:仅问答]，提示她只回答问题、不做文件和终端操作。关掉后提示词里群友和主人没有区别。', section: '群聊', danger: next => (next === false ? 'risk.restrictedPrefixOff' : null) },
       { key: 'autoAcceptAdminRequests', label: '自动同意管理员的好友/拉群请求', type: 'boolean', hint: '别人的请求不同意，会私聊告诉管理员。', section: '自动处理请求' },
       { key: 'autoAllowInvitedGroups', label: '管理员拉进的群自动加白名单', type: 'boolean', hint: '管理员把机器人拉进的群自动加入群白名单，保存在 mediaDir/group-allowlist.json。', section: '自动处理请求' },
     ],
@@ -145,8 +155,9 @@ export const GROUPS: GroupMeta[] = [
       { key: 'ownerTitle', label: '对主人的称呼', type: 'string', hint: '系统提示和通知里怎么称呼管理员，例如“主人”。', section: '称呼' },
       { key: 'agentPreset', label: 'QQ 会话默认预设', type: 'string', hint: '群聊和其他人用的 dsh 预设 id；留空 = 宿主默认预设。', section: '预设与权限' },
       { key: 'adminPreset', label: '管理员私聊预设', type: 'string', hint: '管理员私聊的新会话用这个预设；留空 = 同上。', section: '预设与权限' },
-      { key: 'adminPermission', label: '管理员私聊权限预设', type: 'string', hint: '管理员私聊每个新会话自动切到的宿主权限预设，例如 danger-full-access；留空 = 不切。', section: '预设与权限' },
-      { key: 'memberPermission', label: '其他会话的宿主权限', type: 'string', hint: '非管理员私聊与所有群聊的新会话自动切换的权限预设，建议 read-only；留空 = 不切，会话继承宿主默认预设。', section: '预设与权限' },
+      { key: 'adminPermission', label: '管理员私聊权限预设', type: 'string', hint: '管理员私聊每个新会话自动切到的宿主权限预设，例如 danger-full-access；留空 = 不切。', section: '预设与权限', danger: next => (next === 'danger-full-access' ? 'risk.adminPermissionFull' : null) },
+      // §3.3 追加的两种危险：改成空（不再收窄权限）或改成完整权限。
+      { key: 'memberPermission', label: '其他会话的宿主权限', type: 'string', hint: '非管理员私聊与所有群聊的新会话自动切换的权限预设，建议 read-only；留空 = 不切，会话继承宿主默认预设。', section: '预设与权限', danger: next => (String(next == null ? '' : next).trim() === '' ? 'risk.memberPermissionEmpty' : (String(next).trim() === 'danger-full-access' ? 'risk.memberPermissionFull' : null)) },
       { key: 'adminWorkspacePath', label: '管理员私聊工作目录', type: 'string', control: 'path', hint: '管理员私聊的会话工作目录（私密记忆所在目录）；留空 = 会话默认工作区。设置后覆盖 workspacePath：管理员私聊会话用这个目录，不受「会话默认工作区路径」影响。', section: '预设与权限' },
       { key: 'groupReasoningEffort', label: '群聊思考强度', type: 'enum', options: ['', 'off', 'low', 'high', 'max'], optionLabels: { '': '跟随部署默认', off: '关闭', low: '低', high: '高', max: '最高' }, hint: '群里消息多，调低能省额度；私聊不受影响。', section: '群聊' },
     ],
@@ -260,9 +271,9 @@ export const GROUPS: GroupMeta[] = [
       { key: 'maxVoiceBytes', label: '发出语音上限', type: 'number', section: '图片与文件', unit: 'byte', min: 0 },
       { key: 'maxFileBytes', label: '发出视频/文件上限', type: 'number', section: '图片与文件', unit: 'byte', min: 0 },
       { key: 'inboundFileMaxBytes', label: '接收文件上限', type: 'number', hint: '0 = 不限制', section: '图片与文件', unit: 'byte', min: 0, zeroMeans: '不限' },
-      { key: 'mediaDir', label: '媒体与状态目录', type: 'string', control: 'path', hint: '留空 = <DSH 目录>/media/onebot。改了之后会话映射等状态文件也换位置，旧文件不会自动搬', section: '存储与网络' },
+      { key: 'mediaDir', label: '媒体与状态目录', type: 'string', control: 'path', hint: '留空 = <DSH 目录>/media/onebot。改了之后会话映射等状态文件也换位置，旧文件不会自动搬', section: '存储与网络', danger: () => 'risk.mediaDir' },
       { key: 'tempTtlHours', label: '临时媒体保留', type: 'number', section: '存储与网络', unit: 'h', min: 0 },
-      { key: 'allowPrivateHosts', label: '允许从内网地址下载', type: 'boolean', hint: '默认拒绝下载内网/本机地址（防 SSRF）；NapCat 文件服务在本机时才需要打开', section: '存储与网络' },
+      { key: 'allowPrivateHosts', label: '允许从内网地址下载', type: 'boolean', hint: '默认拒绝下载内网/本机地址（防 SSRF）；NapCat 文件服务在本机时才需要打开', section: '存储与网络', danger: next => (next === true ? 'risk.privateHosts' : null) },
     ],
   },
   {
@@ -275,7 +286,7 @@ export const GROUPS: GroupMeta[] = [
       { key: 'traceEnabled', label: '决策追踪（trace）', type: 'boolean', hint: '把每个入站/出站决策事件写入 qq-trace.jsonl 便于排查；关闭后零文件、行为与关闭时完全一致。', section: '审计与追踪' },
       { key: 'traceLevel', label: '追踪级别', type: 'enum', options: ['debug', 'warn'], optionLabels: { debug: '全部事件', warn: '只记被拒或失败' }, section: '审计与追踪', dependsOnText: '仅在「决策追踪」打开时生效', dependsOn: draft => draftBool(draft, 'traceEnabled') },
       { key: 'dedupWindowSeconds', label: '消息去重窗口', type: 'number', hint: '断线重连时同一条消息重投只处理一次；0 = 关', section: '入站', unit: 's', min: 0, zeroMeans: '关闭' },
-      { key: 'ignoreSelf', label: '忽略自己发出的消息', type: 'boolean', hint: '防止她回复自己形成循环，一般不要关', section: '入站' },
+      { key: 'ignoreSelf', label: '忽略自己发出的消息', type: 'boolean', hint: '防止她回复自己形成循环，一般不要关', section: '入站', danger: next => (next === false ? 'risk.ignoreSelfOff' : null) },
       { key: 'sensitivePatterns', label: '出站敏感内容正则', type: 'stringArray', hint: '每个一行，只记录不拦截；留空用内置规则', section: '出站审计' },
     ],
   },

@@ -102,6 +102,7 @@
     "build": "node scripts/build.mjs",
     "build:client": "node scripts/build-client.mjs",
     "link-host": "node scripts/link-host.mjs",
+    "pretest": "node scripts/link-host.mjs",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
     "coverage": "vitest run --coverage",

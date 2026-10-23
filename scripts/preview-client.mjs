@@ -108,8 +108,8 @@ function loadClientModule() {
   })
 }
 
-/** 把视图渲染成整页 HTML（含令牌与完整 CSS）。 */
-function pageHtml(title, css, bodyHtml) {
+/** 把视图渲染成整页 HTML（含令牌与完整 CSS；extraCss 只用于演示态覆盖）。 */
+function pageHtml(title, css, bodyHtml, extraCss = '') {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -141,6 +141,9 @@ body {
 <style data-plugin="preview-css">
 ${css}
 </style>
+${extraCss === '' ? '' : `<style data-plugin="preview-states-css">
+${extraCss}
+</style>`}
 </head>
 <body>
 ${bodyHtml}
@@ -168,12 +171,11 @@ const workspace = {
   selectedId: 'ws-1',
 }
 
-mkdirSync(OUT_DIR, { recursive: true })
-const written = []
-for (const group of client.GROUPS) {
-  const props = {
+/** 面板视图的公共 props（每个子页 / 每个演示态都在此之上覆盖）。 */
+function baseProps(overrides = {}) {
+  return Object.assign({
     t: t,
-    page: group.id,
+    page: 'connection',
     query: '',
     changedOnly: false,
     draft: draft,
@@ -184,6 +186,10 @@ for (const group of client.GROUPS) {
     tagInputs: {},
     workspace: workspace,
     busy: false,
+    saveState: 'idle',
+    conflict: false,
+    conflictShowMine: false,
+    riskDialog: null,
     loading: false,
     error: null,
     notice: null,
@@ -194,6 +200,10 @@ for (const group of client.GROUPS) {
     onRetry: noop,
     onSave: noop,
     onRevert: noop,
+    onReload: noop,
+    onToggleMine: noop,
+    onRiskCancel: noop,
+    onRiskConfirm: noop,
     onChange: noop,
     onSecretChange: noop,
     onClearSecretChange: noop,
@@ -215,12 +225,85 @@ for (const group of client.GROUPS) {
       onSelectedChange: noop,
       onApply: noop,
     }),
-  }
-  const html = renderToStaticMarkup(React.createElement(client.SettingsView, props))
+  }, overrides)
+}
+
+mkdirSync(OUT_DIR, { recursive: true })
+const written = []
+for (const group of client.GROUPS) {
+  const html = renderToStaticMarkup(React.createElement(client.SettingsView, baseProps({ page: group.id })))
   const file = join(OUT_DIR, 'settings-' + group.id + '.html')
   writeFileSync(file, pageHtml(group.title, client.CSS, html))
   written.push(file)
 }
+
+/* ------------------------------------------------------------------ *
+ * settings-states.html：F2b 的四种交互态集中一页看
+ *   ① 校验错误行（+ 保存条「有 N 项填写有误」+ 导航红色计数）
+ *   ② 危险确认对话框（+ 保存条「已修改 N 项」）
+ *   ③ 冲突横幅（展开「查看我的修改」）
+ *   ④ 保存条成功态（已保存，插件正在原地重启…）
+ * ------------------------------------------------------------------ */
+
+/** 校验错误态：端口越界（§5.4 validate.port）。 */
+const errorDraft = Object.assign({}, draft, { port: '70000' })
+
+/** 危险态：dmPolicy=open 且 allowAllUsers=true（§5.5 的跨字段最终状态判断）。 */
+const riskConfig = Object.assign({}, config, { dmPolicy: 'allowlist', allowAllUsers: false })
+const riskDraft = Object.assign({}, client.draftFromSnapshot({ config: riskConfig }), {
+  dmPolicy: 'open',
+  allowAllUsers: true,
+})
+const riskList = client.collectRisks(riskDraft, riskConfig, {})
+
+/** 冲突态：留几处改动（含密钥清空 → 只显示「已修改」）。 */
+const conflictDraft = Object.assign({}, draft, { port: '8645', typingDelayPerCharMs: '95' })
+
+/** 一页四块：每块自带标题、说明与相对定位容器（覆盖层 only 覆盖本块）。 */
+function stateBlock(title, note, overrides) {
+  const html = renderToStaticMarkup(React.createElement(client.SettingsView, baseProps(overrides)))
+  return `<section class="state">
+<h2 class="state-title">${title}</h2>
+<p class="state-note">${note}</p>
+<div class="qqc-preview">
+${html}
+</div>
+</section>`
+}
+
+const statesBody = [
+  stateBlock(
+    '① 校验错误行 + 保存条「有 N 项填写有误」',
+    '端口填 70000：行 data-invalid + 控件 aria-invalid + 错误文字 qqc-e-port；导航「连接」红色计数；保存按钮禁用。',
+    { page: 'connection', draft: errorDraft },
+  ),
+  stateBlock(
+    '② 危险确认对话框（保存前二次确认）',
+    'dmPolicy=open 且 allowAllUsers=true：行上「有风险」徽标、对话框列出风险、焦点在「取消」；覆盖层挂在 .qqc-root 内（此页为了并排展示改成 absolute）。',
+    { page: 'access', draft: riskDraft, config: riskConfig, riskDialog: riskList },
+  ),
+  stateBlock(
+    '③ 冲突横幅（这期间配置在别处被改过）',
+    '展开「查看我的修改」：每个已改动键列出「子页 · 标签 · 我的值」；密钥只显示「已修改」，草稿保留到用户点重新加载。',
+    { page: 'connection', draft: conflictDraft, clearSecret: true, conflict: true, conflictShowMine: true },
+  ),
+  stateBlock(
+    '④ 保存条成功态（已保存，插件正在原地重启…）',
+    '保存成功后条内显示 success 文案；2 秒后面板自动重新拉取快照，然后保存条消失。',
+    { page: 'connection', draft: draft, saveState: 'saved' },
+  ),
+].join('\n')
+
+const statesCss = `/* 仅预览：让 fixed 覆盖层落在各自的演示块里，好并排看 */
+.qqc-preview{position:relative;overflow:hidden;padding:12px;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px}
+.qqc-preview .qqc-root{max-width:none;margin:0}
+.qqc-preview .qqc-overlay{position:absolute}
+.state-title{margin:24px 0 4px;font-size:16px;font-weight:600}
+.state-note{margin:0 0 8px;color:var(--dsw-alias-label-secondary);font-size:12px}`
+
+const statesFile = join(OUT_DIR, 'settings-states.html')
+writeFileSync(statesFile, pageHtml('交互状态总览', client.CSS, statesBody, statesCss))
+written.push(statesFile)
 
 console.log('=== 设置页静态预览完成：' + written.length + ' 个文件 ===')
 for (const file of written) console.log('  ' + file)

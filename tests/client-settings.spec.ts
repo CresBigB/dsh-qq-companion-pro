@@ -1231,16 +1231,23 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     const events: string[] = []
+    const pages: string[] = []
     const view = SettingsView(viewProps({
       draft: values,
       onSave: () => { events.push('save') },
       onRevert: () => { events.push('revert') },
+      onPageChange: (next: string) => { pages.push(next) },
     }))
     const savebar = byClass(view, 'qqc-savebar')[0]
     expect(textOf(savebar)).toContain('已修改')
-    expect(textOf(byClass(savebar, 'qqc-savebar-text')[0])).toBe('已修改 1 项')
+    // §4.11 完整版：总数 + 按子页统计（子页名是可点跳转的链接按钮）
+    expect(textOf(byClass(savebar, 'qqc-savebar-text')[0])).toBe('已修改 1 项 · 连接 1')
     expect(byClass(savebar, 'qqc-savebar-text')[0].children.some(child => (child as StubElement).type === 'strong')).toBe(true)
-    const buttons = walk(savebar).filter(element => element.type === 'button')
+    const groupLinks = byClass(savebar, 'qqc-link')
+    expect(groupLinks.map(link => textOf(link))).toEqual(['连接'])
+    groupLinks[0].props.onClick()
+    expect(pages).toEqual(['connection'])
+    const buttons = walk(savebar).filter(element => element.type === 'button' && !hasClass(element, 'qqc-link'))
     expect(buttons.map(button => textOf(button))).toEqual(['还原', '保存'])
     expect(buttons[1].props['data-variant']).toBe('primary')
     buttons[0].props.onClick()
@@ -1252,9 +1259,10 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     const view = SettingsView(viewProps({ draft: values, busy: true }))
-    const buttons = walk(byClass(view, 'qqc-savebar')[0]).filter(element => element.type === 'button')
+    const buttons = walk(byClass(view, 'qqc-savebar')[0]).filter(element => element.type === 'button' && !hasClass(element, 'qqc-link'))
     expect(textOf(buttons[1])).toBe('正在保存…')
     expect(buttons[1].props.disabled).toBe(true)
+    expect(buttons[0].props.disabled).toBe(true)
   })
 
   it('搜索：按子页分组的结果、组标题可点击跳转、命中文字高亮、空态', () => {

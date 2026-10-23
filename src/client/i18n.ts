@@ -1,7 +1,8 @@
 /**
  * 双语词条（zh 为 key 集真相源，en 逐 key 对齐；占位符用平台 `{word}` 形式）。
  * 字段 label / hint / 子页名 / 卡片名是字段表里的中文常量，不走词条；
- * 这里只放界面骨架文案（《前端设计规范》§7）。
+ * 这里只放界面骨架文案（《前端设计规范》§7），外加 F2b 的
+ * 校验（validate.*）、危险说明（risk.*）、冲突（conflict.*）、保存条（save.*）。
  */
 
 /** 中文词条。 */
@@ -20,6 +21,7 @@ export const zh: Record<string, string> = {
   'badge.dirty': '已改动',
   'badge.nonDefault': '非默认',
   'badge.inactive': '未生效',
+  'badge.risk': '有风险',
   'badge.willClear': '保存后将清空',
   'field.resetDefault': '恢复默认值（{value}）',
   'secret.set': '已设置',
@@ -38,7 +40,10 @@ export const zh: Record<string, string> = {
   'workspace.empty': '暂无 workspace 记录，可直接输入路径。',
   'workspace.unavailable': '无法获取 workspace 列表（宿主未提供 workspace 注册表），可直接输入路径。',
   'workspace.note': '选中后点「填入」仅写入上方输入框；保存后才对新会话生效（已用 /workspace 覆盖的会话不受影响）。',
+  // §4.11 保存条
   'save.summary': '已修改 {n} 项',
+  'save.invalid': '有 {n} 项填写有误',
+  'save.groupCount': '{title} {n}',
   'save.revert': '还原',
   'save.submit': '保存',
   'save.saving': '正在保存…',
@@ -48,7 +53,40 @@ export const zh: Record<string, string> = {
   'load.error': '加载设置失败',
   'load.retry': '重试',
   'entry.inactive': 'QQ 插件条目当前未激活，保存后可能不会生效',
+  // §5.4 校验
+  'validate.number': '请输入数字',
+  'validate.min': '不能小于 {min}',
+  'validate.max': '不能大于 {max}',
+  'validate.port': '端口范围 1–65535',
+  'validate.time': '请用 HH:MM 格式，例如 09:30',
+  'validate.time24': '请用 HH:MM 格式，可以写 24:00',
+  'validate.window': '结束时间要晚于开始时间',
+  'validate.proactiveMinMax': '最少次数不能多于最多次数',
+  'validate.typingDelay': '最短不能长于最长',
+  // §4.12 / §5.5 危险确认
+  'risk.title': '这些改动有风险',
+  'risk.text': '确认后才会保存。',
+  'risk.cancel': '取消',
+  'risk.confirm': '仍然保存',
+  'risk.dmOpenAll': '任何人都能私聊她，并拿到她默认的宿主权限（可能是完整权限）',
+  'risk.groupOpen': '她会响应所有拉她进去的群',
+  'risk.restrictedPrefixOff': '群友消息不再带“受限用户”标记，提示词里与主人无差别',
+  'risk.adminPermissionFull': '主人私聊的新会话将拥有完整宿主权限且不再询问',
+  'risk.memberPermissionEmpty': '非管理员私聊与群聊的新会话不再切到收窄的权限预设，会继承宿主默认权限',
+  'risk.memberPermissionFull': '非管理员私聊与群聊的新会话将拥有完整宿主权限',
+  'risk.tokenClear': '清空后 NapCat 连接不再校验令牌',
+  'risk.hostPort': 'NapCat 侧必须同步修改，否则会断开连接',
+  'risk.mediaDir': '状态文件会换到新目录，旧的会话映射不会自动迁移',
+  'risk.privateHosts': '下载时不再拦截内网地址',
+  'risk.ignoreSelfOff': '她可能回复自己的消息形成循环',
+  // §5.6 保存冲突
   'conflict.title': '这期间配置在别处被改过',
+  'conflict.text': '你的修改还在，重新加载会丢弃它们。',
+  'conflict.reload': '重新加载（会丢弃未保存的修改）',
+  'conflict.showMine': '查看我的修改',
+  'conflict.hideMine': '收起我的修改',
+  'conflict.secretValue': '已修改',
+  'conflict.emptyValue': '空',
 }
 
 /** 英文词条（逐 key 对齐 zh）。 */
@@ -66,6 +104,7 @@ export const en: Record<string, string> = {
   'badge.dirty': 'Edited',
   'badge.nonDefault': 'Customized',
   'badge.inactive': 'Inactive',
+  'badge.risk': 'Risky',
   'badge.willClear': 'Cleared on save',
   'field.resetDefault': 'Reset to default ({value})',
   'secret.set': 'Set',
@@ -85,6 +124,8 @@ export const en: Record<string, string> = {
   'workspace.unavailable': 'Workspace list unavailable (the host exposes no workspace registry); type a path instead.',
   'workspace.note': 'Fill in only writes the input above; it takes effect for new sessions after saving (sessions with their own /workspace keep it).',
   'save.summary': '{n} changes',
+  'save.invalid': '{n} fields need fixing',
+  'save.groupCount': '{title} {n}',
   'save.revert': 'Revert',
   'save.submit': 'Save',
   'save.saving': 'Saving…',
@@ -94,7 +135,37 @@ export const en: Record<string, string> = {
   'load.error': "Couldn't load settings",
   'load.retry': 'Retry',
   'entry.inactive': 'The QQ plugin entry is inactive; saving may have no effect',
+  'validate.number': 'Enter a number',
+  'validate.min': 'Must be at least {min}',
+  'validate.max': 'Must be at most {max}',
+  'validate.port': 'Port must be 1–65535',
+  'validate.time': 'Use HH:MM format, e.g. 09:30',
+  'validate.time24': 'Use HH:MM format; 24:00 is allowed',
+  'validate.window': 'The end time must be later than the start time',
+  'validate.proactiveMinMax': "The minimum can't exceed the maximum",
+  'validate.typingDelay': "The shortest can't be longer than the longest",
+  'risk.title': 'These changes are risky',
+  'risk.text': 'Nothing is saved until you confirm.',
+  'risk.cancel': 'Cancel',
+  'risk.confirm': 'Save anyway',
+  'risk.dmOpenAll': 'Anyone can DM her and gets her default host permission (possibly full access)',
+  'risk.groupOpen': 'She will answer in every group she is pulled into',
+  'risk.restrictedPrefixOff': 'Group messages lose the "restricted user" marker and are indistinguishable from the owner',
+  'risk.adminPermissionFull': 'New owner DMs get full host permission without asking again',
+  'risk.memberPermissionEmpty': 'Non-owner DMs and groups stop switching to a narrowed preset and inherit the host default permission',
+  'risk.memberPermissionFull': 'New non-owner DMs and group sessions get full host permission',
+  'risk.tokenClear': 'NapCat connections will no longer verify the token',
+  'risk.hostPort': 'NapCat must be changed to match, otherwise the connection drops',
+  'risk.mediaDir': 'State files move to the new directory; existing session mappings are not migrated',
+  'risk.privateHosts': 'Downloads from internal addresses are no longer blocked',
+  'risk.ignoreSelfOff': 'She may answer her own messages and loop',
   'conflict.title': 'Settings changed elsewhere',
+  'conflict.text': 'Your edits are kept; reloading discards them.',
+  'conflict.reload': 'Reload (discards unsaved edits)',
+  'conflict.showMine': 'Show my edits',
+  'conflict.hideMine': 'Hide my edits',
+  'conflict.secretValue': 'Edited',
+  'conflict.emptyValue': 'Empty',
 }
 
 /** 双语 key 集一致性自检：缺漏仅告警不致崩溃。 */

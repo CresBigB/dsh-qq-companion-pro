@@ -3,10 +3,11 @@
  *
  * 数据通道：宿主 Typert Remote（`remote.onebotSettings`）——getSettings() /
  * updateSettings(patch, expectedRevision) / listWorkspaces()。
- * 保存链路不变：computePatch（纯函数）→ updateSettings(patch, revision)。
+ * 保存链路：validateDraft（§5.4）→ collectRisks 危险确认（§5.5）→
+ * computePatch（纯函数）→ updateSettings(patch, revision)（§5.6）。
  */
 import { React } from './react-runtime.js'
-import { ALL_FIELDS, DEFAULTS, type FieldMeta } from './fields.js'
+import { ALL_FIELDS, DEFAULTS, GROUPS, type FieldMeta } from './fields.js'
 import { zh } from './i18n.js'
 import {
   appendTags,
@@ -23,6 +24,7 @@ import {
   type RemoteResultLike,
 } from './logic.js'
 import { renderWorkspacePicker, type Translate, type WorkspaceSummaryLike } from './render.js'
+import { collectRisks, validateDraft, type RiskEntry } from './validate.js'
 import { SettingsView, type WorkspaceViewState } from './view.js'
 
 /** 宿主快照（OnebotSettingsSnapshot；accessToken 已脱敏为 ''）。 */
@@ -50,9 +52,24 @@ export interface OnebotSettingsPanelProps {
   embedded?: boolean
 }
 
+/** 保存条状态（§4.11）：saved 之后 2 秒自动重新拉取快照并消失。 */
+type SaveState = 'idle' | 'saving' | 'saved'
+
 /** 缺省翻译（宿主未注入 t 时兜底读 zh 词条）。 */
 function fallbackT(key: string): string {
   return zh[key] != null ? zh[key] : key
+}
+
+/**
+ * 按 id 聚焦一个控件（§5.6：点保存时若有错误，跳到第一个错误所在子页并聚焦该字段）。
+ * 只查文档里已渲染的元素；拿不到就安静跳过（测试/非浏览器环境）。
+ */
+function focusElement(id: string): void {
+  if (typeof document === 'undefined' || document == null) return
+  const getter = (document as { getElementById?: (id: string) => unknown }).getElementById
+  if (typeof getter !== 'function') return
+  const element = getter.call(document, id) as { focus?: () => void } | null
+  if (element != null && typeof element.focus === 'function') element.focus()
 }
 
 /**
@@ -69,8 +86,16 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
   const [secretDraft, setSecretDraft] = React.useState('')
   const [clearSecret, setClearSecret] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  const [saveState, setSaveState] = React.useState<SaveState>('idle')
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState('')
+  // §5.6 冲突：草稿保留到用户点「重新加载」；展开「查看我的修改」是独立开关。
+  const [conflict, setConflict] = React.useState(false)
+  const [showMine, setShowMine] = React.useState(false)
+  // §4.12 危险确认对话框的风险清单（null = 不显示）。
+  const [riskDialog, setRiskDialog] = React.useState<RiskEntry[] | null>(null)
+  // §5.6 有错误时跳到第一个错误字段并聚焦（渲染后由 effect 落到 DOM）。
+  const [focusTarget, setFocusTarget] = React.useState<string | null>(null)
   // 当前子页（§1.2：不写 URL，记在 state；F3 之前默认 connection）。
   const [page, setPage] = React.useState('connection')
   const [query, setQuery] = React.useState('')
@@ -85,6 +110,17 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     setSnapshot(next)
     setDraft(draftFromSnapshot(next))
     setTagInputs({})
+  }
+
+  /** 重新拉取快照（重试 / 冲突后重新加载 / 保存成功 2 秒后都走这里）。 */
+  const refetch = () => {
+    void remote.getSettings().then(result => {
+      accept(unwrap(result) as OnebotSettingsSnapshot)
+      setError(null)
+      setNotice('')
+    }).catch((cause: unknown) => {
+      setError(messageOf(cause))
+    })
   }
 
   React.useEffect(() => {
@@ -112,30 +148,42 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     return () => { alive = false }
   }, [remote])
 
-  // 保存成功的提示 3 秒后自动消失（§4.10）。
+  // 提示（保存无改动等）3 秒后自动消失（§4.10）。
   React.useEffect(() => {
     if (notice === '') return
     const timer = setTimeout(() => { setNotice('') }, 3000)
     return () => { clearTimeout(timer) }
   }, [notice])
 
-  const refetch = () => {
-    void remote.getSettings().then(result => {
-      accept(unwrap(result) as OnebotSettingsSnapshot)
-      setError(null)
-      setNotice('')
-    }).catch((cause: unknown) => {
-      setError(messageOf(cause))
-    })
-  }
+  // §4.11 保存成功：显示 success 文案 2 秒 → 自动重新拉取快照 → 保存条消失。
+  React.useEffect(() => {
+    if (saveState !== 'saved') return
+    const timer = setTimeout(() => {
+      setSaveState('idle')
+      refetch()
+    }, 2000)
+    return () => { clearTimeout(timer) }
+  }, [saveState])
 
-  /** 保存统一通道：updateSettings(patch, expectedRevision)。 */
-  const save = () => {
+  // §4.12 对话框打开时焦点移到「取消」。
+  React.useEffect(() => {
+    if (riskDialog == null || riskDialog.length === 0) return
+    focusElement('qqc-risk-cancel')
+  }, [riskDialog])
+
+  // §5.6 有错误时跳过子页并聚焦第一个错误字段（渲染完成后才落到 DOM）。
+  React.useEffect(() => {
+    if (focusTarget == null) return
+    focusElement('qqc-f-' + focusTarget)
+    setFocusTarget(null)
+  }, [focusTarget])
+
+  /** 真正提交：computePatch → updateSettings(patch, expectedRevision)。 */
+  const commit = () => {
     if (busy || snapshot == null || draft == null) return
-    setError(null)
-    setNotice('')
     const computed = computePatch(draft, snapshot.config, { secretDraft: secretDraft, clearSecret: clearSecret })
     if (computed.invalidKeys.length > 0) {
+      // validateDraft 已经拦过一遍；这里是 host validatePatch 的客户端预检兜底。
       const labels = computed.invalidKeys.map(key => {
         const field = ALL_FIELDS.find(item => item.key === key)
         return field != null ? field.label : key
@@ -148,18 +196,54 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
       return
     }
     setBusy(true)
+    setSaveState('saving')
+    setConflict(false)
+    setShowMine(false)
     void Promise.resolve().then(() => remote.updateSettings(computed.patch, snapshot.revision)).then(result => {
       accept(unwrap(result) as OnebotSettingsSnapshot)
-      setNotice(t('save.done'))
       setClearSecret(false)
       setSecretDraft('')
+      setSaveState('saved')
     }).catch((cause: unknown) => {
-      // 冲突（§5.6）与其它错误都用错误横幅；草稿保留，重试由用户决定（F2b 补完整流程）。
-      if (isConflictError(cause)) setError(t('conflict.title'))
-      else setError(messageOf(cause))
+      setSaveState('idle')
+      // §5.6：冲突走专用横幅（草稿保留，等用户点重新加载）；其它错误直接显示消息。
+      if (isConflictError(cause)) {
+        setConflict(true)
+        setError(null)
+      } else {
+        setError(messageOf(cause))
+      }
     }).finally(() => {
       setBusy(false)
     })
+  }
+
+  /**
+   * 保存入口（保存按钮 / Ctrl+S）：
+   * 1) 先校验——有错误则跳到第一个错误所在子页并聚焦该字段，不提交；
+   * 2) 有危险项 → 弹 §4.12 对话框（确认后才走 commit）；
+   * 3) 否则直接提交。
+   */
+  const save = () => {
+    if (busy || snapshot == null || draft == null) return
+    setError(null)
+    setNotice('')
+    setRiskDialog(null)
+    const invalid = validateDraft(draft, t)
+    const invalidKeys = ALL_FIELDS.filter(field => invalid[field.key] != null).map(field => field.key)
+    if (invalidKeys.length > 0) {
+      const firstKey = invalidKeys[0]
+      const group = GROUPS.find(item => item.fields.some(field => field.key === firstKey))
+      if (group != null) setPage(group.id)
+      setFocusTarget(firstKey)
+      return
+    }
+    const risks = collectRisks(draft, snapshot.config, { clearSecret: clearSecret })
+    if (risks.length > 0) {
+      setRiskDialog(risks)
+      return
+    }
+    commit()
   }
 
   /** 还原：丢弃全部草稿改动。 */
@@ -171,16 +255,34 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     setTagInputs({})
     setError(null)
     setNotice('')
+    setRiskDialog(null)
+  }
+
+  /** 冲突横幅的「重新加载（会丢弃未保存的修改）」。 */
+  const reload = () => {
+    setConflict(false)
+    setShowMine(false)
+    setSaveState('idle')
+    setError(null)
+    setNotice('')
+    refetch()
+  }
+
+  /** 用户又在改草稿：撤掉「刚保存」态，避免 2 秒后的自动重拉把新改动冲掉。 */
+  const markEdited = () => {
+    if (saveState === 'saved') setSaveState('idle')
   }
 
   /** 恢复单个字段的默认值（只改草稿）。 */
   const resetField = (field: FieldMeta) => {
     if (draft == null) return
+    markEdited()
     setDraft(Object.assign({}, draft, { [field.key]: snapshotValueToDraft(field, DEFAULTS[field.key]) }))
   }
 
   const commitTags = (field: FieldMeta, text: string) => {
     if (draft == null) return
+    markEdited()
     setDraft(Object.assign({}, draft, { [field.key]: appendTags(tagsOf(draft[field.key]), text) }))
     setTagInputs(Object.assign({}, tagInputs, { [field.key]: '' }))
   }
@@ -219,22 +321,35 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     tagInputs: tagInputs,
     workspace: workspace,
     busy: busy,
+    saveState: saveState,
+    conflict: conflict,
+    conflictShowMine: showMine,
+    riskDialog: riskDialog,
     onPageChange: (next: string) => { setPage(next) },
     onQueryChange: (next: string) => { setQuery(next) },
     onChangedOnlyChange: (next: boolean) => { setChangedOnly(next) },
     onRetry: () => { refetch() },
     onSave: () => { save() },
     onRevert: () => { revert() },
+    onReload: () => { reload() },
+    onToggleMine: () => { setShowMine(!showMine) },
+    onRiskCancel: () => { setRiskDialog(null) },
+    onRiskConfirm: () => { setRiskDialog(null); commit() },
     onChange: (field: FieldMeta, next: unknown) => {
       if (draft == null) return
+      markEdited()
       setDraft(Object.assign({}, draft, { [field.key]: next }))
     },
     onSecretChange: (nextText: string) => {
+      markEdited()
       setSecretDraft(nextText)
       if (draft == null) return
       setDraft(Object.assign({}, draft, { accessToken: nextText }))
     },
-    onClearSecretChange: (next: boolean) => { setClearSecret(next) },
+    onClearSecretChange: (next: boolean) => {
+      markEdited()
+      setClearSecret(next)
+    },
     onResetField: (field: FieldMeta) => { resetField(field) },
     onTagInput: (field: FieldMeta, text: string) => {
       setTagInputs(Object.assign({}, tagInputs, { [field.key]: text }))
@@ -242,6 +357,7 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     onTagCommit: (field: FieldMeta, text: string) => { commitTags(field, text) },
     onTagRemove: (field: FieldMeta, index: number) => {
       if (draft == null) return
+      markEdited()
       setDraft(Object.assign({}, draft, { [field.key]: removeTagAt(tagsOf(draft[field.key]), index) }))
     },
     onTagBackspace: (field: FieldMeta) => { backspaceTags(field) },
@@ -258,6 +374,7 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
           setWorkspace(Object.assign({}, workspace, { selectedId: nextId }))
         },
         onApply: (path: unknown) => {
+          markEdited()
           setDraft(fillWorkspacePath(draft, path))
         },
       })
