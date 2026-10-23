@@ -72,7 +72,7 @@ export async function apply(ctx: ClientContext): Promise<() => void> {
   return () => { void disposeRemote() }
 }
 
-export { ONEBOT_SETTINGS_REMOTE, ONEBOT_SETTINGS_DESCRIPTORS } from './schema.js'
+export { ONEBOT_SETTINGS_REMOTE, ONEBOT_SETTINGS_DESCRIPTORS, configSchema, patchSchema } from './schema.js'
 export { ALL_FIELDS, DEFAULTS, GROUP_KEYS, GROUPS } from './fields.js'
 export {
   coerceValue,

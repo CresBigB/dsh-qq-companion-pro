@@ -14,7 +14,7 @@
 | `newMessagePolicy` | "queue" / "steer" | `"queue"` | 任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与 [受限用户:仅问答] 消息两种模式下都按排队处理，/steer 命令两种模式下均可用 |
 | `autoSteerPolicy` | "admin" / "all" | `"admin"` | steer 模式下自动插话的发送者资格：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变 |
 | `deferredTimeoutMs` | number | `600000` | 等待模型回复超时阈值（毫秒超时补发）：回合超过该时长没有任何模型输出时提示超时并登记补发跟踪，任务完成后向原聊天自动补发最终文字（走既有出站管线）；发送明确失败最多尝试 3 次（退避），结果不确定时保留记录停止自动重试；/stop 终止该聊天的补发跟踪；0=关闭超时补发 |
-| `dmPolicy` | "open" / "allowlist" / "disabled" | `"open"` | 私聊策略：open=仅管理员；allowlist=仅 allowFrom；disabled=拒绝所有私聊 |
+| `dmPolicy` | "open" / "allowlist" / "disabled" | `"open"` | 私聊策略：open=仅管理员（allowAllUsers 打开则所有人都能私聊）；allowlist=仅 allowFrom；disabled=拒绝所有私聊 |
 | `groupPolicy` | "open" / "allowlist" / "disabled" | `"open"` | 群聊策略：open=所有群；allowlist=仅 groupAllowFrom；disabled=拒绝所有群 |
 | `allowFrom` | string[] | `[]` | dmPolicy=allowlist 时允许私聊的 QQ 号 |
 | `groupAllowFrom` | string[] | `[]` | groupPolicy=allowlist 时允许的群号 |

@@ -50,8 +50,14 @@ export declare const ENTRY_ID = "dsh-onebot";
 export declare const NAMESPACE = "onebotSettings";
 /** 快照固定值：设置页的键都是插件级热重启生效。 */
 export declare const REMOTE_EFFECT = "restart";
+/** 不上设置页的键（前端设计规范 §3.11）：三个已废弃的旧名别名 + 两个 `kindOf`
+ *  不支持的对象型键（scheduledPrompts 对象数组 / sttReplacements 字典）。
+ *  契约测试用它守住「Config.dict − 本表 = ALL_KEYS」——后端新增键忘了上页会
+ *  在这条测试上失败。 */
+export declare const EXCLUDED_KEYS: readonly string[];
 /** 设置页的分组和每组里的键（也是设置页能读写的全部键）。键的类型、默认值
- *  都从配置定义 src/config.ts 读取，这里只决定哪些键上设置页、怎么分组。 */
+ *  都从配置定义 src/config.ts 读取，这里只决定哪些键上设置页、怎么分组。
+ *  分组 id 与键序按前端设计规范 §1.2 / §3 各表从上到下（各子页 id 即导航 id）。 */
 export declare const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>>;
 /** 设置页能读写的全部键。 */
 export declare const ALL_KEYS: readonly string[];

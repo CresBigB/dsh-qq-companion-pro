@@ -72,7 +72,7 @@ export function snapshotValueToDraft(field: OnebotField, value: unknown): unknow
   return value === undefined || value === null ? '' : String(value)
 }
 
-/** 快照 → 草稿（29 键全覆盖）。 */
+/** 快照 → 草稿（上页的 102 键全覆盖）。 */
 export function draftFromSnapshot(snapshot: SnapshotLike | null | undefined): Record<string, unknown> {
   const config = snapshot != null && snapshot.config != null ? snapshot.config : {}
   const draft: Record<string, unknown> = {}

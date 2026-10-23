@@ -22,6 +22,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_KEYS,
   ENTRY_ID,
+  EXCLUDED_KEYS,
   NAMESPACE,
   OnebotSettingsService,
   SCHEMA_DEFAULTS,
@@ -32,6 +33,7 @@ import {
   listWorkspaces,
   updateSettings,
 } from '../src/settings-remote.js'
+import { Config } from '../src/config.js'
 import type { WorkspaceRegistryLike } from '../src/bridge.js'
 
 /** configEditor 最小替身：rows = profile patch 中 dsh-onebot 的覆盖行文档。 */
@@ -97,6 +99,35 @@ function parameterNames(fn: Function): string[] {
   const inner = head.slice(head.indexOf('(') + 1, -1).trim()
   return inner === '' ? [] : inner.split(',').map((part) => part.trim())
 }
+
+describe('设置页覆盖清单 — 102 键自检（后端新增键忘了上页会在这里失败）', () => {
+  const schemaKeys = Object.keys((Config as unknown as { dict: Record<string, unknown> }).dict)
+
+  it('排除列表与上页键不重叠：ALL_KEYS ∩ EXCLUDED_KEYS = ∅', () => {
+    for (const key of EXCLUDED_KEYS) expect(ALL_KEYS).not.toContain(key)
+  })
+
+  it('Config.dict 的键 − 排除列表 = ALL_KEYS（107 − 5 = 102）', () => {
+    const onPage = schemaKeys.filter((key) => !EXCLUDED_KEYS.includes(key))
+    expect([...onPage].sort()).toEqual([...ALL_KEYS].sort())
+    expect(schemaKeys).toHaveLength(107)
+    expect(ALL_KEYS).toHaveLength(102)
+  })
+
+  it('ALL_KEYS 不重不漏：跨分组与分组内都无重复，每个子页都至少有一个键', () => {
+    expect(new Set(ALL_KEYS).size).toBe(ALL_KEYS.length)
+    for (const keys of Object.values(SETTINGS_GROUPS)) {
+      expect(keys.length).toBeGreaterThan(0)
+      expect(new Set(keys).size).toBe(keys.length)
+    }
+  })
+
+  it('每个上页键都被 kindOf 识别（不支持的键会在模块加载时抛错，此处核对默认值可读）', () => {
+    for (const key of ALL_KEYS) expect(Object.hasOwn(SCHEMA_DEFAULTS, key)).toBe(true)
+    // 反向：不上页的 5 个键不进 SCHEMA_DEFAULTS（sttReplacements 是 dict、scheduledPrompts 是对象数组）
+    for (const key of EXCLUDED_KEYS) expect(Object.hasOwn(SCHEMA_DEFAULTS, key)).toBe(false)
+  })
+})
 
 describe('onebotSettings remote — 三步主链路（写设置 → revision 递增 → 非法 revision 拒写）', () => {
   it('step 0: getSettings 返回基线快照（revision 0、schema 默认值、脱敏、分组、effect）', () => {
@@ -207,7 +238,8 @@ describe('onebotSettings remote — 输入校验与脱敏', () => {
     const before = getSettings(editor, state).revision
     const writes = editor.writeCount
 
-    for (const patch of [{ mediaDir: '/x' }, { port: '20001' }, { mode: 'both' }, { allowFrom: '12345' }, 'port=1', null]) {
+    // mediaDir 等旧外来键现已上页；这里用真正不在白名单里的键验证整单拒绝。
+    for (const patch of [{ notASetting: 1 }, { port: '20001' }, { mode: 'both' }, { allowFrom: '12345' }, 'port=1', null]) {
       await expect(updateSettings(editor, state, patch)).rejects.toMatchObject({ code: 'onebot-settings/bad-request' })
     }
     expect(editor.writeCount).toBe(writes)
@@ -282,12 +314,13 @@ describe('onebotSettings remote — 白名单扩展', () => {
     traceEnabled: false,
   }
 
-  it('6 个新键入快照：默认值正确、落在 diagnostics 组、计入 ALL_KEYS', () => {
+  it('新键入快照：默认值正确、落在 diagnostics 组、计入 ALL_KEYS', () => {
     const editor = new FakeConfigEditor()
     const snapshot = getSettings(editor, createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
-    expect(snapshot.groups.diagnostics).toEqual([...NEW_BOOLEAN_KEYS])
+    expect(snapshot.groups.diagnostics).toEqual([...SETTINGS_GROUPS.diagnostics])
     for (const key of NEW_BOOLEAN_KEYS) {
+      expect(SETTINGS_GROUPS.diagnostics).toContain(key)
       expect(snapshot.config[key]).toBe(NEW_DEFAULTS[key])
     }
   })
@@ -480,17 +513,16 @@ describe('onebotSettings remote — listWorkspaces（workspace 注册表只读�
   })
 })
 
-describe('onebotSettings remote — P1/newMessagePolicy 白名单扩展（behavior 组 28 键）', () => {
-  it('newMessagePolicy 入快照：默认 \'queue\'、behavior 组尾追加、ALL_KEYS 26→27', () => {
+describe('onebotSettings remote — P1/newMessagePolicy 白名单扩展（conversation 子页首位）', () => {
+  it("newMessagePolicy 入快照：默认 'queue'、落在 conversation 组「忙的时候」卡片首位", () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.newMessagePolicy).toBe('queue')
-    expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
-    ])
-    expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
+    const conversation = [...SETTINGS_GROUPS.conversation]
+    expect(conversation.slice(0, 3)).toEqual(['newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'])
+    expect(snapshot.groups.conversation).toEqual(conversation)
     expect(snapshot.config.newMessagePolicy).toBe('queue')
-    expect(snapshot.effect).toBe('restart') // 与全部 28 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 102 键同粒度：热重启生效
   })
 
   it('newMessagePolicy 写入走枚举通道：\'steer\' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -523,17 +555,16 @@ describe('onebotSettings remote — P1/newMessagePolicy 白名单扩展（behavi
   })
 })
 
-describe('onebotSettings remote — autoSteerPolicy 白名单扩展（behavior 组 27→28 键，用户裁决 2026-10-12）', () => {
-  it('autoSteerPolicy 入快照：默认 \'admin\'、behavior 组尾追加（newMessagePolicy 之后）、ALL_KEYS 27→28', () => {
+describe('onebotSettings remote — autoSteerPolicy 白名单扩展（conversation 组，用户裁决 2026-10-12）', () => {
+  it("autoSteerPolicy 入快照：默认 'admin'、紧跟 newMessagePolicy（conversation 组第 2 位）", () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.autoSteerPolicy).toBe('admin')
-    expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
-    ])
-    expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
+    const conversation = [...SETTINGS_GROUPS.conversation]
+    expect(conversation.indexOf('autoSteerPolicy')).toBe(conversation.indexOf('newMessagePolicy') + 1)
+    expect(snapshot.groups.conversation).toEqual(conversation)
     expect(snapshot.config.autoSteerPolicy).toBe('admin')
-    expect(snapshot.effect).toBe('restart') // 与全部 28 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 102 键同粒度：热重启生效
   })
 
   it('autoSteerPolicy 写入走枚举通道：\'all\' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -566,17 +597,16 @@ describe('onebotSettings remote — autoSteerPolicy 白名单扩展（behavior �
   })
 })
 
-describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（behavior 组 28→29 键）', () => {
-  it('deferredTimeoutMs 入快照：默认 600000、behavior 组尾追加（autoSteerPolicy 之后）、ALL_KEYS 28→29', () => {
+describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（conversation 组「忙的时候」卡片）', () => {
+  it('deferredTimeoutMs 入快照：默认 600000、紧跟 autoSteerPolicy（conversation 组第 3 位）', () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.deferredTimeoutMs).toBe(600_000)
-    expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
-    ])
-    expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
+    const conversation = [...SETTINGS_GROUPS.conversation]
+    expect(conversation.indexOf('deferredTimeoutMs')).toBe(conversation.indexOf('autoSteerPolicy') + 1)
+    expect(snapshot.groups.conversation).toEqual(conversation)
     expect(snapshot.config.deferredTimeoutMs).toBe(600_000)
-    expect(snapshot.effect).toBe('restart') // 与全部 30 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 102 键同粒度：热重启生效
   })
 
   it('deferredTimeoutMs 写入走数字通道（≥0）：合法值进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -600,14 +630,15 @@ describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（behavior
   })
 })
 
-describe('onebotSettings remote — stickers 分组（用户待办 4：表情包 4 键上设置页）', () => {
-  it('四个表情包键入快照：分组紧跟 companion、stickerDir 默认空、单张上限默认 4MB', () => {
+describe('onebotSettings remote — 表情包 4 键（media 子页「表情包库」卡片，用户待办 4）', () => {
+  /** 规范 §1.2 的 10 个子页顺序（overview 不含配置键、不进 SETTINGS_GROUPS）。 */
+  const GROUP_ORDER = ['connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+
+  it('十个分组按规范顺序排列；表情包 4 键是 media 组前四位，stickerDir 默认空、单张上限默认 4MB', () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
-    expect(Object.keys(SETTINGS_GROUPS)).toEqual([
-      'connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'stickers', 'memory', 'proactive',
-    ])
-    expect(SETTINGS_GROUPS.stickers).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
-    expect(snapshot.groups.stickers).toEqual(SETTINGS_GROUPS.stickers)
+    expect(Object.keys(SETTINGS_GROUPS)).toEqual(GROUP_ORDER)
+    expect([...SETTINGS_GROUPS.media].slice(0, 4)).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
+    expect(snapshot.groups.media).toEqual([...SETTINGS_GROUPS.media])
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     // kindOf 认得这 4 个键的类型（字符串 1 个 + 数字 3 个），不支持的会在模块加载时抛错。
     expect(SCHEMA_DEFAULTS.stickerDir).toBe('')
@@ -638,17 +669,16 @@ describe('onebotSettings remote — stickers 分组（用户待办 4：表情包
   })
 })
 
-describe('onebotSettings remote — groupAutoQuote 白名单扩展（behavior 组 29→30 键，用户待办 8）', () => {
-  it("groupAutoQuote 入快照：默认 'off'、behavior 组尾追加（deferredTimeoutMs 之后）、ALL_KEYS 29→30", () => {
+describe('onebotSettings remote — groupAutoQuote 白名单扩展（group 子页「回复方式」卡片，用户待办 8）', () => {
+  it("groupAutoQuote 入快照：默认 'off'、落在 group 组「回复方式」位置", () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.groupAutoQuote).toBe('off')
-    expect(SETTINGS_GROUPS.behavior).toEqual([
-      'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice', 'unknownCommand', 'rateLimitPerMinute', 'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'groupAutoQuote',
-    ])
-    expect(snapshot.groups.behavior).toEqual(SETTINGS_GROUPS.behavior)
+    const group = [...SETTINGS_GROUPS.group]
+    expect(group[3]).toBe('groupAutoQuote') // 「怎么叫她」3 键之后
+    expect(snapshot.groups.group).toEqual(group)
     expect(snapshot.config.groupAutoQuote).toBe('off')
-    expect(snapshot.effect).toBe('restart') // 与全部 30 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 102 键同粒度：热重启生效
   })
 
   it("groupAutoQuote 写入走枚举通道：'busy'/'always' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用", async () => {

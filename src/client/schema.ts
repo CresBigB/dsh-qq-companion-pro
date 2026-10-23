@@ -81,16 +81,24 @@ export function vOptional<T>(inner: Schema<T>): Schema<T | undefined> {
   }
 }
 
+/** 对象校验器：额外公开声明的键集，供契约测试核对「schema 键集 ≡ ALL_KEYS」
+ *  （宿主快照里返回了但 schema 没声明的键会被 vObject 静默丢弃，靠这条守住）。 */
+export interface ObjectSchema extends Schema<Record<string, unknown>> {
+  readonly keys: readonly string[]
+}
+
 /** 与 zod object 默认行为一致：声明外字段剥离，声明内字段逐个 parse。 */
-export function vObject(shape: Record<string, Schema<unknown>>): Schema<Record<string, unknown>> {
+export function vObject(shape: Record<string, Schema<unknown>>): ObjectSchema {
+  const keys = Object.keys(shape)
   return {
+    keys: keys,
     parse(value) {
       if (value === null || typeof value !== 'object' || Array.isArray(value)) {
         throw new TypeError('expected object')
       }
       const source = value as Record<string, unknown>
       const out: Record<string, unknown> = {}
-      for (const key of Object.keys(shape)) out[key] = shape[key].parse(source[key])
+      for (const key of keys) out[key] = shape[key].parse(source[key])
       return out
     },
   }
@@ -108,72 +116,127 @@ export function vEnum(values: string[]): Schema<string> {
   }
 }
 
-/** 29 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
-export const configSchema: Schema<Record<string, unknown>> = vObject({
+/** 设置页上页 102 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
+ *  出现一次，patchSchema 由同一份 shape 逐键派生，两侧键集天然一致）。
+ *  类型与宿主 Config 一致；数字区间与宿主 numberRange 一致：port 1–65535，
+ *  其余（时长 / 次数 / 字节数 / 像素）≥ 0。 */
+const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
+  // connection（6）
   host: vString(0, 256),
-  port: vNumber(),
+  port: vNumber(1, 65535),
   accessToken: vString(0, 256),
   botQQ: vString(0, 64),
   workspacePath: vString(0, 1024),
   attachWorkspaceMode: vEnum(['existing', 'auto', 'off']),
-  requireMention: vBoolean(),
+  // access（10）
   adminUsers: vArray(vString(0, 64)),
   dmPolicy: vEnum(['open', 'allowlist', 'disabled']),
-  groupPolicy: vEnum(['open', 'allowlist', 'disabled']),
-  allowAllUsers: vBoolean(),
   allowFrom: vArray(vString(0, 64)),
+  allowAllUsers: vBoolean(),
+  groupPolicy: vEnum(['open', 'allowlist', 'disabled']),
   groupAllowFrom: vArray(vString(0, 64)),
-  interimMessages: vBoolean(),
-  interimRecall: vBoolean(),
-  interimRecallMs: vNumber(),
-  sendErrorNotice: vBoolean(),
-  unknownCommand: vEnum(['intercept', 'passthrough']),
-  rateLimitPerMinute: vNumber(),
-  newMessagePolicy: vEnum(['queue', 'steer']),
-  autoSteerPolicy: vEnum(['admin', 'all']),
-  deferredTimeoutMs: vNumber(),
-  actionAuditEnabled: vBoolean(),
-  traceEnabled: vBoolean(),
-  humanTypingPace: vBoolean(),
-  typingDelayPerCharMs: vNumber(),
-  typingDelayMinMs: vNumber(),
-  typingDelayMaxMs: vNumber(),
-  groupSplitLines: vBoolean(),
+  requireMention: vBoolean(),
+  restrictedMemberPrefix: vBoolean(),
+  autoAcceptAdminRequests: vBoolean(),
+  autoAllowInvitedGroups: vBoolean(),
+  // persona（7）
   ownerTitle: vString(0, 1024),
   agentPreset: vString(0, 1024),
   adminPreset: vString(0, 1024),
   adminPermission: vString(0, 1024),
   memberPermission: vString(0, 1024),
   adminWorkspacePath: vString(0, 1024),
+  groupReasoningEffort: vEnum(['', 'off', 'low', 'high', 'max']),
+  // messaging（15）
   splitLines: vBoolean(),
-  splitMaxMessages: vNumber(),
-  textImageThreshold: vNumber(),
-  inboundImageMaxPx: vNumber(),
-  autoAcceptAdminRequests: vBoolean(),
-  autoAllowInvitedGroups: vBoolean(),
-  idleResetHours: vNumber(),
-  privateResetDays: vNumber(),
-  groupResetDays: vNumber(),
-  publicMemoryFile: vString(0, 1024),
-  publicMemoryMaxBytes: vNumber(),
-  groupMemoryDir: vString(0, 1024),
-  groupMemoryMaxBytes: vNumber(),
-  stickerDir: vString(0, 1024),
-  stickerMaxCount: vNumber(),
-  stickerMaxBytes: vNumber(),
-  stickerDailyMax: vNumber(),
+  splitMaxMessages: vNumber(0),
+  groupSplitLines: vBoolean(),
+  humanTypingPace: vBoolean(),
+  typingDelayPerCharMs: vNumber(0),
+  typingDelayMinMs: vNumber(0),
+  typingDelayMaxMs: vNumber(0),
+  textImageThreshold: vNumber(0),
+  cardFooter: vString(0, 1024),
+  fontFiles: vArray(vString(0, 1024)),
+  fontFamilies: vArray(vString(0, 1024)),
+  interimMessages: vBoolean(),
+  interimRecall: vBoolean(),
+  interimRecallMs: vNumber(0),
+  sendErrorNotice: vBoolean(),
+  // conversation（12）
+  newMessagePolicy: vEnum(['queue', 'steer']),
+  autoSteerPolicy: vEnum(['admin', 'all']),
+  deferredTimeoutMs: vNumber(0),
+  unknownCommand: vEnum(['intercept', 'passthrough']),
+  rateLimitPerMinute: vNumber(0),
+  idleResetHours: vNumber(0),
+  privateResetDays: vNumber(0),
+  groupResetDays: vNumber(0),
   sessionTitleTemplate: vString(0, 1024),
+  privateSessionKeepDays: vNumber(0),
+  groupSessionKeepDays: vNumber(0),
+  chatIdleEvictDays: vNumber(0),
+  // group（10）
+  groupNameTriggers: vArray(vString(0, 1024)),
+  groupFollowupSeconds: vNumber(0),
+  groupContextLines: vNumber(0),
+  groupAutoQuote: vEnum(['off', 'busy', 'always']),
+  groupPeekEnabled: vBoolean(),
+  groupPeekGapMinutes: vNumber(0),
+  groupPeekMinMessages: vNumber(0),
+  groupPeekQuietMinutes: vNumber(0),
+  groupPeekWindowStart: vString(0, 1024),
+  groupPeekWindowEnd: vString(0, 1024),
+  // memory（6）
+  publicMemoryFile: vString(0, 1024),
+  publicMemoryMaxBytes: vNumber(0),
+  groupMemoryDir: vString(0, 1024),
+  groupMemoryMaxBytes: vNumber(0),
+  privateMemoryMaxBytes: vNumber(0),
+  memoryNoteDenyWords: vArray(vString(0, 1024)),
+  // proactive（9）
   proactiveEnabled: vBoolean(),
   proactiveChatId: vString(0, 1024),
   proactiveWindowStart: vString(0, 1024),
   proactiveWindowEnd: vString(0, 1024),
-  proactiveMinPerDay: vNumber(),
-  proactiveMaxPerDay: vNumber(),
-  proactiveMinGapMinutes: vNumber(),
-  proactiveSkipIfActiveMinutes: vNumber(),
-  proactiveMaxUnanswered: vNumber(),
-  groupAutoQuote: vEnum(['off', 'busy', 'always']),
-})
+  proactiveMinPerDay: vNumber(0),
+  proactiveMaxPerDay: vNumber(0),
+  proactiveMinGapMinutes: vNumber(0),
+  proactiveSkipIfActiveMinutes: vNumber(0),
+  proactiveMaxUnanswered: vNumber(0),
+  // media（20）
+  stickerDir: vString(0, 1024),
+  stickerMaxCount: vNumber(0),
+  stickerMaxBytes: vNumber(0),
+  stickerDailyMax: vNumber(0),
+  sttEnabled: vBoolean(),
+  sttEngine: vEnum(['auto', 'sherpa-onnx', 'whisper-cpp', 'command', 'openai', 'custom']),
+  sttModel: vString(0, 1024),
+  sttCommand: vString(0, 1024),
+  sttArgs: vArray(vString(0, 1024)),
+  sttLanguage: vString(0, 1024),
+  sttMaxSeconds: vNumber(0),
+  sttTimeoutMs: vNumber(0),
+  inboundImageMaxPx: vNumber(0),
+  outboundImageMaxBytes: vNumber(0),
+  maxVoiceBytes: vNumber(0),
+  maxFileBytes: vNumber(0),
+  inboundFileMaxBytes: vNumber(0),
+  mediaDir: vString(0, 1024),
+  tempTtlHours: vNumber(0),
+  allowPrivateHosts: vBoolean(),
+  // diagnostics（7）
+  logLevel: vEnum(['debug', 'info', 'warn', 'error']),
+  actionAuditEnabled: vBoolean(),
+  traceEnabled: vBoolean(),
+  traceLevel: vEnum(['debug', 'warn']),
+  dedupWindowSeconds: vNumber(0),
+  ignoreSelf: vBoolean(),
+  sensitivePatterns: vArray(vString(0, 1024)),
+}
+
+/** 102 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
+export const configSchema: ObjectSchema = vObject(CONFIG_SHAPE)
 
 /** getSettings / updateSettings 返回值（OnebotSettingsSnapshot）。 */
 export const snapshotSchema: Schema<Record<string, unknown>> = vObject({
@@ -183,83 +246,23 @@ export const snapshotSchema: Schema<Record<string, unknown>> = vObject({
   secrets: vArray(vObject({ path: vArray(vString(1, 64)), set: vBoolean() })),
   groups: vObject({
     connection: vArray(vString(1, 64)),
-    permissions: vArray(vString(1, 64)),
-    behavior: vArray(vString(1, 64)),
-    diagnostics: vArray(vString(1, 64)),
-    companion: vArray(vString(1, 64)),
-    stickers: vArray(vString(1, 64)),
+    access: vArray(vString(1, 64)),
+    persona: vArray(vString(1, 64)),
+    messaging: vArray(vString(1, 64)),
+    conversation: vArray(vString(1, 64)),
+    group: vArray(vString(1, 64)),
     memory: vArray(vString(1, 64)),
     proactive: vArray(vString(1, 64)),
+    media: vArray(vString(1, 64)),
+    diagnostics: vArray(vString(1, 64)),
   }),
-  effect: vEnum(['restart']), // 19 键统一插件级热重启
+  effect: vEnum(['restart']), // 102 键统一插件级热重启
 })
 
-/** updateSettings 入参（任意 29 键子集）。 */
-export const patchSchema: Schema<Record<string, unknown>> = vObject({
-  host: vOptional(vString(0, 256)),
-  port: vOptional(vNumber(1, 65535)),
-  accessToken: vOptional(vString(0, 256)),
-  botQQ: vOptional(vString(0, 64)),
-  workspacePath: vOptional(vString(0, 1024)),
-  attachWorkspaceMode: vOptional(vEnum(['existing', 'auto', 'off'])),
-  requireMention: vOptional(vBoolean()),
-  adminUsers: vOptional(vArray(vString(0, 64))),
-  dmPolicy: vOptional(vEnum(['open', 'allowlist', 'disabled'])),
-  groupPolicy: vOptional(vEnum(['open', 'allowlist', 'disabled'])),
-  allowAllUsers: vOptional(vBoolean()),
-  allowFrom: vOptional(vArray(vString(0, 64))),
-  groupAllowFrom: vOptional(vArray(vString(0, 64))),
-  interimMessages: vOptional(vBoolean()),
-  interimRecall: vOptional(vBoolean()),
-  interimRecallMs: vOptional(vNumber(0)),
-  sendErrorNotice: vOptional(vBoolean()),
-  unknownCommand: vOptional(vEnum(['intercept', 'passthrough'])),
-  rateLimitPerMinute: vOptional(vNumber(0)),
-  newMessagePolicy: vOptional(vEnum(['queue', 'steer'])),
-  autoSteerPolicy: vOptional(vEnum(['admin', 'all'])),
-  deferredTimeoutMs: vOptional(vNumber(0)),
-  actionAuditEnabled: vOptional(vBoolean()),
-  traceEnabled: vOptional(vBoolean()),
-  humanTypingPace: vOptional(vBoolean()),
-  typingDelayPerCharMs: vOptional(vNumber(0)),
-  typingDelayMinMs: vOptional(vNumber(0)),
-  typingDelayMaxMs: vOptional(vNumber(0)),
-  groupSplitLines: vOptional(vBoolean()),
-  ownerTitle: vOptional(vString(0, 1024)),
-  agentPreset: vOptional(vString(0, 1024)),
-  adminPreset: vOptional(vString(0, 1024)),
-  adminPermission: vOptional(vString(0, 1024)),
-  memberPermission: vOptional(vString(0, 1024)),
-  adminWorkspacePath: vOptional(vString(0, 1024)),
-  splitLines: vOptional(vBoolean()),
-  splitMaxMessages: vOptional(vNumber(0)),
-  textImageThreshold: vOptional(vNumber(0)),
-  inboundImageMaxPx: vOptional(vNumber(0)),
-  autoAcceptAdminRequests: vOptional(vBoolean()),
-  autoAllowInvitedGroups: vOptional(vBoolean()),
-  idleResetHours: vOptional(vNumber(0)),
-  privateResetDays: vOptional(vNumber(0)),
-  groupResetDays: vOptional(vNumber(0)),
-  publicMemoryFile: vOptional(vString(0, 1024)),
-  publicMemoryMaxBytes: vOptional(vNumber(0)),
-  groupMemoryDir: vOptional(vString(0, 1024)),
-  groupMemoryMaxBytes: vOptional(vNumber(0)),
-  stickerDir: vOptional(vString(0, 1024)),
-  stickerMaxCount: vOptional(vNumber(0)),
-  stickerMaxBytes: vOptional(vNumber(0)),
-  stickerDailyMax: vOptional(vNumber(0)),
-  sessionTitleTemplate: vOptional(vString(0, 1024)),
-  proactiveEnabled: vOptional(vBoolean()),
-  proactiveChatId: vOptional(vString(0, 1024)),
-  proactiveWindowStart: vOptional(vString(0, 1024)),
-  proactiveWindowEnd: vOptional(vString(0, 1024)),
-  proactiveMinPerDay: vOptional(vNumber(0)),
-  proactiveMaxPerDay: vOptional(vNumber(0)),
-  proactiveMinGapMinutes: vOptional(vNumber(0)),
-  proactiveSkipIfActiveMinutes: vOptional(vNumber(0)),
-  proactiveMaxUnanswered: vOptional(vNumber(0)),
-  groupAutoQuote: vOptional(vEnum(['off', 'busy', 'always'])),
-})
+/** updateSettings 入参（任意 102 键子集；未出现的键 = 不修改）。 */
+export const patchSchema: Schema<Record<string, unknown>> = vObject(
+  Object.fromEntries(Object.entries(CONFIG_SHAPE).map(([key, schema]) => [key, vOptional(schema)])),
+)
 
 /** listWorkspaces 返回值（host WorkspaceListResult 同构）。 */
 export const workspaceListSchema: Schema<Record<string, unknown>> = vObject({

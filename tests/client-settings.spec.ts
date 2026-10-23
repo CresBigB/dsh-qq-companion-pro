@@ -5,16 +5,18 @@
  * window.__ModuleLoader__）的模块级契约：
  *   ① 语法可解析（new Function）+ CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；
- *   ③ 四组 29 键：分组/键集/默认值与宿主侧 src/settings-remote.js（扩展
- *      + workspacePath + newMessagePolicy + autoSteerPolicy）导出常量逐字一致（descriptor 契约核对，防两侧漂移）；
- *      诊断组 6 键文案为中文标签 + 一句话「关掉会怎样」+ 配置键名；
+ *   ③ 10 组 102 键：分组/键序/默认值与宿主侧 src/settings-remote.ts 导出常量
+ *      互相核对（descriptor 契约核对，防两侧漂移）；字段类型与宿主配置
+ *      dict 的 kind 逐键对照（union → enum、array → stringArray）；
+ *      每条字段带 §3.12 的静态元数据（section / 控件 / 单位 / 区间 / 依赖说明）；
  *   ④ Typert descriptor 与 服务方法面逐字对齐：getSettings() /
  *      updateSettings(patch, expectedRevision) / listWorkspaces()，全
  *      positional，namespace onebotSettings，result codec 可解析 host 形态快照
- *      （含脱敏 accessToken）与 workspace 列表；
- *   ⑤ 渲染函数模块级可测：renderGroup 纯函数产出三组 19 键控件，accessToken
+ *      （含脱敏 accessToken）与 workspace 列表；configSchema / patchSchema 的
+ *      键集 ≡ ALL_KEYS（宿主快照多返的键会被静默丢弃，靠这条守住）；
+ *   ⑤ 渲染函数模块级可测：renderGroup 纯函数产出 102 行控件，accessToken
  *      密码型输入且不明文回显（脱敏约定：host 快照 accessToken 恒 ''）；
- *   ⑥ 保存语义：computePatch 产出 19 键子集 patch；secretDraft '' = 不修改、
+ *   ⑥ 保存语义：computePatch 产出任意子集 patch；secretDraft '' = 不修改、
  *      clearSecret = accessToken ''（清空）；数字非法键不进 patch。
  *
  * @module dsh-qq-companion/tests/client-settings
@@ -23,6 +25,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
+import { Config } from '../src/config.js'
 import {
   ALL_KEYS,
   NAMESPACE,
@@ -33,6 +36,29 @@ import {
 } from '../src/settings-remote.js'
 
 const CLIENT_SOURCE = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+
+/** 客户端字段表的一条（lib 产物形态；§3.12 静态元数据全部可选属性）。 */
+interface ClientField {
+  key: string
+  label: string
+  type: string
+  options?: string[]
+  optionLabels?: Record<string, string>
+  hint?: string
+  section?: string
+  control?: string
+  unit?: string
+  min?: number
+  max?: number
+  placeholder?: string
+  dependsOnText?: string
+}
+interface ClientGroup {
+  id: string
+  title: string
+  desc: string
+  fields: ClientField[]
+}
 
 /** 极简 React 替身：createElement 产出可遍历的元素树（渲染函数模块级可测）。 */
 type StubElement = { type: unknown; props: Record<string, unknown>; children: unknown[] }
@@ -67,8 +93,11 @@ function loadClientModule(): Record<string, unknown> {
 
 const client = loadClientModule()
 const descriptors = client.ONEBOT_SETTINGS_DESCRIPTORS as Array<Record<string, unknown>>
-const groups = client.GROUPS as Array<{ id: string; title: string; fields: Array<{ key: string; label: string; type: string; options?: string[]; optionLabels?: Record<string, string>; hint?: string }> }>
-const allFields = client.ALL_FIELDS as Array<{ key: string; type: string }>
+const groups = client.GROUPS as ClientGroup[]
+const allFields = client.ALL_FIELDS as ClientField[]
+/** schema 键集（vObject 暴露的声明键，供「schema ≡ ALL_KEYS」核对）。 */
+const configSchemaKeys = (client.configSchema as { keys: readonly string[] }).keys
+const patchSchemaKeys = (client.patchSchema as { keys: readonly string[] }).keys
 /** 模块级共享草稿构造器。 */
 const draft = client.draftFromSnapshot as (snapshot: { config: Record<string, unknown> }) => Record<string, unknown>
 
@@ -169,39 +198,135 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
 })
 
 describe('客户端 bundle — 分组、键集、默认值与 host 一致', () => {
-  it('分组与键序逐字对齐 host SETTINGS_GROUPS', () => {
+  /** 规范 §1.2 的子页顺序（不含 overview：它不承载配置键）。 */
+  const GROUP_ORDER = ['connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+
+  it('分组 id 顺序 = 规范 §1.2 的 10 个子页（显式钉住导航顺序）', () => {
+    expect(groups.map((group) => group.id)).toEqual(GROUP_ORDER)
+    expect(Object.keys(SETTINGS_GROUPS)).toEqual(GROUP_ORDER)
+  })
+
+  it('分组与键序与 host SETTINGS_GROUPS 同构（客户端 ↔ 宿主对照，不写死键列表）', () => {
     expect(client.GROUP_KEYS).toEqual(SETTINGS_GROUPS)
-    expect(groups.map((group) => group.id)).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'stickers', 'memory', 'proactive'])
-    expect(allFields.map((field) => field.key).sort()).toEqual([...ALL_KEYS].sort())
+    for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
+    expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
+    expect(ALL_KEYS).toHaveLength(102) // 107 键 − §3.11 的 5 个不上页键
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS（重置按钮唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 102 键（重置按钮唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
+    expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
 
-  it('字段类型与 host 默认值形态一致；枚举字段选项覆盖默认值', () => {
+  it('字段 type 与宿主配置 dict 的 kind 逐键对照（union→enum、array→stringArray、string→secret 仅 accessToken）', () => {
+    const dict = (Config as unknown as { dict: Record<string, { type: string; list?: Array<{ value?: unknown }> }> }).dict
+    for (const field of allFields) {
+      const spec = dict[field.key]
+      expect(spec, `宿主配置缺少 ${field.key}`).toBeTruthy()
+      if (field.type === 'enum') {
+        expect(spec.type).toBe('union')
+        // 枚举选项（含顺序）与宿主 union 值逐字一致：下拉不会给出宿主拒写的值。
+        expect(field.options).toEqual((spec.list ?? []).map((item) => String(item.value)))
+      } else if (field.type === 'stringArray') {
+        expect(spec.type).toBe('array')
+      } else if (field.type === 'secret') {
+        expect(spec.type).toBe('string')
+      } else {
+        expect(spec.type).toBe(field.type)
+      }
+    }
+  })
+
+  it('default 形态与字段类型一致；枚举字段选项覆盖默认值，optionLabels 覆盖全部选项', () => {
     const defaults = client.DEFAULTS as Record<string, unknown>
     for (const field of allFields) {
-      const fallback = SCHEMA_DEFAULTS[field.key]
+      const fallback = defaults[field.key]
       if (field.type === 'boolean') expect(typeof fallback).toBe('boolean')
       else if (field.type === 'number') expect(typeof fallback).toBe('number')
-      else if (field.type === 'enum') expect(field.options ?? []).toContain(fallback)
-      else if (field.type === 'stringArray') expect(Array.isArray(fallback)).toBe(true)
-      else expect(field.type === 'string' || field.type === 'secret').toBe(true)
+      else if (field.type === 'enum') {
+        expect(field.options ?? []).toContain(fallback)
+        expect(Object.keys(field.optionLabels ?? {}).sort()).toEqual([...(field.options ?? [])].sort())
+        for (const label of Object.values(field.optionLabels ?? {})) expect(label.trim()).not.toBe('')
+      } else if (field.type === 'stringArray') expect(Array.isArray(fallback)).toBe(true)
+      else expect(typeof fallback).toBe('string')
     }
-    // 枚举键集与宿主 validatePatch 接受的枚举值一致
-    const enumField = (key: string) => groups.flatMap((group) => group.fields).find((field) => field.key === key)
-    expect(enumField('dmPolicy')?.options).toEqual(['open', 'allowlist', 'disabled'])
-    expect(enumField('groupPolicy')?.options).toEqual(['open', 'allowlist', 'disabled'])
-    expect(enumField('unknownCommand')?.options).toEqual(['intercept', 'passthrough'])
-    expect(enumField('newMessagePolicy')?.options).toEqual(['queue', 'steer'])
-    expect(enumField('autoSteerPolicy')?.options).toEqual(['admin', 'all']) // 枚举与宿主 ENUM_KEYS 同宽
+    // dmPolicy 的 open 选项文案按 §3.2 改写（旧文案「开放」误导：open 实际只放管理员）。
+    const dmPolicy = allFields.find((field) => field.key === 'dmPolicy')!
+    expect(dmPolicy.optionLabels?.open).toContain('仅管理员')
+    expect(dmPolicy.optionLabels?.open).toContain('允许所有用户')
+    expect(dmPolicy.optionLabels?.disabled).toBe('不接私聊')
   })
 
-  it('分组标题与字段 label 为中文', () => {
-    expect(groups.map((group) => group.title)).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '表情包', '记忆与会话', '主动聊天'])
-    for (const field of allFields) expect(field.label).toMatch(/\p{Script=Han}/u)
+  it('每组有 §1.2 的中文名称与一句话说明；每个字段有卡片名和一行为中文标签', () => {
+    expect(groups.map((group) => group.title)).toEqual(['连接', '谁能找她', '她', '说话方式', '会话与任务', '群聊', '记忆', '主动聊天', '媒体与语音', '诊断'])
+    for (const group of groups) {
+      expect(group.desc.length).toBeGreaterThan(8)
+      for (const field of group.fields) {
+        expect(field.label).toMatch(/\p{Script=Han}/u)
+        expect(typeof field.section).toBe('string')
+        expect(field.section).not.toBe('')
+      }
+    }
+    // 同页同 section 的字段必须是连续的一段（渲染按组内顺序切卡片）。
+    for (const group of groups) {
+      const seen = new Set<string>()
+      let previous = ''
+      for (const field of group.fields) {
+        if (field.section === previous) continue
+        expect(seen.has(field.section), `${group.id} 的卡片「${field.section}」不连续`).toBe(false)
+        seen.add(field.section)
+        previous = field.section
+      }
+    }
+  })
+
+  it('hint 不再带「（配置键 xxx）」尾巴（键名改由统一的 .qqc-key 展示）', () => {
+    for (const field of allFields) {
+      if (field.hint === undefined) continue
+      expect(field.hint).not.toContain('（配置键')
+      expect(field.hint.trim()).not.toBe('')
+    }
+  })
+
+  it('数字字段带 §3.12 的区间：port 1–65535，其余 min 0 且不设上限；单位只取规范枚举', () => {
+    const UNITS = ['ms', 's', 'min', 'h', 'day', 'byte', 'px', 'char', 'count', 'perDay', 'perMin']
+    const CONTROLS = ['path', 'time', 'time24']
+    for (const field of allFields) {
+      if (field.type === 'number') {
+        if (field.key === 'port') {
+          expect(field.min).toBe(1)
+          expect(field.max).toBe(65535)
+        } else {
+          expect(field.min).toBe(0)
+          expect(field.max).toBeUndefined()
+        }
+      } else {
+        expect(field.min).toBeUndefined()
+        expect(field.max).toBeUndefined()
+      }
+      if (field.unit !== undefined) expect(UNITS).toContain(field.unit)
+      if (field.control !== undefined) expect(CONTROLS).toContain(field.control)
+    }
+    // 时间类控件按规范落位（窗口开始 HH:MM，结束允许 24:00）。
+    const fieldOf = (key: string) => allFields.find((field) => field.key === key)!
+    expect(fieldOf('groupPeekWindowStart').control).toBe('time')
+    expect(fieldOf('groupPeekWindowEnd').control).toBe('time24')
+    expect(fieldOf('proactiveWindowStart').control).toBe('time')
+    expect(fieldOf('proactiveWindowEnd').control).toBe('time')
+    expect(fieldOf('proactiveChatId').placeholder).toBe('private:QQ号')
+    // 依赖说明：有 dependsOnText 的字段必须是具体条件，不是空串。
+    for (const field of allFields) {
+      if (field.dependsOnText === undefined) continue
+      expect(field.dependsOnText).toContain('仅在')
+    }
+  })
+
+  it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
+    expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
+    expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
+    expect(configSchemaKeys).toHaveLength(102)
+    expect(patchSchemaKeys).toHaveLength(102)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {
@@ -224,11 +349,11 @@ describe('客户端 bundle — 渲染函数模块级可测（renderGroup 纯函�
     }))
   }
 
-  it('四组各产出标题与逐字段控件行（28 行 obx-field）', () => {
+  it('十组各产出标题与逐字段控件行（102 行 obx-field）', () => {
     const sections = renderAll(draft({ config: SCHEMA_DEFAULTS }))
-    expect(sections.map((section) => (section.props as Record<string, unknown>)['data-group'])).toEqual(['connection', 'permissions', 'behavior', 'diagnostics', 'companion', 'stickers', 'memory', 'proactive'])
+    expect(sections.map((section) => (section.props as Record<string, unknown>)['data-group'])).toEqual(groups.map((group) => group.id))
     const titles = sections.map((section) => ((section.children[0] as StubElement).children[0] as string))
-    expect(titles).toEqual(['连接', '权限', '行为', '诊断', '陪伴', '表情包', '记忆与会话', '主动聊天'])
+    expect(titles).toEqual(groups.map((group) => group.title))
     const fieldRows = sections.flatMap((section) => walk(section).filter((element) => element.type === 'div' && element.props.className === 'obx-field'))
     expect(fieldRows).toHaveLength(ALL_KEYS.length)
   })
@@ -275,7 +400,7 @@ describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevi
     opts?: { secretDraft?: string; clearSecret?: boolean },
   ) => { patch: Record<string, unknown>; invalidKeys: string[] }
 
-  it('仅下发与生效值有差异的键（29 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（102 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'
@@ -316,39 +441,42 @@ describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevi
   })
 })
 
-describe('诊断组 — 6 个观测/调试布尔键的文案契约（中文标签 + 关掉会怎样 + 配置键名）', () => {
+describe('诊断子页 — 7 键（日志级别 / 审计 / 追踪 / 去重 / 出站审计）', () => {
   const diagnosticsGroup = groups.find((group) => group.id === 'diagnostics')!
-  const NEW_KEYS = ['actionAuditEnabled', 'traceEnabled']
 
-  it('诊断组键集与键序逐字对齐 host SETTINGS_GROUPS.diagnostics', () => {
-    expect(diagnosticsGroup.fields.map((field) => field.key)).toEqual(NEW_KEYS)
+  it('键集与键序逐字对齐 host SETTINGS_GROUPS.diagnostics（不写死键列表）', () => {
+    expect(diagnosticsGroup.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS.diagnostics])
+    expect(diagnosticsGroup.title).toBe('诊断')
   })
 
-  it('每个键：中文标签 + hint 含「关掉会怎样」一句话与配置键名（对齐竞品行话术风格）', () => {
-    expect(diagnosticsGroup.title).toMatch(/\p{Script=Han}/u)
+  it('每个键：中文标签且 hint 不再带配置键名尾巴；label 与 §3.10 一致', () => {
     for (const field of diagnosticsGroup.fields) {
-      expect(field.type).toBe('boolean')
       expect(field.label).toMatch(/\p{Script=Han}/u)
-      expect(field.hint).toBeTruthy()
-      expect(field.hint).toContain(`（配置键 ${field.key}）`) // 配置键名可追溯
-      expect(field.hint!.length).toBeGreaterThan(20) // 一句话「关掉会怎样」而非空占位
+      if (field.hint !== undefined) expect(field.hint).not.toContain('（配置键')
     }
     expect(diagnosticsGroup.fields.map((field) => field.label)).toEqual([
+      '控制台日志级别',
       '工具发送审计',
       '决策追踪（trace）',
+      '追踪级别',
+      '消息去重窗口',
+      '忽略自己发出的消息',
+      '出站敏感内容正则',
     ])
   })
 
-  it('诊断组默认值与 host SCHEMA_DEFAULTS 一致（actionAuditEnabled/injectDryRun 开，其余关）', () => {
+  it('诊断键默认值与 host SCHEMA_DEFAULTS 一致（审计/忽略自己开，追踪/去重按默认）', () => {
     const defaults = client.DEFAULTS as Record<string, unknown>
     expect(defaults.actionAuditEnabled).toBe(true)
-    for (const key of ['traceEnabled']) {
-      expect(defaults[key]).toBe(false)
-    }
-    expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS) // 整表逐字一致（含 6 新键）
+    expect(defaults.traceEnabled).toBe(false)
+    expect(defaults.logLevel).toBe('info')
+    expect(defaults.traceLevel).toBe('debug')
+    expect(defaults.dedupWindowSeconds).toBe(300)
+    expect(defaults.ignoreSelf).toBe(true)
+    expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS) // 整表逐字一致
   })
 
-  it('诊断组渲染为 6 个布尔勾选行；patchCodec 接受 6 新键、拒绝非布尔', () => {
+  it('布尔键渲染为勾选行；patchCodec 接受诊断键、拒绝非法值', () => {
     const values = draft({ config: SCHEMA_DEFAULTS }) as Record<string, unknown>
     values.traceEnabled = true
     values.actionAuditEnabled = false
@@ -358,39 +486,39 @@ describe('诊断组 — 6 个观测/调试布尔键的文案契约（中文标�
     const patchCodec = updateSettings.parameters[0].codec.schema
     expect(patchCodec.parse({ actionAuditEnabled: false, traceEnabled: true })).toEqual({ actionAuditEnabled: false, traceEnabled: true })
     expect(() => patchCodec.parse({ traceEnabled: 'yes' })).toThrow()
+    expect(() => patchCodec.parse({ logLevel: 'verbose' })).toThrow()
   })
 })
 
-describe('表情包组 — 4 个键的文案契约（留空 = 关闭 的语义 + 配置键名）', () => {
-  const stickersGroup = groups.find((group) => group.id === 'stickers')!
+describe('媒体与语音子页 — 表情包卡片 4 键（留空 = 关闭 的语义）', () => {
+  const mediaGroup = groups.find((group) => group.id === 'media')!
+  const stickerFields = mediaGroup.fields.filter((field) => field.section === '表情包库')
 
-  it('分组紧跟在陪伴组之后，键集与键序逐字对齐 host SETTINGS_GROUPS.stickers', () => {
-    expect(stickersGroup.title).toBe('表情包')
-    expect(stickersGroup.fields.map((field) => field.key)).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
-    const ids = groups.map((group) => group.id)
-    expect(ids.indexOf('stickers')).toBe(ids.indexOf('companion') + 1)
+  it('表情包卡片是子页第一张卡片，4 键顺序对齐 host SETTINGS_GROUPS.media 前四位', () => {
+    expect(stickerFields.map((field) => field.key)).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
+    expect([...SETTINGS_GROUPS.media].slice(0, 4)).toEqual(stickerFields.map((field) => field.key))
+    expect(mediaGroup.fields[0].section).toBe('表情包库')
   })
 
-  it('stickerDir 写明留空=关闭与目录示例；stickerMaxBytes 默认 4MB 并说明 QQ 动图常超过 1MB', () => {
-    const dir = stickersGroup.fields.find((field) => field.key === 'stickerDir')!
+  it('stickerDir 写明留空=关闭与目录示例；stickerMaxBytes 单位是字节、依赖目录', () => {
+    const dir = stickerFields.find((field) => field.key === 'stickerDir')!
     expect(dir.type).toBe('string')
+    expect(dir.control).toBe('path')
     expect(dir.hint).toContain('留空 = 关闭')
     expect(dir.hint).toContain('stickers')
-    expect(dir.hint).toContain('（配置键 stickerDir）')
 
     const defaults = client.DEFAULTS as Record<string, unknown>
     expect(defaults.stickerDir).toBe('')
     expect(defaults.stickerMaxBytes).toBe(4 * 1024 * 1024)
-    const bytes = stickersGroup.fields.find((field) => field.key === 'stickerMaxBytes')!
+    const bytes = stickerFields.find((field) => field.key === 'stickerMaxBytes')!
     expect(bytes.type).toBe('number')
-    expect(bytes.hint).toContain('1MB')
-    expect(bytes.hint).toContain('（配置键 stickerMaxBytes）')
+    expect(bytes.unit).toBe('byte')
 
-    for (const field of stickersGroup.fields) {
+    for (const field of stickerFields) {
       expect(field.label).toMatch(/\p{Script=Han}/u)
-      expect(field.hint).toContain(`（配置键 ${field.key}）`)
+      if (field.key !== 'stickerDir') expect(field.dependsOnText).toContain('表情包库目录')
     }
-    // 四个数字/字符串键都走 patch 通道
+    // 四个键都走 patch 通道
     const updateSettings = descriptors[1] as { parameters: Array<{ codec: { schema: { parse(value: unknown): unknown } } }> }
     const patchCodec = updateSettings.parameters[0].codec.schema
     expect(patchCodec.parse({ stickerDir: 'E:\\stickers', stickerMaxBytes: 4194304 })).toEqual({ stickerDir: 'E:\\stickers', stickerMaxBytes: 4194304 })
@@ -457,7 +585,7 @@ describe('失败守卫（客户端侧）— host edit-failed 中文错误可渲�
     expect(isConflictError({ code: 'onebot-settings/conflict', message: 'expectedRevision mismatch' })).toBe(true)
   })
 
-  it('host patch 白名单 29 键与 client patchSchema 同宽：新键可下发（契约同步核对）', () => {
+  it('host patch 白名单与 client patchSchema 同宽（键集 ≡ ALL_KEYS）：新键可下发', () => {
     const updateSettings = descriptors[1] as { parameters: Array<{ codec: { schema: { parse(value: unknown): unknown } } }> }
     const patch = updateSettings.parameters[0].codec.schema.parse({
       actionAuditEnabled: true, traceEnabled: false,
@@ -500,7 +628,8 @@ describe('workspacePath + 「快速填入 workspace」（connection 组新行 + 
     expect(workspaceField.hint).toContain('新会话')
     expect(workspaceField.hint).toContain('/workspace')
     expect(workspaceField.hint).toContain('不受影响')
-    expect(workspaceField.hint).toContain('（配置键 workspacePath）')
+    expect(workspaceField.hint).not.toContain('（配置键') // 键名由统一的 .qqc-key 展示
+    expect(workspaceField.control).toBe('path')
     expect((client.DEFAULTS as Record<string, unknown>).workspacePath).toBe('')
   })
 
