@@ -16,4 +16,13 @@ describe('docs/CONFIG.md', () => {
     const doc = readFileSync(join(import.meta.dirname, '..', 'docs', 'CONFIG.md'), 'utf8')
     expect(doc).toBe(renderConfigDoc(Config))
   })
+
+  it('taskEveryRounds 至少 1（不该允许「静默到永不回传」）', () => {
+    // schemastery 的 schema 实例本身可调用：schema(value) = 归一化后的配置
+    const parse = Config as unknown as (value: Record<string, unknown>) => { taskEveryRounds: number }
+    expect(parse({}).taskEveryRounds).toBe(1)
+    expect(() => parse({ taskEveryRounds: 0 })).toThrow()
+    expect(() => parse({ taskEveryRounds: -3 })).toThrow()
+    expect(parse({ taskEveryRounds: 2 }).taskEveryRounds).toBe(2)
+  })
 })

@@ -28,7 +28,7 @@ import type { DeferredContext, DeferredEntry } from '../src/deferred.js'
 import { OneBotActionError, OneBotNotConnectedError } from '../src/connection.js'
 import { OutboundPipeline } from '../src/outbound.js'
 import { registerTools } from '../src/tools.js'
-import { makeCmdHarness, makeEvent } from './helpers/bridge-harness.js'
+import { admitUserMessage, makeCmdHarness, makeEvent } from './helpers/bridge-harness.js'
 
 type Harness = Awaited<ReturnType<typeof makeCmdHarness>>
 type Tool = {
@@ -81,9 +81,11 @@ function sendGroupPlain(h: Harness, text: string, userId = 10003): number {
   return messageId
 }
 
-/** 走完一个回合：turn/start → assistant/message(最终文字) → turn/end。 */
+/** 走完一个回合：turn/start → user/message（宿主接纳那条 dispatch）→
+ *  assistant/message(最终文字) → turn/end。 */
 function runTurn(h: Harness, sessionId: string, reply: string): void {
   h.ctx.emit('session/event', { id: sessionId } as never, makeEvent('turn/start', { turn: 1 }))
+  admitUserMessage(h, sessionId)
   h.ctx.emit('session/event', { id: sessionId } as never, makeEvent('assistant/message', {
     turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: reply }] },
   }))

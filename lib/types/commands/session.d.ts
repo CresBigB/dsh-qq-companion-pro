@@ -5,7 +5,9 @@
 import { CommandContext, CommandSender } from './types.js';
 import { type ChatId } from '../chat.js';
 import type { SessionPreviewEvent } from '../bridge.js';
-/** /stop: cancel the running generation and drop deferred loop state. */
+/** /stop: cancel the running generation and drop deferred loop state.
+ * 长任务（T16）：同一条命令顺手暂停已授权的自动接力——否则「停止当前生成」
+ * 只掐掉这一轮，宿主还会立刻排下一轮，/stop 就不算真的停。 */
 export declare function handleStopCommand(ctx: CommandContext, chatId: ChatId): Promise<void>;
 /** the /steer submit notice — one line per accepted instruction.
  * Shared with the bridge's auto-steer path ('steer' policy) so both surfaces

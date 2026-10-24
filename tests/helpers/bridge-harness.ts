@@ -24,7 +24,7 @@ import { TraceSink } from '../../src/trace.js'
 /** A fake agent handle for the bridge. */
 export function makeFakeAgents(
   sessionIds: string[],
-  captured: { followups: Array<{ text: string; sessionId: string }>; steers?: Array<{ text: string; sessionId: string }>; createdMeta?: Array<{ cwd?: string; agentPreset?: string }>; channelTools?: string[]; channelSections?: string[] },
+  captured: { followups: Array<{ text: string; sessionId: string; id?: string; source?: unknown }>; steers?: Array<{ text: string; sessionId: string }>; createdMeta?: Array<{ cwd?: string; agentPreset?: string }>; channelTools?: string[]; channelSections?: string[] },
   opts?: { failCreateFor?: string; resumeOk?: boolean; createDelayMs?: number },
 ) {
   const disposed: string[] = []
@@ -41,9 +41,11 @@ export function makeFakeAgents(
         session: { id: sessionId, seq: 0, header: { cwd: options.meta?.cwd ?? process.cwd() } },
         status: 'idle',
         cancel: () => { agent.status = 'idle' },
-        followup: (message: { content: Array<{ type: string; text?: string }> }) => {
+        followup: (message: { content: Array<{ type: string; text?: string }>; id?: string; source?: unknown }) => {
           const text = message.content.map(b => b.text ?? '').join('')
-          captured.followups.push({ text, sessionId })
+          // id/source 是插件创建那条 user message 的原样字段：宿主的
+          // `user/message` 接纳事件带的就是它，测试靠它精确对账回合身份。
+          captured.followups.push({ text, sessionId, id: message.id, source: message.source })
         },
         // the transcript steer path (raw text capture).
         steer: (message: { content: Array<{ type: string; text?: string }> }) => {
@@ -73,9 +75,9 @@ export function makeFakeAgents(
         session: { id: sessionId, seq: 1, header: { cwd: process.cwd() } },
         status: 'idle',
         cancel: () => { agent.status = 'idle' },
-        followup: (message: { content: Array<{ type: string; text?: string }> }) => {
+        followup: (message: { content: Array<{ type: string; text?: string }>; id?: string; source?: unknown }) => {
           const text = message.content.map(b => b.text ?? '').join('')
-          captured.followups.push({ text, sessionId })
+          captured.followups.push({ text, sessionId, id: message.id, source: message.source })
         },
         steer: (message: { content: Array<{ type: string; text?: string }> }) => {
           captured.steers?.push({ text: message.content.map(b => b.text ?? '').join(''), sessionId })
@@ -95,7 +97,7 @@ export function makeFakeAgents(
 export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; log?: (level: string, message: string) => void }) {
   const ctx = new Context()
   const sessionIds: string[] = []
-  const captured = { followups: [] as Array<{ text: string; sessionId: string }>, steers: [] as Array<{ text: string; sessionId: string }>, channelTools: [] as string[], channelSections: [] as string[] }
+  const captured = { followups: [] as Array<{ text: string; sessionId: string; id?: string; source?: unknown }>, steers: [] as Array<{ text: string; sessionId: string }>, channelTools: [] as string[], channelSections: [] as string[] }
   const agents = makeFakeAgents(sessionIds, captured, opts)
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
@@ -161,6 +163,48 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
 
 export function makeEvent(type: string, data: unknown): SessionEvent {
   return { seq: 0, time: Date.now(), type: type as never, data: data as never } as SessionEvent
+}
+
+/**
+ * 宿主真实接纳：agent-loop 把插件 dispatch 的那条 user message append 进
+ * transcript 时发 `user/message`（data 就是那条 message 本身，含 id/source）。
+ * 回合身份（谁在说话、引用谁）只从这里来——排队 FIFO 只负责“发过什么”。
+ * 顺序与宿主一致：turn/start 之后、assistant/message 之前。
+ */
+export function admitUserMessage(
+  h: {
+    ctx: { emit: (type: string, session: unknown, event: SessionEvent) => unknown }
+    captured: { followups: Array<{ text: string; sessionId: string; id?: string; source?: unknown }> }
+  },
+  sessionId: string,
+  opts?: { index?: number; chain?: Array<{ type: string; text?: string }> },
+): void {
+  const mine = h.captured.followups.filter(f => f.sessionId === sessionId)
+  const found = opts?.index === undefined ? mine.at(-1) : mine[opts.index]
+  if (found === undefined) throw new Error('没有可接纳的 dispatch（session ' + sessionId + '）')
+  h.ctx.emit('session/event', { id: sessionId }, makeEvent('user/message', {
+    role: 'user',
+    id: found.id,
+    source: found.source,
+    content: opts?.chain ?? [{ type: 'text', text: found.text }],
+  }))
+}
+
+/** 只给 goal 轮的接纳用：带宿主 goal-round 来源的 user message。 */
+export function admitGoalRound(
+  h: {
+    ctx: { emit: (type: string, session: unknown, event: SessionEvent) => unknown }
+    captured: { followups: Array<{ text: string; sessionId: string }> }
+  },
+  sessionId: string,
+  source: { goalId: string; revision: number; round: number },
+): void {
+  h.ctx.emit('session/event', { id: sessionId }, makeEvent('user/message', {
+    role: 'user',
+    id: 'goal-round-' + String(source.round),
+    source: { kind: 'goal', goalId: source.goalId, revision: source.revision, round: source.round },
+    content: [{ type: 'text', text: '<goal_round>' }],
+  }))
 }
 
 /** Compact harness for the slash-command tests (options inject stubs). */
@@ -248,6 +292,10 @@ export async function makeCmdHarness(opts?: {
   friendIntimacy?: number
   /** 离线语音合成（T15；absent = 没配引擎，qq_send_tts 不注册）。 */
   tts?: { command: string; args?: string[]; model?: string; voice?: string; maxChars?: number }
+  /** 长任务的宿主 goals 端口（T16；absent = 部署里没有 goals 服务）。 */
+  goals?: () => unknown
+  /** 长任务回传节奏（T16；absent = 配置默认值 1 = 逐轮回传）。 */
+  taskEveryRounds?: number
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -255,7 +303,7 @@ export async function makeCmdHarness(opts?: {
   // steers are captured alongside followups so the /steer and
   // 'steer'-policy tests can assert the exact steered text.
   const captured = {
-    followups: [] as Array<{ text: string; sessionId: string }>,
+    followups: [] as Array<{ text: string; sessionId: string; id?: string; source?: unknown }>,
     steers: [] as Array<{ text: string; sessionId: string }>,
     createdMeta: capturedMeta,
     /** names of the tools registered on an agent's own scope (installChannelScope). */
@@ -281,6 +329,8 @@ export async function makeCmdHarness(opts?: {
     ...(opts?.activity !== undefined ? { activity: opts.activity as never } : {}),
     ...(opts?.groupChatter !== undefined ? { groupChatter: opts.groupChatter as never } : {}),
     ...(opts?.stickers !== undefined ? { stickers: opts.stickers as never } : {}),
+    // T16：和立即生产接线同构——宿主没有 goals 服务时 deps 里也不放它。
+    ...(opts?.goals !== undefined ? { goals: opts.goals as never } : {}),
     // T15：和立即生产接线同构——引擎没配好（ready 为 false）时 deps 里也不放合成器。
     ...(() => {
       if (opts?.tts === undefined) return {}
@@ -324,6 +374,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.autoSteerPolicy !== undefined ? { autoSteerPolicy: opts.autoSteerPolicy } : {}),
       // deferred-delivery timeout override (absent = the 10min default).
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
+      ...(opts?.taskEveryRounds !== undefined ? { taskEveryRounds: opts.taskEveryRounds } : {}),
       sensitivePatterns: [], mediaDir, maxImageBytes: 8 * 1024 * 1024,
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
       textImageThreshold: opts?.textImageThreshold ?? 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],

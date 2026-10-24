@@ -62,6 +62,13 @@ export declare class ChatBridge {
      * 引用标记与 qq_send_* 的 reply_to 只能引用集合里的 id。 */
     private readonly seenMessageIds;
     private stopping;
+    /** 长任务：`goal/changed` 的退订句柄（start/stop 维护）。目标轮身份改为在
+     * 真实 `user/message` 接纳事件上绑定（D1/D2），不再监听 `agent/pre-step`。 */
+    private goalChangeOff;
+    /** 本插件刚发出的目标操作（operation+goalId+时间戳）：对应的
+     * `goal/changed` 只更新绑定、不重复对外播报。10 秒内的同操作视为自己
+     * 发出的那次；更久则视为别处的改动，照常播报。 */
+    private readonly selfGoalOps;
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
     constructor(deps: BridgeDeps);
@@ -348,6 +355,81 @@ export declare class ChatBridge {
      * /retry dispatch throw); the caller appends the returned reference to the
      * user-visible ⚠️ notice. */
     registerMessageFailure(chatId: ChatId, stage: TraceStage, detail: string): string;
+    /** 命令层操作长任务授权的窄端口（只在内存，见 task-goal.ts）。 */
+    private get taskGoalPort();
+    /** 记住「这个目标操作是本插件刚发出的」，供 goal/changed 去重（10 秒窗口）。 */
+    private noteSelfGoalOp;
+    /** 该操作是不是本插件 10 秒内刚发出的（是则消费掉：只更新绑定、不重复播报）。 */
+    private consumeSelfGoalOp;
+    /**
+     * 排队一个刚派发的 QQ 回合身份（T16 D1）。
+     *
+     * 队列里的每一条都带着「插件自己创建的那条 user message 的 id」——这是与
+     * 宿主真实 `user/message` 接纳事件对账的**唯一凭据**。自动目标轮、Web/宿主
+     * 输入、被 pre-step 拒绝或替换掉的提案都不会命中任何 id，因此永远不会顺走
+     * 排队 QQ 回合的管理员角色与引用目标。
+     *
+     * 队列长度有上限：被 reject / 被丢弃的提案可能永远等不到接纳事件，不能让
+     * 队列无限增长（超限丢最早的，失败闭合）。
+     */
+    private queuePendingTurn;
+    /**
+     * 真实 `user/message` 接纳事件：回合身份与自动目标轮的**唯一**入口（T16 D2）。
+     *
+     * 宿主的 pre-step 提议（`enter` / `replace` / `reject` / `abort`）不是事实：
+     * agent-loop 在采纳之前就返回的提案根本不会走到这里，也消费不了
+     * `pendingTurns`，所以被拒提案污染不了任何后续步。
+     *
+     * 判定规则（T16 第二轮审查缺陷 1）：**按接纳顺序，最后一个真实输入决定本回合
+     * 身份**；上下文来源不是输入，既不能抬身份也不能撤身份。
+     * 1. `context`（runtime-context / 系统提示 / 工具结果等）→ 什么都不改：宿主的
+     *    运行时快照排在回合末尾，若当成输入就会把刚抬起来的角色与目标轮重置；
+     * 2. `qq` → 只按插件自己创建的那条 message id 精确对账 `pendingTurns`：命中
+     *    才冻结发起角色与引用目标，否则失败闭合；
+     * 3. `goal` → 来源 `{kind:'goal', goalId, revision, round}` 与进程内绑定完全
+     *    一致且目标仍 active+armed → 把本轮标成自动目标轮；
+     * 4. 其它来源（Web/宿主/他人输入、字段造假的 goal、未知来源）→ 失败闭合：
+     *    降回 member、清掉引用与自动目标轮冻结（该轮的过期文字不再回传）。
+     */
+    private onUserMessageAdmitted;
+    /** QQ 派发回合：只有命中排队凭据才抬身份，否则失败闭合（且不乱动别人的凭据）。 */
+    private admitDispatchedTurn;
+    /**
+     * 失败闭合：本回合身份降回 member、清掉引用，并停用自动目标轮冻结。
+     *
+     * 冻结一并停用是安全的做法（T16 第二轮审查缺陷 1）：这个回合已经被一份
+     * **非授权输入**接管，`taskGoalText` 里攒的是目标轮的过程文字，绝不能在
+     * turn/end 按长任务回传出去（那就是把过期目标文本发给用户）。
+     */
+    private failClosedTurn;
+    /**
+     * 停用本回合的自动目标轮冻结：`taskGoalTurn` / `taskGoalText` /
+     * `taskGoalLastMessageId` 一起清掉（过程文字绝不能按长任务回传出去）。
+     * 只动回合级冻结事实，`chat.taskGoal` 绑定与授权不动。返回是否真的撤了冻结。
+     */
+    private dropGoalRoundFreeze;
+    /** 自动目标轮识别：来源必须与进程内绑定**完全一致**且目标仍 active+armed。 */
+    private admitGoalRound;
+    /** `goal/changed`：只播报本进程授权过的目标；自己刚发出的操作不重复播报。 */
+    private onGoalChanged;
+    /** 用宿主实时投影同步绑定（轮次/相位/激活）；目标已不存在则撤绑。 */
+    private syncTaskGoal;
+    /** 自动目标轮里的宿主卡片（计划书 / 提问卡）照发（T16 D5）：这些内容住在
+     * tool-call 参数里、不进模型文字流，按节奏静默文字时绝不能把它们一起吞掉，
+     * 否则用户只能干等。 */
+    private relayGoalRoundCards;
+    /** 按节奏回传当轮真实文字（前缀是独立的一行 header，不拼进模型文字里）。 */
+    private sendGoalRound;
+    /**
+     * /stop 的配套：该聊天有已授权且在跑的长任务时把它**暂停**（宿主目标保留、
+     * 进度保留，但自动接力不再空转）。返回附在 /stop 回执后的说明；没有可暂停
+     * 的目标返回 undefined。
+     *
+     * T16 D4：一律读宿主**实时**目标再 pause（缓存 revision 可能已过期）；暂停
+     * 失败必须如实告知「不能保证停下」，并尽量用公开的 disarm 撤掉自动接力、
+     * 同时撤销进程内授权 —— 绝不谎称已停止。
+     */
+    private pauseTaskGoalForStop;
     private onSessionFlush;
     /** Get (or create) the agent for a chat. */
     private ensureChat;
@@ -357,6 +439,12 @@ export declare class ChatBridge {
      * conversation stays on disk). The confirmation is sent directly through
      * the outbound pipeline since no agent is left to reply.
      */
+    /**
+     * 撤销该聊天的长任务授权（只清内存；宿主那边的目标与进度原样保留）。
+     * 换会话 / 换工作目录 / 切换历史 / 卸载都走这里：授权绝不跨会话搬运，
+     * 重新接管只能由管理员再发一次 `/task resume`（见 T16 的失败闭合）。
+     */
+    private revokeTaskGoal;
     private resetChat;
     /** an admin's own private chat (admin defaults apply). */
     private isAdminPrivate;

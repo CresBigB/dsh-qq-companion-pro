@@ -344,6 +344,16 @@ export function apply(ctx: Context, config: Config): void {
       }
     },
     agentDefaultModel: ctx.agentDefaultModel,
+    // 长任务（T16）的宿主 goals 服务：可选依赖，绝不能进静态 inject 列表
+    // （goal-round-driver 可能不存在）；每次 live 查找，缺失即空（命令层会
+    // 给出诚实的「宿主未提供」回执）。
+    goals: () => {
+      try {
+        return ctx.get('goals') as import('./task-goal.js').GoalsPortLike | undefined
+      } catch {
+        return undefined
+      }
+    },
     defaultModel: () => {
       try {
         return ctx.agentDefaultModel.currentSelection()

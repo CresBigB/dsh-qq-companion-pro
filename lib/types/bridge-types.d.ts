@@ -14,6 +14,7 @@ import type { GroupAccessLike } from './groups.js';
 import type { MediaStore } from './media.js';
 import type { SessionTitleLike } from './session-title.js';
 import type { Transcriber } from './stt.js';
+import type { GoalViewLike, GoalsPortLike } from './task-goal.js';
 import type { TraceSink } from './trace.js';
 import type { Synthesizer } from './tts.js';
 /** Resolved runtime configuration for the bridge. */
@@ -146,6 +147,9 @@ export interface BridgeConfig {
      * 不带关系绸标的发送者均可。不改变 /steer 命令（始终仅管理员）与 queue 模式行为，
      * 也不放宽非管理员的软限制（带绸标的消息任何档都排队）。 */
     autoSteerPolicy?: 'admin' | 'all';
+    /** 长任务自动轮次的回传节奏：每 N 轮回传一次当轮最终文字；
+     * absent → 1（逐轮都回传）。见 task-goal.ts。 */
+    taskEveryRounds?: number;
     /** 等待模型回复超时阈值（ms）——回合超过该时长没有任何模型输出
      * 时提示超时并登记补发跟踪（deferred delivery），回合完成后向原聊天补发
      * 最终文字（「（超时补发）」前缀，走既有 outbound 管线）；absent →
@@ -258,6 +262,37 @@ export interface LlmCatalogPort {
 export interface SessionEventPort {
     on(type: 'session/event', handler: (session: Session, event: SessionEvent) => void): () => void;
     on(type: 'session/flush', handler: (session: Session) => void): () => void;
+    /** 宿主 `agent/pre-step`（T16 长任务）：本插件只读 `agent.id` /
+     * `messages[].source` / `turn`，并**原样透传** `next()` 的决定——不拦截、
+     * 不伪造进入/拒绝。见 task-goal.ts 的 readGoalRoundSource。 */
+    on(type: 'agent/pre-step', handler: (payload: PreStepPayloadLike, next: () => Promise<unknown>) => Promise<unknown>): () => void;
+    /** 宿主 `goal/changed`（T16 长任务）：变更已提交后的只读投影，
+     * 用于回传暂停/恢复/阻塞/完成/清除。 */
+    on(type: 'goal/changed', handler: (payload: GoalChangedPayloadLike) => void): () => void;
+}
+/** `agent/pre-step` 的最小结构面（宿主 payload 的窄面，不是内部字段）。 */
+export interface PreStepPayloadLike {
+    readonly agent: {
+        readonly id: string;
+    };
+    readonly messages: readonly {
+        readonly source?: unknown;
+    }[];
+    readonly turn: number;
+}
+/** `goal/changed` 的最小结构面。 */
+export interface GoalChangedPayloadLike {
+    readonly agent: {
+        readonly id: string;
+    };
+    readonly change: {
+        readonly operation: 'create' | 'edit' | 'pause' | 'resume' | 'complete' | 'block' | 'clear';
+        readonly ref: {
+            readonly id: string;
+            readonly revision: number;
+        };
+        readonly goal?: GoalViewLike | undefined;
+    };
 }
 /** Services the bridge needs (the plugin Context enters only through
  * the two explicit ports below — session events and the /model catalog). */
@@ -339,6 +374,9 @@ export interface BridgeDeps {
     sessionTitle?: () => SessionTitleLike | undefined;
     agentDefaultModel: AgentDefaultModelLike | undefined;
     defaultModel: (() => ModelSelection | undefined) | undefined;
+    /** 宿主 goals 服务（T16 长任务）：live 查找，absent = 部署未启用
+     * dsh-goal。只经公开服务方法读写，插件自己不落盘、不排轮次。 */
+    goals?: (() => GoalsPortLike | undefined) | undefined;
     config: BridgeConfig;
     policy: AccessPolicyConfig;
     /** health: the ALREADY-redacted plugin config snapshot (secrets

@@ -23,7 +23,7 @@ import type { BridgeConfig } from '../src/bridge.js'
 import { MediaStore } from '../src/media.js'
 import { Transcriber } from '../src/stt.js'
 
-import { makeCmdHarness, makeEvent, makeFakeAgents, makeHarness, registryOf } from './helpers/bridge-harness.js'
+import { admitUserMessage, makeCmdHarness, makeEvent, makeFakeAgents, makeHarness, registryOf } from './helpers/bridge-harness.js'
 
 /** Minimal RegistryDeps for direct-registry tests (the registry internal
  * direct-call convention of this file). */
@@ -812,6 +812,7 @@ describe('ChatRegistry', () => {
     h.sendGroupTextAs('管理员插话', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     h.ctx.emit('session/event', { id: h.sessionIds[0] } as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[0], { index: 0 })
     h.ctx.emit('session/event', { id: h.sessionIds[0] } as never, makeEvent('turn/end', { turn: 1, reason: { kind: 'completed' } }))
     // /new in the group disposes the chat: the queued admin role must go with it.
     h.sendGroupTextAs('/new', 10001)
@@ -821,6 +822,7 @@ describe('ChatRegistry', () => {
     h.sendGroupTextAs('新会话消息', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
     h.ctx.emit('session/event', { id: h.sessionIds[1] } as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[1])
     expect(h.bridge.canEditFiles(h.sessionIds[1])).toBe(true)
 
     h.client.close()

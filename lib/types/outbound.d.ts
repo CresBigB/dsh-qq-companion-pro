@@ -22,6 +22,10 @@ export interface SendOptions {
      *  stripMarkdown 与 [[qq_forward]] 块解析；只有第一条带 replyTo。给了它时
      *  `text` 只用作审计扫描的整段文本（调用方传各条拼接）。 */
     parts?: readonly string[];
+    /** 独立的一行前缀（长任务自动轮次的「第 N/M 轮」）：在出站**协议解析之后**
+     *  才拼到正文前，因此 `[引用:id]` / `[不回]` / `【控制】{…}` 等协议照常
+     *  生效；正文被判定为不回时整条（含前缀）也不发。只作用于第一条。 */
+    header?: string;
 }
 /** Narrow view of a live chat the outbound pipeline may touch — the
  * structural subset of the bridge's ChatAgent the pipeline reads: the

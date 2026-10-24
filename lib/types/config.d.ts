@@ -14,6 +14,8 @@ export interface Config {
     newMessagePolicy: 'queue' | 'steer';
     /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
     autoSteerPolicy: 'admin' | 'all';
+    /** 长任务（/task <目标>）自动轮次的回传节奏：N 轮回传一次当轮最终文字；1=逐轮都回传（默认）。 */
+    taskEveryRounds: number;
     /** 等待模型回复超时阈值（毫秒）——超时后登记补发跟踪、回合完成后向原聊天补发最终文字；0=关闭。 */
     deferredTimeoutMs: number;
     dmPolicy: 'open' | 'allowlist' | 'disabled';

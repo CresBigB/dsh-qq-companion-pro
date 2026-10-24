@@ -175,10 +175,11 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   interimRecall: vBoolean(),
   interimRecallMs: vNumber(0),
   sendErrorNotice: vBoolean(),
-  // conversation（14）
+  // conversation（15）
   newMessagePolicy: vEnum(['queue', 'steer']),
   autoSteerPolicy: vEnum(['admin', 'all']),
   deferredTimeoutMs: vNumber(0),
+  taskEveryRounds: vNumber(0),
   unknownCommand: vEnum(['intercept', 'passthrough']),
   rateLimitPerMinute: vNumber(0),
   idleResetHours: vNumber(0),

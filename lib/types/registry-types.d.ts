@@ -10,6 +10,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { ChatId, UserRole } from './chat.js';
 import type { AgentPresetsLike, BridgeConfig, SessionPersistenceLike, WorkspaceRegistryLike } from './bridge.js';
 import type { SessionTitleLike } from './session-title.js';
+import type { TaskGoalBinding, TaskGoalTurn } from './task-goal.js';
 /** The mapping file name inside the media dir. */
 export declare const MAPPING_FILE = "chat-sessions.json";
 /** The outcome of a /session switch attempt (the command layer phrases the
@@ -134,24 +135,42 @@ export interface ChatAgent {
     rateLimitNoticeAt: number | undefined;
     typingTimer: ReturnType<typeof setInterval> | undefined;
     lastNickname: string;
-    /** Roles of dispatched turns not yet opened (FIFO, consumed at turn/start). */
-    pendingTurnRoles: UserRole[];
+    /** 插件已派发、尚未被宿主真正接纳的排队回合身份（FIFO，T16 修复 D1）。
+     * **只有真实 `user/message` 接纳事件按 messageId 精确匹配才消费**：自动
+     * 目标轮、Web/宿主输入、被 driver 拒绝或被替换掉的 pre-step 提案都不会
+     * 动这条队列，也不会顺走排队 QQ 回合的管理员角色。 */
+    pendingTurns: PendingTurn[];
     /** Roles of the currently running turn; stays 'member' (fail-closed) until a
-     * turn/start assigns the head of pendingTurnRoles. */
+     * real user/message admission matches a pendingTurns entry. */
     activeTurnRole: UserRole;
-    /** Inbound message ids of dispatched turns not yet opened (FIFO, same
-     * alignment as pendingTurnRoles): the message each queued turn answers.
-     * consumed at turn/start into activeTurnMessageId. */
-    pendingTurnMessageIds: Array<string | undefined>;
-    /** The message id the currently running turn answers (turn/start freeze of
-     * pendingTurnMessageIds); undefined for turns the plugin did not dispatch. */
+    /** The message id the currently running turn answers (frozen when the
+     * admitted user/message matched a pendingTurns entry); undefined for turns
+     * the plugin did not dispatch. */
     activeTurnMessageId: string | undefined;
+    /** 当前回合的宿主 turn 序号（turn/start 记录；仅用于日志与幂等判断）。 */
+    activeTurnNumber: number;
+    /** 当前回合最后一条被宿主接纳的真实输入 message id（turn/start 清零）：
+     * 同一条 message 被重放/重投递时不再重复判定身份，也不会把刚抬起来的角色
+     * 打回 member（T16 第二轮审查缺陷 1）。 */
+    lastAdmittedMessageId: string | undefined;
     /** The message id the last ENDED turn answered — the final reply is sent
      * after turn/end, so it reads this instead of activeTurnMessageId (a queued
      * next turn may already have replaced that one). */
     finalTurnMessageId: string | undefined;
     /** The last user message text actually fed to the agent (for /retry). */
     lastFollowup: string | undefined;
+    /** 该聊天的长任务授权绑定（T16）：**只在内存**——进程重启、换会话、
+     * 聊天被移除即失效，重启后必须显式 /task resume。见 task-goal.ts。 */
+    taskGoal: TaskGoalBinding | undefined;
+    /** 当前回合是否是自动目标轮（`user/message` 接纳时按来源冻结的身份；
+     * undefined = 普通回合）。turn/end 只认这份冻结身份，不读可变的「当前有
+     * 活动目标」反推上一轮；接纳到非授权输入会当场撤掉它（失败闭合）。 */
+    taskGoalTurn: TaskGoalTurn | undefined;
+    /** 当前自动目标轮的**最终候选**文字（工具调用前的过程文字不算；按
+     * taskEveryRounds 节奏回传；异步发送发生在 turn/end 之后，先在这里攒）。 */
+    taskGoalText: string;
+    /** 当前自动目标轮已处理的 assistant 消息 id（流式/usage 重发去重，D5）。 */
+    taskGoalLastMessageId: string | undefined;
     /** Mutable per-agent model selection (installModelSelection-bound); the
      * /model command swaps `.current` for the next step. */
     selectionRef: ModelSelectionRef | undefined;
@@ -204,4 +223,14 @@ export interface RegistryDeps {
     /** runs once after a NEW session is registered (the bridge
      * applies the admin permission default here). Failures only log. */
     onSessionCreated?(chat: ChatAgent): Promise<void>;
+}
+/** 一个已派发、尚未被宿主接纳的 QQ 回合身份（T16 修复 D1）。 */
+export interface PendingTurn {
+    /** 本轮发起者角色（管理员私聊派发为 admin）。 */
+    role: UserRole;
+    /** 本轮要引用的入站消息 id（触发消息；群聊里通常是被回复的那条）。 */
+    triggerId: string | undefined;
+    /** 插件自己创建的那条 user message 的 id —— 与宿主真实 `user/message`
+     * 接纳事件对账的唯一凭据（自动轮/Web 输入不可能撞上这个 id 的语义）。 */
+    messageId: string;
 }

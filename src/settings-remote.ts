@@ -97,7 +97,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'interimMessages', 'interimRecall', 'interimRecallMs', 'sendErrorNotice',
   ],
   conversation: [
-    'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs',
+    'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'taskEveryRounds',
     'unknownCommand', 'rateLimitPerMinute',
     'idleResetHours', 'privateResetDays', 'groupResetDays', 'sessionTitleTemplate',
     'privateSessionKeepDays', 'groupSessionKeepDays', 'chatIdleEvictDays',

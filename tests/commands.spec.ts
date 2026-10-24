@@ -642,7 +642,7 @@ describe('commands', () => {
       '▍其他',
       '/model [--default] <provider> <model> 切换模型（--default 改部署默认；无参两级序号列表）',
       '/group [list|allow <群号>|remove <群号>] 群白名单',
-      '/task [id] 定时任务：无参列出，带 id 立刻执行一次',
+      '/task <目标> [-r N] 长任务｜status|stop|resume；无参=定时任务列表，带 id=立刻执行一次',
       '/goal [目标|clear] 目标记录',
       '/help 本帮助',
       '',

@@ -12,7 +12,7 @@ import { ChatBridge } from '../src/bridge.js'
 import { MediaStore } from '../src/media.js'
 import { Transcriber } from '../src/stt.js'
 
-import { makeCmdHarness, makeEvent, makeFakeAgents, makeHarness } from './helpers/bridge-harness.js'
+import { admitUserMessage, makeCmdHarness, makeEvent, makeFakeAgents, makeHarness } from './helpers/bridge-harness.js'
 
 describe('ChatBridge', () => {
   it('slash /new retirement is durable: the retired file records the bare id and a restart skips it (registry round-trip)', async () => {
@@ -88,11 +88,12 @@ describe('ChatBridge', () => {
     // Non-QQ session id: not in the chat mapping → allowed.
     expect(h.bridge.canEditFiles('some-web-session')).toBe(true)
 
-    // An admin (10001) dispatches a turn; the role freezes at turn/start →
-    // allowed for that turn.
+    // An admin (10001) dispatches a turn; the role freezes at the host's
+    // `user/message` admission of that very message → allowed for that turn.
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     h.ctx.emit('session/event', { id: h.sessionIds[0] } as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[0])
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(true)
 
     h.client.close()
@@ -110,15 +111,18 @@ describe('ChatBridge', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     const memberSession = { id: h.sessionIds[0] }
     h.ctx.emit('session/event', memberSession as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[0], { index: 0 })
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(false)
     h.ctx.emit('session/event', memberSession as never, makeEvent('turn/end', { turn: 1, reason: { kind: 'completed' } }))
     h.ctx.emit('session/event', memberSession as never, makeEvent('turn/start', { turn: 2 }))
+    admitUserMessage(h, h.sessionIds[0], { index: 1 })
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(false)
 
     // The admin's own private chat opens its turn with the admin role.
     h.sendTextAs('你好', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
     h.ctx.emit('session/event', { id: h.sessionIds[1] } as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[1])
     expect(h.bridge.canEditFiles(h.sessionIds[1])).toBe(true)
 
     h.client.close()
@@ -133,6 +137,7 @@ describe('ChatBridge', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     const session = { id: h.sessionIds[0] }
     h.ctx.emit('session/event', session as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[0], { index: 0 })
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(false)
 
     // Admin interjects mid-turn: the admin role queues for the NEXT turn, but
@@ -145,6 +150,7 @@ describe('ChatBridge', () => {
     // The admin's queued turn opens → allowed for that turn.
     h.ctx.emit('session/event', session as never, makeEvent('turn/end', { turn: 1, reason: { kind: 'completed' } }))
     h.ctx.emit('session/event', session as never, makeEvent('turn/start', { turn: 2 }))
+    admitUserMessage(h, h.sessionIds[0], { index: 1 })
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(true)
 
     h.client.close()
@@ -152,18 +158,20 @@ describe('ChatBridge', () => {
     await h.connection.stop()
   })
 
-  it('fails closed to member on turn/start with an empty dispatch queue (host-initiated turn)', async () => {
+  it('fails closed to member on a turn the plugin never dispatched (host-initiated turn)', async () => {
     const h = await makeCmdHarness()
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     const session = { id: h.sessionIds[0] }
     // The admin's dispatched turn → allowed while it runs.
     h.ctx.emit('session/event', session as never, makeEvent('turn/start', { turn: 1 }))
+    admitUserMessage(h, h.sessionIds[0])
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(true)
     // A turn the plugin never dispatched (host/web input on the same session)
-    // finds the queue empty → member, never inheriting the previous role.
+    // admits an unrelated message → member, never inheriting the previous role.
     h.ctx.emit('session/event', session as never, makeEvent('turn/end', { turn: 1, reason: { kind: 'completed' } }))
     h.ctx.emit('session/event', session as never, makeEvent('turn/start', { turn: 2 }))
+    h.ctx.emit('session/event', session as never, makeEvent('user/message', { role: 'user', id: 'web-input', content: [{ type: 'text', text: '来自网页' }] }))
     expect(h.bridge.canEditFiles(h.sessionIds[0])).toBe(false)
 
     h.client.close()
@@ -235,7 +243,7 @@ describe('ChatBridge', () => {
       busy: c.busy,
       dispatchTimes: c.dispatchTimes,
       rateLimitNoticeAt: c.rateLimitNoticeAt,
-      pendingTurnRoles: c.pendingTurnRoles,
+      pendingTurns: c.pendingTurns,
       activeTurnRole: c.activeTurnRole,
       lastFollowup: c.lastFollowup,
       selectionRef: c.selectionRef,

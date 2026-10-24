@@ -12,6 +12,7 @@ import { type ChatId, type UserRole } from '../chat.js'
 import type { PendingSelection, SessionSwitchOutcome, SwitchableSession, WorkspaceAttachOutcome } from '../registry.js'
 import type { AgentDefaultModelLike, AgentPresetsLike, BridgeConfig, BridgeDeps, LlmCatalogPort, SessionPersistenceLike, WorkspaceRegistryLike } from '../bridge.js'
 import type { TraceStage } from '../trace.js'
+import type { GoalsPortLike, TaskGoalPort } from '../task-goal.js'
 
 /** Narrow view of a live chat the command handlers may read or mutate —
  * the structural subset of the bridge's internal ChatAgent that the
@@ -107,8 +108,15 @@ export interface CommandContext {
    * Mints an MF- reference through the bridge (registry + trace + structured
    * log) and returns it for the ⚠️ notice tail. */
   reportFailure?: ((chatId: ChatId, stage: TraceStage, detail: string) => string) | undefined
+  /** 宿主 goals 服务（长任务）；absent = 部署未启用 dsh-goal。 */
+  goals?: GoalsPortLike
+  /** 长任务的进程内授权端口（/task 的 create/stop/resume 走这里）。 */
+  taskGoal?: TaskGoalPort
+  /** /stop 的配套：有已授权且在跑的长任务时暂停它（保留目标与进度），
+   * 返回附在 /stop 回执后的说明；没有可暂停的目标返回 undefined。 */
+  pauseTaskGoal?: (chatId: ChatId) => string | undefined
   /** The only config fields the commands read. */
-  config: Pick<BridgeConfig, 'interimMessages' | 'maxImageBytes' | 'unknownCommand'>
+  config: Pick<BridgeConfig, 'interimMessages' | 'maxImageBytes' | 'unknownCommand' | 'taskEveryRounds'>
 }
 
 /** the sender identity the inbound pipeline already resolved for the

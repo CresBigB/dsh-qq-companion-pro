@@ -9,7 +9,7 @@ import { handleGoalCommand, handleRetryCommand, handleSessionCommand, handleStee
 import { handleModelCommand, handlePresetCommand, handleWorkspaceCommand } from './commands/model.js'
 import { handleDoctorCommand, handleIdCommand, handleStatusCommand, handleVerCommand } from './commands/info.js'
 import { handlePermissionCommand, handlePlanCommand } from './commands/host.js'
-import { handleTaskCommand } from './companion/task-command.js'
+import { handleTaskCommand } from './commands/task.js'
 import { handleGroupCommand } from './groups.js'
 
 import { type ChatId } from './chat.js'
@@ -67,7 +67,7 @@ export const COMMANDS: CommandDefinition[] = [
   { name: 'plan', adminOnly: true, group: '输出', help: '[off|内容] 宿主计划模式', handler: (ctx, chatId, arg) => handlePlanCommand(ctx, chatId, arg) },
   { name: 'permission', adminOnly: true, group: '会话', help: '[w|f|预设名|序号] 切换权限预设（w=工作区可写+需审批，f=全盘+免审批）', handler: (ctx, chatId, arg) => handlePermissionCommand(ctx, chatId, arg) },
   { name: 'group', aliases: ['qun'], adminOnly: true, group: '其他', help: '[list|allow <群号>|remove <群号>] 群白名单', handler: (ctx, chatId, arg) => handleGroupCommand(ctx.groupAccess, arg, text => ctx.sendToChat(chatId, text)) },
-  { name: 'task', adminOnly: true, group: '其他', help: '[id] 定时任务：无参列出，带 id 立刻执行一次', handler: (ctx, chatId, arg) => handleTaskCommand(ctx, arg, text => ctx.sendToChat(chatId, text)) },
+  { name: 'task', adminOnly: true, group: '其他', help: '<目标> [-r N] 长任务｜status|stop|resume；无参=定时任务列表，带 id=立刻执行一次', handler: (ctx, chatId, arg) => handleTaskCommand(ctx, chatId, arg) },
   { name: 'goal', adminOnly: true, group: '其他', help: '[目标|clear] 目标记录', handler: (ctx, chatId, arg) => handleGoalCommand(ctx, chatId, arg) },
   { name: 'help', adminOnly: true, group: '其他', help: '本帮助', handler: async (ctx, chatId) => {
     await ctx.sendToChat(chatId, helpText())

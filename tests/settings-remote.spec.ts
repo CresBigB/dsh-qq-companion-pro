@@ -100,18 +100,18 @@ function parameterNames(fn: Function): string[] {
   return inner === '' ? [] : inner.split(',').map((part) => part.trim())
 }
 
-describe('设置页覆盖清单 — 124 键自检（后端新增键忘了上页会在这里失败）', () => {
+describe('设置页覆盖清单 — 125 键自检（后端新增键忘了上页会在这里失败）', () => {
   const schemaKeys = Object.keys((Config as unknown as { dict: Record<string, unknown> }).dict)
 
   it('排除列表与上页键不重叠：ALL_KEYS ∩ EXCLUDED_KEYS = ∅', () => {
     for (const key of EXCLUDED_KEYS) expect(ALL_KEYS).not.toContain(key)
   })
 
-  it('Config.dict 的键 − 排除列表 = ALL_KEYS（129 − 5 = 124）', () => {
+  it('Config.dict 的键 − 排除列表 = ALL_KEYS（130 − 5 = 125）', () => {
     const onPage = schemaKeys.filter((key) => !EXCLUDED_KEYS.includes(key))
     expect([...onPage].sort()).toEqual([...ALL_KEYS].sort())
-    expect(schemaKeys).toHaveLength(129)
-    expect(ALL_KEYS).toHaveLength(124)
+    expect(schemaKeys).toHaveLength(130)
+    expect(ALL_KEYS).toHaveLength(125)
   })
 
   it('ALL_KEYS 不重不漏：跨分组与分组内都无重复，每个子页都至少有一个键', () => {
@@ -522,7 +522,7 @@ describe('onebotSettings remote — P1/newMessagePolicy 白名单扩展（conver
     expect(conversation.slice(0, 3)).toEqual(['newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs'])
     expect(snapshot.groups.conversation).toEqual(conversation)
     expect(snapshot.config.newMessagePolicy).toBe('queue')
-    expect(snapshot.effect).toBe('restart') // 与全部 124 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 125 键同粒度：热重启生效
   })
 
   it('newMessagePolicy 写入走枚举通道：\'steer\' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -564,7 +564,7 @@ describe('onebotSettings remote — autoSteerPolicy 白名单扩展（conversati
     expect(conversation.indexOf('autoSteerPolicy')).toBe(conversation.indexOf('newMessagePolicy') + 1)
     expect(snapshot.groups.conversation).toEqual(conversation)
     expect(snapshot.config.autoSteerPolicy).toBe('admin')
-    expect(snapshot.effect).toBe('restart') // 与全部 124 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 125 键同粒度：热重启生效
   })
 
   it('autoSteerPolicy 写入走枚举通道：\'all\' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -606,7 +606,7 @@ describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（conversa
     expect(conversation.indexOf('deferredTimeoutMs')).toBe(conversation.indexOf('autoSteerPolicy') + 1)
     expect(snapshot.groups.conversation).toEqual(conversation)
     expect(snapshot.config.deferredTimeoutMs).toBe(600_000)
-    expect(snapshot.effect).toBe('restart') // 与全部 124 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 125 键同粒度：热重启生效
   })
 
   it('deferredTimeoutMs 写入走数字通道（≥0）：合法值进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用', async () => {
@@ -678,7 +678,7 @@ describe('onebotSettings remote — groupAutoQuote 白名单扩展（group 子�
     expect(group[3]).toBe('groupAutoQuote') // 「怎么叫她」3 键之后
     expect(snapshot.groups.group).toEqual(group)
     expect(snapshot.config.groupAutoQuote).toBe('off')
-    expect(snapshot.effect).toBe('restart') // 与全部 124 键同粒度：热重启生效
+    expect(snapshot.effect).toBe('restart') // 与全部 125 键同粒度：热重启生效
   })
 
   it("groupAutoQuote 写入走枚举通道：'busy'/'always' 合法进覆盖行并递增 revision；非法值拒写 bad-request 且 edit 零调用", async () => {
