@@ -34,11 +34,15 @@ function promptWith(enabledCapabilityIds: readonly string[], restrictedMembers =
 /** 发送类能力的 id（qq.send.*）。 */
 const SEND_CAPABILITY_IDS = CAPABILITIES.filter(capability => capability.id.startsWith('qq.send.')).map(capability => capability.id)
 
-/** 一遍就能开全依赖的聊天配置（表情包库 + 记忆文件）。 */
+/**
+ * 一遍就能开全依赖的聊天配置（表情包库 + 记忆文件）。
+ * T14 r2 起戳一戳 / 点赞连主人私聊也默认关，要「全开」还得给 ownerGrant。
+ */
 function allDepsConfig(extra?: Parameters<typeof makeCmdHarness>[0]): Parameters<typeof makeCmdHarness>[0] {
   return {
     stickers: {},
     publicMemoryFile: join(mkdtempSync(join(tmpdir(), 'prompt-mem-')), 'AGENTS.md'),
+    ownerGrant: ['qq.interact.poke', 'qq.interact.like'],
     ...extra,
   }
 }
@@ -87,7 +91,11 @@ describe('buildPlatformPrompt — 工具句子来自注册表，其余文案逐�
     for (const capability of CAPABILITIES.filter(item => item.id.startsWith('qq.send.'))) {
       for (const tool of capability.tools) expect(text).not.toContain(tool)
     }
-    expect(mentionedTools(text).filter(tool => tool.startsWith('qq_send_'))).toEqual([])
+    // 只看发送类能力自己的工具（qq_send_like 属于互动能力，不在此列）。
+    const sendTools = CAPABILITIES
+      .filter(item => item.id.startsWith('qq.send.'))
+      .flatMap(item => item.tools)
+    expect(mentionedTools(text).filter(tool => sendTools.includes(tool))).toEqual([])
     // 改造前的两句硬编码文案已交给注册表生成，关掉后不该残留。
     expect(text).not.toContain('需要发送图片时用')
     expect(text).not.toContain('想以「合并转发」卡片展示多条消息')
@@ -178,7 +186,7 @@ async function scopeOf(
 }
 
 describe('bridge 集成 — 实际注册的工具 ≡ 平台段里提到的工具（核心不变量）', () => {
-  it('依赖全开的管理员私聊：全部工具（18 个）既注册、也在提示词里', async () => {
+  it('依赖全开 + ownerGrant 的管理员私聊：全部工具既注册、也在提示词里', async () => {
     const { platform, tools } = await scopeOf(allDepsConfig(), 'admin')
     expect(tools).toEqual([...allToolNames()].sort())
     expect(mentionedTools(platform)).toEqual(tools)

@@ -148,10 +148,14 @@ describe('三个新能力：默认位全关、工具归属正确、老能力不�
   })
 
   it('改造前的老能力默认位仍全开（只增不改）', () => {
-    // T12 的三个隐私能力与 T13 的两个群管理写操作都是默认关的新增项，其余仍是老能力。
+    // T12 的三个隐私能力、T13 的两个群管理写操作、T14 的戳/点赞都是默认关的新增项，
+    // 其余仍是老能力（表情回应虽然默认开，但它是 T14 的新增项，不算老能力）。
     const T13_WRITE = ['qq.group.manage', 'qq.group.notice']
+    const T14_INTERACT = ['qq.interact.react', 'qq.interact.poke', 'qq.interact.like']
     const legacy = CAPABILITIES.filter(capability =>
-      !Object.prototype.hasOwnProperty.call(expected, capability.id) && !T13_WRITE.includes(capability.id))
+      !Object.prototype.hasOwnProperty.call(expected, capability.id)
+      && !T13_WRITE.includes(capability.id)
+      && !T14_INTERACT.includes(capability.id))
     expect(legacy.length).toBe(11)
     for (const capability of legacy) {
       expect(capability.memberDefault, capability.id).toBe(true)

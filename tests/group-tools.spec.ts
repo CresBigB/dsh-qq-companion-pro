@@ -170,7 +170,9 @@ describe('能力层 — 两个写操作能力默认关，说明写清后果', ()
     const writeIds = Object.keys(EXPECTED_CAPABILITIES) as string[]
     const legacy = CAPABILITIES.filter(capability =>
       !writeIds.includes(capability.id)
-      && !['qq.list.groups', 'qq.list.friends', 'qq.history.private'].includes(capability.id))
+      && !['qq.list.groups', 'qq.list.friends', 'qq.history.private'].includes(capability.id)
+      // T14 的三个互动能力与群体写操作无关，不算「老能力」。
+      && !['qq.interact.react', 'qq.interact.poke', 'qq.interact.like'].includes(capability.id))
     expect(legacy).toHaveLength(11)
     for (const capability of legacy) {
       expect(capability.memberDefault, capability.id).toBe(true)

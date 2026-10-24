@@ -116,7 +116,7 @@ export function vEnum(values: string[]): Schema<string> {
   }
 }
 
-/** 设置页上页 115 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
+/** 设置页上页 116 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
  *  出现一次，patchSchema 由同一份 shape 逐键派生，两侧键集天然一致）。
  *  类型与宿主 Config 一致；数字区间与宿主 numberRange 一致：port 1–65535，
  *  其余（时长 / 次数 / 字节数 / 像素）≥ 0；关系矩阵的三个比例是 0–1。 */
@@ -147,6 +147,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   friendDeny: vArray(vString(0, 64)),
   memberDeny: vArray(vString(0, 64)),
   strangerDeny: vArray(vString(0, 64)),
+  ownerGrant: vArray(vString(0, 64)),
   friendGrant: vArray(vString(0, 64)),
   memberGrant: vArray(vString(0, 64)),
   strangerGrant: vArray(vString(0, 64)),
@@ -248,7 +249,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   sensitivePatterns: vArray(vString(0, 1024)),
 }
 
-/** 115 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
+/** 116 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
 export const configSchema: ObjectSchema = vObject(CONFIG_SHAPE)
 
 /** getSettings / updateSettings 返回值（OnebotSettingsSnapshot）。 */
@@ -269,10 +270,10 @@ export const snapshotSchema: Schema<Record<string, unknown>> = vObject({
     media: vArray(vString(1, 64)),
     diagnostics: vArray(vString(1, 64)),
   }),
-  effect: vEnum(['restart']), // 115 键统一插件级热重启
+  effect: vEnum(['restart']), // 116 键统一插件级热重启
 })
 
-/** updateSettings 入参（任意 115 键子集；未出现的键 = 不修改）。 */
+/** updateSettings 入参（任意 116 键子集；未出现的键 = 不修改）。 */
 export const patchSchema: Schema<Record<string, unknown>> = vObject(
   Object.fromEntries(Object.entries(CONFIG_SHAPE).map(([key, schema]) => [key, vOptional(schema)])),
 )

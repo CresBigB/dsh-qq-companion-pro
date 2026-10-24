@@ -87,6 +87,8 @@ export interface Config {
     memberDeny: string[];
     /** 只不给陌生私聊（不在好友名单里的非管理员）用的能力 id。 */
     strangerDeny: string[];
+    /** 额外给主人私聊开放的能力 id（只对 ownerDefault 为 false 的能力有意义）。 */
+    ownerGrant: string[];
     /** 额外给好友（friendUsers 里的人）开放的能力 id（默认关闭、单独给好友开）。 */
     friendGrant: string[];
     /** 额外给群聊（所有群成员；群里主人发言也按群友档）开放的能力 id。 */

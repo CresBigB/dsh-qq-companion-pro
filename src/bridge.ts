@@ -13,7 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 
 import type { BridgeDeps } from './bridge-types.js'
-import { resolveCapabilities, summarizeCapabilities, groupWriteWarningLine, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
+import { resolveCapabilities, summarizeCapabilities, groupWriteWarningLine, interactionWarningLine, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
 import { buildChatId, classifyUserRole, groupAllowed, sanitizeMessageId, splitChatId } from './chat.js'
@@ -36,6 +36,7 @@ import { sessionRelation, stripRelationPrefix, type Relation } from './relation.
 import { parseLeadingQuote, SELF_QUOTE_TOKEN, SeenMessageIds, type QuoteMarker } from './reply-quote.js'
 import { registerStickerTools } from './sticker-tools.js'
 import { registerGroupTools } from './group-tools.js'
+import { registerInteractionTools } from './interaction-tools.js'
 import { registerMemoryNoteTool, registerTools } from './tools.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope, type TraceStage } from './trace.js'
 
@@ -925,6 +926,9 @@ export class ChatBridge {
       // /doctor 群管理提示行（T13）：四个群管理写操作工具里有任何一个对
       // 好友 / 群友 / 陌生人档开着才出现；全关时这一行不出。
       groupWriteWarning: () => groupWriteWarningLine({ config: this.capabilityConfig(), deps: this.availableCapabilityDeps() }),
+      // /doctor 轻互动提示行（T14）：戳一戳 / 点赞里有任何一个对非主人档开着才出现
+      // （这两项即使开了，也只有主人回合会真的执行，但会在别人的账号上留痕）。
+      interactionWarning: () => interactionWarningLine({ config: this.capabilityConfig(), deps: this.availableCapabilityDeps() }),
       configSnapshot: this.deps.configSnapshot?.() ?? {},
       // the recent fault references for the report section.
       failureRefs: () => this.failureRefs.recent(),
@@ -1219,6 +1223,10 @@ export class ChatBridge {
     // 群管理写操作（T13）：能力层默认关，且每个执行体还有一道回合门禁
     // （群里谁在说话只有回合级知道），见 src/group-tools.ts。
     registerGroupTools(agentCtx, this, this.deps.connection, allow)
+    // 轻互动（T14）：表情回应默认开、有会话绑定 + 消息归属两道门禁；戳 / 点赞三个
+    // 默认位全关（连主人私聊也要 ownerGrant），且每个执行体还有一道回合门禁
+    // （谁在说话只有回合级知道），见 src/interaction-tools.ts。
+    registerInteractionTools(agentCtx, this, this.deps.connection, allow)
   }
 
   /**
@@ -1257,7 +1265,7 @@ export class ChatBridge {
     })
   }
 
-  /** 能力相关的配置（全局 deny + 三个按关系 deny + 三个 grant；缺省一律空 = 现状）。 */
+  /** 能力相关的配置（全局 deny + 三个按关系 deny + 四个 grant；缺省一律空 = 现状）。 */
   private capabilityConfig(): CapabilityConfig {
     const config = this.deps.config
     return {
@@ -1265,6 +1273,7 @@ export class ChatBridge {
       friendDeny: config.friendDeny ?? [],
       memberDeny: config.memberDeny ?? [],
       strangerDeny: config.strangerDeny ?? [],
+      ownerGrant: config.ownerGrant ?? [],
       friendGrant: config.friendGrant ?? [],
       memberGrant: config.memberGrant ?? [],
       strangerGrant: config.strangerGrant ?? [],

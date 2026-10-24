@@ -80,7 +80,10 @@
         "qq_group_ban",
         "qq_group_card",
         "qq_group_announce",
-        "qq_group_essence"
+        "qq_group_essence",
+        "qq_emoji_react",
+        "qq_poke",
+        "qq_send_like"
       ],
       "skills": []
     }

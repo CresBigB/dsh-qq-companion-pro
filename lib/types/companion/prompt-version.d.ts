@@ -10,7 +10,7 @@ export declare function promptFingerprint(...parts: string[]): string;
  * plugin version, the persona text, that chat's companion guide, and the QQ
  * platform section (src/prompt.ts). The platform section is part of it since
  * T7 because its tool sentences are generated from the capability registry:
- * flipping `capabilitiesDeny`（或 T11 的三个 grant，按关系不同）changes the
+ * flipping `capabilitiesDeny`（或四个 grant / 三个按关系 deny，按关系不同）changes the
  * prompt, and dsh would otherwise keep sending the stale one beside the new one.
  *
  * ⚠ Every part must be byte-stable for a given state. Anything that varies

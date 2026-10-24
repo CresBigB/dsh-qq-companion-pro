@@ -237,6 +237,8 @@ export async function makeCmdHarness(opts?: {
   friendGrant?: string[]
   memberGrant?: string[]
   strangerGrant?: string[]
+  /** 额外给主人私聊开放的能力 id（T14 r2；只对 ownerDefault 为 false 的能力有意义）。 */
+  ownerGrant?: string[]
   /** 好友名单（关系矩阵测试用；absent = 空）。 */
   friendUsers?: string[]
   /** 关系矩阵的三个比例（absent = 配置默认值）。 */
@@ -316,6 +318,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.friendGrant !== undefined ? { friendGrant: opts.friendGrant } : {}),
       ...(opts?.memberGrant !== undefined ? { memberGrant: opts.memberGrant } : {}),
       ...(opts?.strangerGrant !== undefined ? { strangerGrant: opts.strangerGrant } : {}),
+      ...(opts?.ownerGrant !== undefined ? { ownerGrant: opts.ownerGrant } : {}),
       ...(opts?.adminPreset !== undefined ? { adminPreset: opts.adminPreset } : {}),
       ...(opts?.adminPermission !== undefined ? { adminPermission: opts.adminPermission } : {}),
       ...(opts?.memberPermission !== undefined ? { memberPermission: opts.memberPermission } : {}),

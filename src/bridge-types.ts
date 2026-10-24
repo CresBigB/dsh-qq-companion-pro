@@ -78,6 +78,9 @@ export interface BridgeConfig {
   memberDeny?: readonly string[]
   /** 只不给陌生人私聊用的能力 id（absent = 不额外关）。 */
   strangerDeny?: readonly string[]
+  /** 额外给主人私聊开放的能力 id（T14 r2；只对 ownerDefault 为 false 的能力有意义；
+   *  absent = 不加开）。 */
+  ownerGrant?: readonly string[]
   /** 额外给好友私聊开放的能力 id（T11 的 grant；absent = 不加开）。 */
   friendGrant?: readonly string[]
   /** 额外给群聊开放的能力 id（含群里发言的主人；absent = 不加开）。 */

@@ -87,7 +87,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'autoAcceptAdminRequests', 'autoAllowInvitedGroups',
     'capabilitiesDeny',
     'friendDeny', 'memberDeny', 'strangerDeny',
-    'friendGrant', 'memberGrant', 'strangerGrant',
+    'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant',
   ],
   persona: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'memberPermission', 'adminWorkspacePath', 'groupReasoningEffort'],
   messaging: [

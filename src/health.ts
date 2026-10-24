@@ -55,6 +55,9 @@ export interface HealthDeps {
   /** /doctor 群管理写操作提示行（T13）：非主人档真的开了这两个能力时返回一行
    *  警告，空串 = 不提。absent = 报告省略该行。 */
   groupWriteWarning?: () => string
+  /** /doctor 轻互动提示行（T14）：戳一戳 / 点赞里任一项对非主人档真的开着时
+   *  返回一行警告，空串 = 不提。absent = 报告省略该行。 */
+  interactionWarning?: () => string
   /** Write-gate snapshot. */
   /** The already-redacted config snapshot (see redactSnapshot). */
   configSnapshot: Record<string, unknown>
@@ -147,6 +150,15 @@ export async function healthReport(deps: HealthDeps): Promise<string> {
       if (warning !== '') lines.push(warning)
     } catch (error) {
       lines.push('群管理写操作：读取失败（' + (error instanceof Error ? error.message : String(error)) + '）')
+    }
+  }
+  // 轻互动提示（T14）：戳一戳 / 点赞里有任何一个对非主人档开着时补一句。
+  if (deps.interactionWarning !== undefined) {
+    try {
+      const warning = deps.interactionWarning()
+      if (warning !== '') lines.push(warning)
+    } catch (error) {
+      lines.push('轻互动：读取失败（' + (error instanceof Error ? error.message : String(error)) + '）')
     }
   }
   const files: string[] = []

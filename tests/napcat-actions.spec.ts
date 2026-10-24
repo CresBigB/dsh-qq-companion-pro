@@ -7,9 +7,10 @@
  *   ③ 表结构：每条 action 都有 capability，且该能力真的在 CAPABILITIES 里注册
  *      （「以后新增 action 只需加一行」的前提），describe 是一句中文；
  *   ④ write 标记把「改外部状态」和「只读查询」分开（改造前 3 条写、12 条读；
- *      T13 追加的 6 条群管理 action 也是写）；
- *   ⑤ T13 之后 `qq_napcat_api` 的放行集合仍然是改造前那 15 条：表内的群管理
- *      action 不能借万能入口绕过「能力默认关 + 只有主人回合」两道门禁。
+ *      T13 追加的 6 条群管理 action、T14 追加的 4 条轻互动 action 也是写）；
+ *   ⑤ T13 / T14 之后 `qq_napcat_api` 的放行集合仍然是改造前那 15 条：表内的群管理
+ *      action 与戳一戳 / 点赞 / 表情回应不能借万能入口绕过「能力默认关 + 只有主人
+ *      回合」两道门禁。
  * @module dsh-qq-companion-pro/tests/napcat-actions
  */
 import { describe, expect, it } from 'vitest'
@@ -68,6 +69,15 @@ const T13_ACTIONS = [
   'delete_essence_msg',
 ]
 
+/**
+ * T14 追加的 4 条轻互动（表尾，挂在三个互动能力下）。
+ *
+ * 同样**不在 `qq_napcat_api` 的放行集合里**：戳一戳与点赞会真的打扰到对方，表情
+ * 回应也会改动消息，不能借万能入口绕过能力门禁。`friend_poke` 与 `group_poke`
+ * 是同一能力的两个 action（私聊 / 群聊各一条）。
+ */
+const T14_ACTIONS = ['set_msg_emoji_like', 'friend_poke', 'group_poke', 'send_like']
+
 interface ApiTool {
   name: string
   description: string
@@ -108,10 +118,10 @@ describe('表驱动零行为变化 — 改造前的 15 条 action 逐条可用',
     })
   }
 
-  it('表的前 15 条就是改造前那 15 条；T13 的 6 条追加在尾部（不多不少）', () => {
+  it('表的前 15 条就是改造前那 15 条；T13 的 6 条、T14 的 4 条追加在尾部（不多不少）', () => {
     expect(NAPCAT_ACTION_NAMES.slice(0, PRE_CHANGE_WHITELIST.length)).toEqual(PRE_CHANGE_WHITELIST)
-    expect(NAPCAT_ACTION_NAMES.slice(PRE_CHANGE_WHITELIST.length)).toEqual(T13_ACTIONS)
-    expect(NAPCAT_ACTION_NAMES).toHaveLength(PRE_CHANGE_WHITELIST.length + T13_ACTIONS.length)
+    expect(NAPCAT_ACTION_NAMES.slice(PRE_CHANGE_WHITELIST.length)).toEqual([...T13_ACTIONS, ...T14_ACTIONS])
+    expect(NAPCAT_ACTION_NAMES).toHaveLength(PRE_CHANGE_WHITELIST.length + T13_ACTIONS.length + T14_ACTIONS.length)
   })
 
   it('表顺序 = 改造前数组顺序（描述与报错文案由它拼出来）', () => {
@@ -177,16 +187,16 @@ describe('表结构 — 加一行就够（能力必须已登记）', () => {
   it('当前归 qq.napcat.api 的仍是改造前那 15 条（刻意不打散现有能力）', () => {
     expect(napcatActionsOfCapability('qq.napcat.api')).toEqual(PRE_CHANGE_WHITELIST)
     expect(napcatActionMeta('get_group_member_list')?.capability).toBe('qq.napcat.api')
-    // 挂到别的能力下的只有 T13 追加的那 6 条（qq.napcat.api 的集合一个字没动）。
+    // 挂到别的能力下的只有 T13 追加的 6 条与 T14 追加的 4 条（qq.napcat.api 的集合一个字没动）。
     const otherCapabilities = CAPABILITIES
       .filter(capability => capability.id !== 'qq.napcat.api')
       .flatMap(capability => napcatActionsOfCapability(capability.id))
-    expect(otherCapabilities).toEqual(T13_ACTIONS)
+    expect(otherCapabilities).toEqual([...T13_ACTIONS, ...T14_ACTIONS])
   })
 
-  it('write 标记：改造前 3 条写 + T13 的 6 条写，其余 12 条只读', () => {
+  it('write 标记：改造前 3 条写 + T13 的 6 条 + T14 的 4 条，其余 12 条只读', () => {
     const write = NAPCAT_ACTION_NAMES.filter(action => NAPCAT_ACTIONS[action].write)
-    expect(write).toEqual(['upload_group_file', 'upload_private_file', 'send_group_ai_record', ...T13_ACTIONS])
+    expect(write).toEqual(['upload_group_file', 'upload_private_file', 'send_group_ai_record', ...T13_ACTIONS, ...T14_ACTIONS])
     const read = NAPCAT_ACTION_NAMES.filter(action => !NAPCAT_ACTIONS[action].write)
     expect(read).toHaveLength(12)
     // 只读里既有查询也有下载类，但都不改 QQ 侧状态。
@@ -194,21 +204,31 @@ describe('表结构 — 加一行就够（能力必须已登记）', () => {
     expect(read).toContain('ocr_image')
     // T13 的每一条都必须是写（禁言、改名、公告、精华都改群状态）。
     for (const action of T13_ACTIONS) expect(NAPCAT_ACTIONS[action].write, action).toBe(true)
+    // T14 的每一条也都是写（戳、点赞、表情回应都会让别人看见）。
+    for (const action of T14_ACTIONS) expect(NAPCAT_ACTIONS[action].write, action).toBe(true)
   })
 
   it('napcatActionMeta 表外返回 undefined（不抛错、不建新条目）', () => {
     expect(napcatActionMeta('nope')).toBeUndefined()
-    expect(Object.keys(NAPCAT_ACTIONS)).toHaveLength(PRE_CHANGE_WHITELIST.length + T13_ACTIONS.length)
+    expect(Object.keys(NAPCAT_ACTIONS)).toHaveLength(PRE_CHANGE_WHITELIST.length + T13_ACTIONS.length + T14_ACTIONS.length)
   })
 })
 
-describe('T13 · qq_napcat_api 的放行集合仍然只有改造前那 15 条', () => {
+describe('T13 / T14 · qq_napcat_api 的放行集合仍然只有改造前那 15 条', () => {
   it('NAPCAT_PROXY_ACTION_NAMES = 改造前 15 条（顺序一致）', () => {
     expect([...NAPCAT_PROXY_ACTION_NAMES]).toEqual(PRE_CHANGE_WHITELIST)
   })
 
   it('表内的群管理 action 也不能经 qq_napcat_api 调用（一个请求都不发）', async () => {
     for (const action of T13_ACTIONS) {
+      const h = makeApiHarness()
+      await expect(h.tool.execute({ action })).rejects.toThrow('qq_napcat_api: action 不在白名单内（' + PRE_CHANGE_WHITELIST.join(', ') + '）')
+      expect(h.calls, action).toHaveLength(0)
+    }
+  })
+
+  it('表内的戳 / 点赞 / 表情回应也不能经 qq_napcat_api 调用（一个请求都不发）', async () => {
+    for (const action of T14_ACTIONS) {
       const h = makeApiHarness()
       await expect(h.tool.execute({ action })).rejects.toThrow('qq_napcat_api: action 不在白名单内（' + PRE_CHANGE_WHITELIST.join(', ') + '）')
       expect(h.calls, action).toHaveLength(0)

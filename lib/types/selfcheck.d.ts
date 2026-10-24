@@ -41,6 +41,8 @@ export interface SelfCheckInput {
     friendGrant?: readonly string[];
     memberGrant?: readonly string[];
     strangerGrant?: readonly string[];
+    /** 额外给主人私聊开放的能力 id（T14 r2；未知 id 同样告警）。 */
+    ownerGrant?: readonly string[];
     /** 输出协议 B 档总开关（'on' / 缺省 off）。 */
     protocolMode?: 'off' | 'on';
     /** 输出协议的灰度聊天名单（空 = 开启时对所有聊天生效）。 */

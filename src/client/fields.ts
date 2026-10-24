@@ -10,13 +10,15 @@
  *   dependsOnText 是 §3 表格的静态投影；函数型元数据 dependsOn（F2a）与
  *   danger（F2b，§5.5 危险判定）直接写在字段上，由 validate.ts 的
  *   collectRisks 统一按「草稿 ≠ 生效值」把关；
- * - DEFAULTS 全量覆盖上页的 115 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
+ * - DEFAULTS 全量覆盖上页的 116 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
  * - 不上页的 5 个键（imageMaxSize / maxImageBytes / maxInboundFileBytes /
  *   scheduledPrompts / sttReplacements）见宿主的 EXCLUDED_KEYS。
  * - 能力 id 清单由能力注册表（src/capabilities.ts 的 capabilityCatalogText）生成，
- *   不手写一份：注册表加了能力 / 改了中文名，设置页的 hint 自动跟上。
+ *   不手写一份：注册表加了能力 / 改了中文名，设置页的 hint 自动跟上。四个 grant 的
+ *   hint 里「默认关闭的是哪些」同理（defaultOffNoteText）——T14 之前这半句是手写的，
+ *   加了戳一戳 / 点赞就过时了。
  */
-import { capabilityCatalogText } from '../capabilities.js'
+import { capabilityCatalogText, defaultOffNoteText } from '../capabilities.js'
 
 /** 字段类型：enum（下拉）/ number / boolean / string / stringArray（标签列表）/ secret（密钥型）。 */
 export type FieldType = 'enum' | 'number' | 'boolean' | 'string' | 'stringArray' | 'secret'
@@ -116,7 +118,7 @@ export function draftText(draft: Record<string, unknown> | null | undefined, key
   return raw === undefined || raw === null ? '' : String(raw)
 }
 
-/** 10 组 115 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
+/** 10 组 116 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
 export const GROUPS: GroupMeta[] = [
   {
     id: 'connection',
@@ -156,14 +158,17 @@ export const GROUPS: GroupMeta[] = [
       { key: 'autoAllowInvitedGroups', label: '管理员拉进的群自动加白名单', type: 'boolean', hint: '管理员把机器人拉进的群自动加入群白名单，保存在 mediaDir/group-allowlist.json。', section: '自动处理请求' },
       { key: 'capabilitiesDeny', label: '关闭的功能', type: 'stringArray', hint: '每行一个能力 id，关掉的功能在主人私聊里也不再提供（对应工具不注册给模型；grant 也开不回来）。' + capabilityCatalogText() + '；留空 = 全部开启。', section: '功能开关' },
       // T11 r1：三个 deny 只「按关系关」，别的档不受影响（默认位全开时这才是真正
-      // 有用的那一半）；T11 的三个 grant 只「按关系加开」，配的是默认关闭的能力。
+      // 有用的那一半）；四个 grant（T11 的好友 / 群 / 陌生人 + T14 r2 的主人私聊）
+      // 只「按关系加开」，配的是默认关闭的能力。
       // 全局 deny 永远最高优先。
       { key: 'friendDeny', label: '不给好友用的功能', type: 'stringArray', hint: '每行一个能力 id：只对好友（好友名单里的人）关掉的功能，主人私聊、群聊、陌生人都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
       { key: 'memberDeny', label: '不给群聊用的功能', type: 'stringArray', hint: '每行一个能力 id：只对群聊关掉的功能（所有群成员；群里主人发言也按群友档），私聊都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
       { key: 'strangerDeny', label: '不给陌生人用的功能', type: 'stringArray', hint: '每行一个能力 id：只对陌生人私聊（不在好友名单里的非管理员）关掉的功能，主人私聊、好友私聊、群聊都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
-      { key: 'friendGrant', label: '给好友加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给好友（好友名单里的人）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录）和两个群管理写操作（禁言/群名片、公告/精华——这两项即使开了，也只有主人本人发起的回合能真的执行），要给好友开就写在这里。要把好友这一档单独关掉用「不给好友用的功能」。', section: '功能开关' },
-      { key: 'memberGrant', label: '给群聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给群聊（所有群成员；群里主人发言也按群友档）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录）和两个群管理写操作（禁言/群名片、公告/精华——这两项即使开了，也只有主人本人发起的回合能真的执行），要给群开就写在这里（群里一开，谁都能让模型把主人的群和好友念出来，谨慎）。要把群聊这一档单独关掉用「不给群聊用的功能」。', section: '功能开关' },
-      { key: 'strangerGrant', label: '给陌生人加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给陌生人私聊（不在好友名单里的非管理员）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。默认关闭的是三个隐私能力（群列表、好友名单、私聊记录）和两个群管理写操作（禁言/群名片、公告/精华——这两项即使开了，也只有主人本人发起的回合能真的执行），要给陌生人开就写在这里（等于把主人的社交关系给不认识的人，谨慎）。要把陌生人这一档单独关掉用「不给陌生人用的功能」。', section: '功能开关' },
+      // T14 r2：第四个 grant，只给主人私聊加开 ownerDefault 为 false 的能力。
+      { key: 'ownerGrant', label: '给主人私聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认连主人私聊也关、单独给管理员本人开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给主人私聊开就写在这里（只有主人自己的回合会真的执行）。要把主人这一档单独关掉用「关闭的功能」。', section: '功能开关' },
+      { key: 'friendGrant', label: '给好友加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给好友（好友名单里的人）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给好友开就写在这里。要把好友这一档单独关掉用「不给好友用的功能」。', section: '功能开关' },
+      { key: 'memberGrant', label: '给群聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给群聊（所有群成员；群里主人发言也按群友档）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给群开就写在这里（群里一开，谁都能让模型把主人的群和好友念出来，谨慎）。要把群聊这一档单独关掉用「不给群聊用的功能」。', section: '功能开关' },
+      { key: 'strangerGrant', label: '给陌生人加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给陌生人私聊（不在好友名单里的非管理员）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给陌生人开就写在这里（等于把主人的社交关系给不认识的人，谨慎）。要把陌生人这一档单独关掉用「不给陌生人用的功能」。', section: '功能开关' },
     ],
   },
   {
@@ -313,7 +318,7 @@ export const GROUPS: GroupMeta[] = [
   },
 ]
 
-/** 全部 115 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
+/** 全部 116 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
 export const ALL_FIELDS: FieldMeta[] = []
 for (const group of GROUPS) {
   for (const field of group.fields) ALL_FIELDS.push(field)
@@ -346,6 +351,7 @@ export const DEFAULTS: Record<string, unknown> = {
   friendDeny: [],
   memberDeny: [],
   strangerDeny: [],
+  ownerGrant: [],
   friendGrant: [],
   memberGrant: [],
   strangerGrant: [],

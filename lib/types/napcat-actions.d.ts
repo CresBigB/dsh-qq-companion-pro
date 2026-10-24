@@ -21,6 +21,10 @@
  * 2. 改造前的 15 条**逐条仍可调用**，表外 action 的拒绝文案一字不变（零行为变化）；
  * 3. 表格键的顺序 = 改造前数组的顺序（描述与报错文案由它拼出来）。
  *
+ * T14 追加了 4 条**轻互动**（`set_msg_emoji_like` / `friend_poke` / `group_poke` /
+ * `send_like`），挂在 `qq.interact.react` / `qq.interact.poke` / `qq.interact.like` 下。
+ * 理由与 T13 相同：它们也不走 `qq_napcat_api` 这个万能入口。
+ *
  * T13 追加了 6 条**群管理写操作**（禁言 / 全体禁言 / 群名片 / 群公告 / 精华），
  * 各自挂在 `qq.group.manage` / `qq.group.notice` 下。它们**不走 `qq_napcat_api`
  * 这个万能入口**：那个工具的放行集合是 {@link NAPCAT_PROXY_ACTION_NAMES}（只在

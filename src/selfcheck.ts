@@ -48,6 +48,8 @@ export interface SelfCheckInput {
   friendGrant?: readonly string[]
   memberGrant?: readonly string[]
   strangerGrant?: readonly string[]
+  /** 额外给主人私聊开放的能力 id（T14 r2；未知 id 同样告警）。 */
+  ownerGrant?: readonly string[]
   /** 输出协议 B 档总开关（'on' / 缺省 off）。 */
   protocolMode?: 'off' | 'on'
   /** 输出协议的灰度聊天名单（空 = 开启时对所有聊天生效）。 */
@@ -116,8 +118,9 @@ export function selfCheck(c: SelfCheckInput): string[] {
       problems.push(key + ' 里的「' + id + '」不是已知能力 id，不会对任何人关闭功能（可用 id 见 /doctor）')
     }
   }
-  // 三个 grant（T11）同理：写错 id 时不会给任何人加开功能，静默无效。
+  // 四个 grant（T11 / T14 r2）同理：写错 id 时不会给任何人加开功能，静默无效。
   const grants: Array<[string, readonly string[] | undefined]> = [
+    ['ownerGrant', c.ownerGrant],
     ['friendGrant', c.friendGrant],
     ['memberGrant', c.memberGrant],
     ['strangerGrant', c.strangerGrant],
