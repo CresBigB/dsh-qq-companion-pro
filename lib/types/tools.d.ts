@@ -3,7 +3,8 @@
  * the whitelisted NapCat API proxy, group/private history, and the read-only
  * query tools (group list, friend list, group info, private history). Tools
  * infer the target chat from the calling agent's session; an explicit chat_id
- * overrides.
+ * overrides——**只有 `qq_send_tts` 例外**：它念的是「她此刻在这个会话里说的
+ * 话」，只认当前会话，见 {@link currentChat}。
  *
  * NapCat 白名单从 T12 起是表驱动的（`src/napcat-actions.ts`）：`qq_napcat_api`
  * 只是一个查表执行器，表外 action 照旧拒绝，表内 action 的行为与改造前逐字一致。
@@ -15,6 +16,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { ChatBridge } from './bridge.js';
 import type { OneBotConnection } from './connection.js';
+import type { Synthesizer } from './tts.js';
 /** 一页的取数窗口。 */
 export interface ListPage {
     /** 第几页（≥1）。 */
@@ -80,7 +82,7 @@ export declare function renderGroupInfo(value: unknown): string;
  * @param ctx - plugin context.
  * @param bridge - the chat bridge.
  * @param connection - the OneBot connection.
- * @param limits - media size caps.
+ * @param limits - media size caps（`tts` 缺席 = 语音合成没开，qq_send_tts 不注册）。
  * @param allow - optional per-tool gate (能力注册表用)：返回 false 的工具不注册。
  * @returns the disposer.
  */
@@ -88,6 +90,7 @@ export declare function registerTools(ctx: Context, bridge: ChatBridge, connecti
     maxImageBytes: number;
     maxVoiceBytes: number;
     maxFileBytes: number;
+    tts?: Synthesizer;
 }, allow?: (toolName: string) => boolean): () => void;
 /** What the model reads from qq_group_history: one line per message
  * ("[HH:MM] 昵称（QQ）：内容"); the count alone left her with nothing. */

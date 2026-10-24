@@ -16,6 +16,7 @@ import type { MediaStore } from './media.js'
 import type { SessionTitleLike } from './session-title.js'
 import type { Transcriber } from './stt.js'
 import type { TraceSink } from './trace.js'
+import type { Synthesizer } from './tts.js'
 
 /** Resolved runtime configuration for the bridge. */
 export interface BridgeConfig {
@@ -300,6 +301,9 @@ export interface BridgeDeps {
   dshHome?: string | undefined
   media: MediaStore
   transcriber: Transcriber
+  /** Her voice (T15): offline TTS. Absent = `qq.send.tts` 能力不可用
+   * （依赖不满足），`qq_send_tts` 也不会注册。 */
+  tts?: Synthesizer
   agents: AgentRegistry
   sessions: SessionStore
   agentPresets: AgentPresetsLike | undefined

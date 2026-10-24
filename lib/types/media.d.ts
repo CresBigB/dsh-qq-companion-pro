@@ -51,8 +51,9 @@ export declare class MediaStore {
     freshPath(ext: string): string;
     /**
      * Delete plugin scratch older than the TTL, whitelisted by name: only
-     * `media_*` files and `stt_*` work dirs are ours to delete (state files
-     * like chat-sessions.json share this directory and must survive).
+     * `media_*` files, `stt_*` work dirs and `tts_*` WAVs are ours to delete
+     * (state files like chat-sessions.json share this directory and must
+     * survive).
      * Called on every inbound message; failures are logged and contained.
      */
     cleanupExpired(): Promise<void>;

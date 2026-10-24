@@ -37,7 +37,7 @@ async function hasFfmpeg(): Promise<boolean> {
 const ffmpegAvailable = await hasFfmpeg()
 
 describe('MediaStore.cleanupExpired', () => {
-  it('deletes only expired media_* files and stt_* dirs, never state files', async () => {
+  it('deletes only expired media_* / stt_* / tts_* entries, never state files', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'media-cleanup-'))
     const store = new MediaStore(dir, 6)
 
@@ -57,18 +57,25 @@ describe('MediaStore.cleanupExpired', () => {
     await writeFile(join(expiredSttDir, 'audio.wav'), 'wav')
     await writeFile(join(expiredSttDir, 'nested', 'out.txt'), 'txt')
 
+    // T15：合成出来的语音也归 TTL 管（否则每条语音都永久留在磁盘上）。
+    const expiredTts = join(dir, 'tts_deadbeef.wav')
+    const freshTts = join(dir, 'tts_cafebabe.wav')
+    await writeFile(expiredTts, 'riff')
+    await writeFile(freshTts, 'riff')
+
     // Backdate past the 6h TTL — including the state files, reproducing the
     // original bug (idle bot > TTL → any inbound message wiped session state).
     const stale = new Date(Date.now() - 7 * 3600_000)
     await utimes(expiredMedia, stale, stale)
     await utimes(expiredSttDir, stale, stale)
+    await utimes(expiredTts, stale, stale)
     await utimes(mappingFile, stale, stale)
     await utimes(retiredFile, stale, stale)
 
     await store.cleanupExpired()
 
     expect((await readdir(dir)).sort()).toEqual(
-      ['chat-sessions.json', basename(freshMedia), 'retired-sessions.json'].sort(),
+      ['chat-sessions.json', basename(freshMedia), basename(freshTts), 'retired-sessions.json'].sort(),
     )
     await expect(readFile(freshMedia)).resolves.toEqual(Buffer.from('fresh'))
     await expect(readFile(mappingFile)).resolves.toEqual(mappingSentinel)

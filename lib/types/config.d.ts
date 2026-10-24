@@ -63,6 +63,14 @@ export interface Config {
     sttLanguage: string;
     sttMaxSeconds: number;
     sttReplacements: Record<string, string>;
+    ttsEnabled: boolean;
+    ttsEngine: 'command' | 'sherpa-onnx';
+    ttsCommand: string;
+    ttsArgs: string[];
+    ttsModel: string;
+    ttsVoice: string;
+    ttsMaxChars: number;
+    ttsTimeoutMs: number;
     textImageThreshold: number;
     cardFooter: string;
     splitLines: boolean;

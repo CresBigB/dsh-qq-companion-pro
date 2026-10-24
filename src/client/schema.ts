@@ -218,7 +218,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   proactiveMinGapMinutes: vNumber(0),
   proactiveSkipIfActiveMinutes: vNumber(0),
   proactiveMaxUnanswered: vNumber(0),
-  // media（20）
+  // media（28）
   stickerDir: vString(0, 1024),
   stickerMaxCount: vNumber(0),
   stickerMaxBytes: vNumber(0),
@@ -231,6 +231,14 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   sttLanguage: vString(0, 1024),
   sttMaxSeconds: vNumber(0),
   sttTimeoutMs: vNumber(0),
+  ttsEnabled: vBoolean(),
+  ttsEngine: vEnum(['sherpa-onnx', 'command']),
+  ttsModel: vString(0, 1024),
+  ttsCommand: vString(0, 1024),
+  ttsArgs: vArray(vString(0, 1024)),
+  ttsVoice: vString(0, 1024),
+  ttsMaxChars: vNumber(0),
+  ttsTimeoutMs: vNumber(0),
   inboundImageMaxPx: vNumber(0),
   outboundImageMaxBytes: vNumber(0),
   maxVoiceBytes: vNumber(0),
@@ -249,7 +257,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   sensitivePatterns: vArray(vString(0, 1024)),
 }
 
-/** 116 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
+/** 124 键生效值（host buildSnapshot 的 effectiveConfig 全键返回；accessToken 恒 ''）。 */
 export const configSchema: ObjectSchema = vObject(CONFIG_SHAPE)
 
 /** getSettings / updateSettings 返回值（OnebotSettingsSnapshot）。 */

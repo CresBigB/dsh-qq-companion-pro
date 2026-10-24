@@ -113,6 +113,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   media: [
     'stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax',
     'sttEnabled', 'sttEngine', 'sttModel', 'sttCommand', 'sttArgs', 'sttLanguage', 'sttMaxSeconds', 'sttTimeoutMs',
+    'ttsEnabled', 'ttsEngine', 'ttsModel', 'ttsCommand', 'ttsArgs', 'ttsVoice', 'ttsMaxChars', 'ttsTimeoutMs',
     'inboundImageMaxPx', 'outboundImageMaxBytes', 'maxVoiceBytes', 'maxFileBytes', 'inboundFileMaxBytes',
     'mediaDir', 'tempTtlHours', 'allowPrivateHosts',
   ],

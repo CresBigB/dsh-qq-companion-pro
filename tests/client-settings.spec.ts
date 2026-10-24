@@ -470,10 +470,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(116)
+    expect(ALL_KEYS).toHaveLength(124)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 116 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 124 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -640,8 +640,8 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
     expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
     expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
-    expect(configSchemaKeys).toHaveLength(116)
-    expect(patchSchemaKeys).toHaveLength(116)
+    expect(configSchemaKeys).toHaveLength(124)
+    expect(patchSchemaKeys).toHaveLength(124)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {

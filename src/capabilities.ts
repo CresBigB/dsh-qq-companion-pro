@@ -53,6 +53,7 @@ import { RELATIONS, RELATION_NAMES } from './relation.js'
 export type CapabilityId =
   | 'qq.send.image'
   | 'qq.send.voice'
+  | 'qq.voice.tts'
   | 'qq.send.video'
   | 'qq.send.file'
   | 'qq.send.forward'
@@ -72,7 +73,7 @@ export type CapabilityId =
   | 'qq.interact.like'
 
 /** 能力的运行时依赖键：对应能力只有在依赖具备时才可能开启。 */
-export type CapabilityDependency = 'stickerLib' | 'memoryNote'
+export type CapabilityDependency = 'stickerLib' | 'memoryNote' | 'tts'
 
 /** 一条能力定义。 */
 export interface CapabilityDef {
@@ -132,6 +133,16 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
     describe: '向 QQ 会话发送一条本地音频文件作为语音。',
     memberDefault: true,
     groupDefault: true,
+  },
+  {
+    id: 'qq.voice.tts',
+    title: '语音念出来',
+    tools: ['qq_send_tts'],
+    describe: '把一句短话用语音念出来，发在当前会话里（音色与引擎由主人配置；引擎不可用时这个工具不会出现）。',
+    deps: ['tts'],
+    memberDefault: false,
+    groupDefault: false,
+    ownerDefault: false,
   },
   {
     id: 'qq.send.video',
@@ -355,6 +366,7 @@ export function defaultOffNoteText(): string {
 const DEPENDENCY_REASON: Readonly<Record<CapabilityDependency, string>> = {
   stickerLib: '表情包库未开启（stickerDir 为空）',
   memoryNote: '没有可写的记忆文件（publicMemoryFile 与 groupMemoryDir 都没配）',
+  tts: '语音合成没开，或引擎用不了（ttsEnabled 为 false、ttsCommand 为空、找不到该程序，或 sherpa-onnx 与 VITS 模型没装好）',
 }
 
 /** 一个聊天的会话视角（能力按它分流）。 */

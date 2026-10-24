@@ -20,6 +20,15 @@ export interface CompanionStatusDeps {
         today: number;
         dailyMax: number;
     };
+    /** 语音合成（T15）：引擎与是否可用。关闭也渲染一行——配了却不生效最容易忘。
+     *  `ready` 是挂载时那次探测的结论：开了但引擎 / 模型没找到时为 false，
+     *  `detail` 就是原因（这时 qq_send_tts 根本没有注册）。 */
+    tts?: () => {
+        enabled: boolean;
+        engine: string;
+        ready: boolean;
+        detail: string;
+    };
     /** Memory files to size; `max` (bytes) renders a percentage. */
     memoryFiles?: Array<{
         label: string;

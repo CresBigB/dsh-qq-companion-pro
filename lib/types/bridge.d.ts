@@ -419,7 +419,7 @@ export declare class ChatBridge {
      * 发言也按群友档），私聊按名单分 owner / friend / stranger。
      */
     private chatRelation;
-    /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件）。 */
+    /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件 / 语音合成）。 */
     private availableCapabilityDeps;
     /**
      * 能力摘要（/doctor 与设置页概览共用）：`enabled` / `disabled` 按**主人私聊**

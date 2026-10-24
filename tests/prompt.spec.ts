@@ -42,7 +42,10 @@ function allDepsConfig(extra?: Parameters<typeof makeCmdHarness>[0]): Parameters
   return {
     stickers: {},
     publicMemoryFile: join(mkdtempSync(join(tmpdir(), 'prompt-mem-')), 'AGENTS.md'),
-    ownerGrant: ['qq.interact.poke', 'qq.interact.like'],
+    // T15：语音能力的依赖是「引擎配好了」。给一个必然存在的命令——装配期只检查
+    // 配置是否齐全（ready），不会真的去跑它。
+    tts: { command: process.execPath, args: ['-e', ''] },
+    ownerGrant: ['qq.voice.tts', 'qq.interact.poke', 'qq.interact.like'],
     ...extra,
   }
 }

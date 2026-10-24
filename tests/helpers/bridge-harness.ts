@@ -18,6 +18,7 @@ import { OneBotConnection } from '../../src/connection.js'
 import { ChatBridge } from '../../src/bridge.js'
 import { MediaStore } from '../../src/media.js'
 import { Transcriber } from '../../src/stt.js'
+import { Synthesizer } from '../../src/tts.js'
 import { TraceSink } from '../../src/trace.js'
 
 /** A fake agent handle for the bridge. */
@@ -245,6 +246,8 @@ export async function makeCmdHarness(opts?: {
   memberObedience?: number
   friendObedience?: number
   friendIntimacy?: number
+  /** 离线语音合成（T15；absent = 没配引擎，qq_send_tts 不注册）。 */
+  tts?: { command: string; args?: string[]; model?: string; voice?: string; maxChars?: number }
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -278,6 +281,23 @@ export async function makeCmdHarness(opts?: {
     ...(opts?.activity !== undefined ? { activity: opts.activity as never } : {}),
     ...(opts?.groupChatter !== undefined ? { groupChatter: opts.groupChatter as never } : {}),
     ...(opts?.stickers !== undefined ? { stickers: opts.stickers as never } : {}),
+    // T15：和立即生产接线同构——引擎没配好（ready 为 false）时 deps 里也不放合成器。
+    ...(() => {
+      if (opts?.tts === undefined) return {}
+      const synthesizer = new Synthesizer({
+        enabled: true,
+        engine: 'command',
+        command: opts.tts.command,
+        args: opts.tts.args ?? ['{text}', '{output}'],
+        model: opts.tts.model ?? '',
+        voice: opts.tts.voice ?? '',
+        maxChars: opts.tts.maxChars ?? 200,
+        timeoutMs: 10_000,
+      }, mediaDir)
+      // 生产里挂载时会先探一次（src/index.ts）；这一步必须同步，否则 ready 永远是 false。
+      synthesizer.probe()
+      return synthesizer.ready ? { tts: synthesizer } : {}
+    })(),
     commands: (opts?.commands ?? {
       execute: vi.fn(async (_agent: unknown, _line: string, attachments: readonly unknown[], signal: AbortSignal | undefined) => {
         // Mirror the host: execute() reads submittedAttachments.length and

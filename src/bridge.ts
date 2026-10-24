@@ -1217,6 +1217,7 @@ export class ChatBridge {
       maxImageBytes: this.deps.config.maxImageBytes,
       maxVoiceBytes: this.deps.config.maxVoiceBytes,
       maxFileBytes: this.deps.config.maxFileBytes,
+      ...(this.deps.tts === undefined || !this.deps.tts.ready ? {} : { tts: this.deps.tts }),
     }, allow)
     if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote, allow)
     if (this.deps.stickers !== undefined) registerStickerTools(agentCtx, this, this.deps.stickers, allow)
@@ -1294,11 +1295,12 @@ export class ChatBridge {
     })
   }
 
-  /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件）。 */
+  /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件 / 语音合成）。 */
   private availableCapabilityDeps(): CapabilityDependency[] {
     const deps: CapabilityDependency[] = []
     if (this.deps.stickers !== undefined) deps.push('stickerLib')
     if (this.companion.memoryNoteWriter() !== undefined) deps.push('memoryNote')
+    if (this.deps.tts?.ready === true) deps.push('tts')
     return deps
   }
 

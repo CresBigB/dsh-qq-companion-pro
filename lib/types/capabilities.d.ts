@@ -48,9 +48,9 @@
  */
 import type { Relation } from './relation.js';
 /** 一个能力 id（也是 `capabilitiesDeny` 里能填的值）。 */
-export type CapabilityId = 'qq.send.image' | 'qq.send.voice' | 'qq.send.video' | 'qq.send.file' | 'qq.send.forward' | 'qq.napcat.api' | 'qq.group.history' | 'qq.message.open' | 'qq.memory.note' | 'qq.sticker.use' | 'qq.sticker.manage' | 'qq.list.groups' | 'qq.list.friends' | 'qq.history.private' | 'qq.group.manage' | 'qq.group.notice' | 'qq.interact.react' | 'qq.interact.poke' | 'qq.interact.like';
+export type CapabilityId = 'qq.send.image' | 'qq.send.voice' | 'qq.voice.tts' | 'qq.send.video' | 'qq.send.file' | 'qq.send.forward' | 'qq.napcat.api' | 'qq.group.history' | 'qq.message.open' | 'qq.memory.note' | 'qq.sticker.use' | 'qq.sticker.manage' | 'qq.list.groups' | 'qq.list.friends' | 'qq.history.private' | 'qq.group.manage' | 'qq.group.notice' | 'qq.interact.react' | 'qq.interact.poke' | 'qq.interact.like';
 /** 能力的运行时依赖键：对应能力只有在依赖具备时才可能开启。 */
-export type CapabilityDependency = 'stickerLib' | 'memoryNote';
+export type CapabilityDependency = 'stickerLib' | 'memoryNote' | 'tts';
 /** 一条能力定义。 */
 export interface CapabilityDef {
     /** 能力 id（稳定标识，进配置与 /doctor）。 */

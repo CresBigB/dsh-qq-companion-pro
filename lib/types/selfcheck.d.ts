@@ -47,6 +47,14 @@ export interface SelfCheckInput {
     protocolMode?: 'off' | 'on';
     /** 输出协议的灰度聊天名单（空 = 开启时对所有聊天生效）。 */
     protocolChats?: readonly string[];
+    /** 语音合成（T15）：开启但引擎没配好时，工具照常出现、一调用就报错。 */
+    ttsEnabled?: boolean;
+    ttsEngine?: 'command' | 'sherpa-onnx';
+    ttsCommand?: string;
+    ttsArgs?: readonly string[];
+    ttsModel?: string;
+    ttsMaxChars?: number;
+    ttsTimeoutMs?: number;
 }
 /** All problems found (empty = all good). */
 export declare function selfCheck(c: SelfCheckInput): string[];

@@ -36,6 +36,7 @@ let OneBotConnection: typeof import('./connection.js').OneBotConnection
 let ChatBridge: typeof import('./bridge.js').ChatBridge
 let MediaStore: typeof import('./media.js').MediaStore
 let Transcriber: typeof import('./stt.js').Transcriber
+let Synthesizer: typeof import('./tts.js').Synthesizer
 let TraceSink: typeof import('./trace.js').TraceSink
 let redactSnapshot: typeof import('./health.js').redactSnapshot
 let describeError: typeof import('./errors.js').describeError
@@ -47,6 +48,7 @@ try {
   ;({ ChatBridge } = await import('./bridge.js'))
   ;({ MediaStore } = await import('./media.js'))
   ;({ Transcriber } = await import('./stt.js'))
+  ;({ Synthesizer } = await import('./tts.js'))
   ;({ TraceSink } = await import('./trace.js'))
   ;({ redactSnapshot } = await import('./health.js'))
   ;({ describeError } = await import('./errors.js'))
@@ -254,6 +256,26 @@ export function apply(ctx: Context, config: Config): void {
     replacements: config.sttReplacements,
     timeoutMs: config.sttTimeoutMs,
   })
+  // Her voice (T15): local TTS into mediaDir; disabled = no tool at all.
+  const tts = new Synthesizer({
+    enabled: config.ttsEnabled,
+    engine: config.ttsEngine,
+    command: config.ttsCommand,
+    args: config.ttsArgs,
+    model: config.ttsModel,
+    voice: config.ttsVoice,
+    maxChars: config.ttsMaxChars,
+    timeoutMs: config.ttsTimeoutMs,
+    // 与发送端同一个上限：超限的音频在合成后就报错，不去撞 NapCat 的拒绝。
+    maxBytes: config.maxVoiceBytes,
+  }, mediaDir)
+  // 就绪 = 真的找到了程序 / 模型，不是「填了就算」。这一步必须在桥建起来之前
+  // 做完：能力解析和工具注册都读这个结果，探不出来的引擎干脆不注册
+  // qq_send_tts（模型看不到，也就不会每次调用都失败）。
+  tts.probe()
+  if (tts.enabled && !tts.ready) {
+    log('warn', '语音合成已开启，但引擎用不了：' + tts.status().detail + '；qq_send_tts 这次不会被注册（修好后重启生效）')
+  }
   connection.onMessage = (event: OneBotEvent) => {
     void bridge.handleInbound(event)
   }
@@ -303,6 +325,7 @@ export function apply(ctx: Context, config: Config): void {
     dshHome: dshHome(),
     media,
     transcriber,
+    tts,
     agents: ctx.agents,
     sessions: ctx.sessions,
     agentPresets: ctx.agentPresets,
@@ -353,6 +376,7 @@ export function apply(ctx: Context, config: Config): void {
       scheduler: () => scheduler.snapshot(),
       ...(proactiveRef !== undefined ? { proactive: () => proactiveRef!.snapshot() } : {}),
       ...(stickers !== undefined ? { stickers: () => stickers.snapshot() } : {}),
+      tts: () => tts.status(),
       memoryFiles: [
         { label: '公开', path: config.publicMemoryFile, max: config.publicMemoryMaxBytes },
         ...(config.adminWorkspacePath !== '' ? [{ label: '私密', path: join(config.adminWorkspacePath, 'AGENTS.md') }] : []),

@@ -18,6 +18,10 @@ export interface CompanionStatusDeps {
   scheduler?: () => Array<{ id: string; time: string; firedToday: boolean }>
   proactive?: () => { remaining: string[]; firedToday: number }
   stickers?: () => { count: number; maxCount: number; today: number; dailyMax: number }
+  /** 语音合成（T15）：引擎与是否可用。关闭也渲染一行——配了却不生效最容易忘。
+   *  `ready` 是挂载时那次探测的结论：开了但引擎 / 模型没找到时为 false，
+   *  `detail` 就是原因（这时 qq_send_tts 根本没有注册）。 */
+  tts?: () => { enabled: boolean; engine: string; ready: boolean; detail: string }
   /** Memory files to size; `max` (bytes) renders a percentage. */
   memoryFiles?: Array<{ label: string; path: string; max?: number }>
   /** Root of per-group memory dirs. */
@@ -138,6 +142,15 @@ export async function companionStatusLines(deps: CompanionStatusDeps): Promise<s
   }
   const st = deps.stickers?.()
   if (st !== undefined) lines.push('表情包：' + st.count + '/' + st.maxCount + ' 张 · 今天新存 ' + st.today + '/' + st.dailyMax + ' 张')
+  const voice = deps.tts?.()
+  if (voice !== undefined) {
+    // 「开了但引擎没找到」是最容易忘的一档：写清楚未就绪与原因，而不是只报引擎名。
+    const detail = voice.detail === '' ? '' : '（' + voice.detail + '）'
+    const state = !voice.enabled
+      ? '关闭'
+      : voice.ready ? voice.engine + detail : voice.engine + ' 未就绪' + detail
+    lines.push('语音合成：' + state)
+  }
   const files: string[] = []
   const collected = await memoryFileSpecs(deps)
   for (const f of collected.files) files.push(sized(f.label, await fileSize(f.path), f.max))
