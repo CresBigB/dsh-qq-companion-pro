@@ -379,6 +379,18 @@ describe('validateDraft — §5.4 每条规则', () => {
     expect(validateDraft(values).typingDelayPerCharMs).toBe('不能小于 0')
   })
 
+  it('taskEveryRounds 下限 1：0 报「不能小于 1」，1 / 2 放行（与宿主 Config 一致）', () => {
+    const values = defaultDraft()
+    values.taskEveryRounds = '0'
+    expect(validateDraft(values)).toEqual({ taskEveryRounds: '不能小于 1' })
+    values.taskEveryRounds = '1'
+    expect(validateDraft(values)).toEqual({})
+    values.taskEveryRounds = '2'
+    expect(validateDraft(values)).toEqual({})
+    values.taskEveryRounds = '-3'
+    expect(validateDraft(values)).toEqual({ taskEveryRounds: '不能小于 1' })
+  })
+
   it('大于 max：提示「不能大于 {max}」（max 只声明在 port，其它键按元数据走通用文案）', () => {
     // 现有字段里只有 port 带 max（1–65535），而 port 有自己的文案；这里临时给
     // 一个数字键加 max 来验证通用规则本身，跑完恢复。

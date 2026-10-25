@@ -553,11 +553,13 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     }
   })
 
-  it('数字字段带 §3.12 的区间：port 1–65535，关系矩阵比例 0–1，其余 min 0 且不设上限；单位只取规范枚举', () => {
+  it('数字字段带 §3.12 的区间：port 1–65535、taskEveryRounds ≥1，关系矩阵比例 0–1，其余 min 0 且不设上限；单位只取规范枚举', () => {
     const UNITS = ['ms', 's', 'min', 'h', 'day', 'byte', 'px', 'char', 'count', 'perDay', 'perMin']
     const CONTROLS = ['path', 'time', 'time24']
     /** 0–1 比例键（关系矩阵 T10a）：上下界都在设置页钉住。 */
     const RATIO_KEYS = ['memberObedience', 'friendObedience', 'friendIntimacy']
+    /** 下限 1 的键（与宿主 Config 一致：0 没有意义）。 */
+    const MIN_ONE_KEYS = ['taskEveryRounds']
     for (const field of allFields) {
       if (field.type === 'number') {
         if (field.key === 'port') {
@@ -566,6 +568,9 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
         } else if (RATIO_KEYS.includes(field.key)) {
           expect(field.min).toBe(0)
           expect(field.max).toBe(1)
+        } else if (MIN_ONE_KEYS.includes(field.key)) {
+          expect(field.min).toBe(1)
+          expect(field.max).toBeUndefined()
         } else {
           expect(field.min).toBe(0)
           expect(field.max).toBeUndefined()
@@ -588,6 +593,28 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
       if (field.dependsOnText === undefined) continue
       expect(field.dependsOnText).toContain('仅在')
     }
+  })
+
+  it('taskEveryRounds 下限 1、默认 1、无零值语义：hint 不残留「0=只在最后一轮」', () => {
+    const field = allFields.find(item => item.key === 'taskEveryRounds')!
+    expect(field.min).toBe(1)
+    expect(field.max).toBeUndefined()
+    expect(field.zeroMeans).toBeUndefined()
+    expect(field.hint).toContain('1=逐轮都回传')
+    expect(field.hint).not.toContain('0=')
+    expect(field.hint).not.toContain('0 =')
+    expect(field.hint).not.toContain('只在最后一轮')
+    expect((client.DEFAULTS as Record<string, unknown>).taskEveryRounds).toBe(1)
+    expect(SCHEMA_DEFAULTS.taskEveryRounds).toBe(1)
+  })
+
+  it('patchSchema 对 taskEveryRounds 拒绝 0（宿主 Config 下限 1），1 / 2 放行；其它数字键的 0 语义不变', () => {
+    const patchSchema = client.patchSchema as { parse(value: unknown): unknown }
+    expect(() => patchSchema.parse({ taskEveryRounds: 0 })).toThrow()
+    expect(() => patchSchema.parse({ taskEveryRounds: -1 })).toThrow()
+    expect(patchSchema.parse({ taskEveryRounds: 1 })).toEqual({ taskEveryRounds: 1 })
+    expect(patchSchema.parse({ taskEveryRounds: 2 })).toEqual({ taskEveryRounds: 2 })
+    expect(patchSchema.parse({ deferredTimeoutMs: 0 })).toEqual({ deferredTimeoutMs: 0 })
   })
 
   it('「功能开关」八个能力键的 hint 里只有一份能力清单，且那份清单 ≡ 注册表（不手写）', () => {

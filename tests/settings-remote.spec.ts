@@ -32,6 +32,7 @@ import {
   getSettings,
   listWorkspaces,
   updateSettings,
+  validatePatch,
 } from '../src/settings-remote.js'
 import { Config } from '../src/config.js'
 import type { WorkspaceRegistryLike } from '../src/bridge.js'
@@ -699,5 +700,46 @@ describe('onebotSettings remote — groupAutoQuote 白名单扩展（group 子�
     expect(editor.editCalls).toBe(writes) // 拒写绝不触达宿主 edit
     expect(getSettings(editor, state).revision).toBe(1)
     expect(getSettings(editor, state).config.groupAutoQuote).toBe('busy') // 拒写不改生效值
+  })
+})
+
+describe('onebotSettings remote — taskEveryRounds 下限 1（validatePatch 与宿主 Config 一致）', () => {
+  it('默认 1、落在 conversation 组第 4 位', () => {
+    const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
+    expect(SCHEMA_DEFAULTS.taskEveryRounds).toBe(1)
+    expect(snapshot.config.taskEveryRounds).toBe(1)
+    expect(SETTINGS_GROUPS.conversation.indexOf('taskEveryRounds')).toBe(3)
+  })
+
+  it('0 与负数整单拒写 bad-request 且 edit 零调用；1 / 2 正常写入并递增 revision', async () => {
+    const editor = new FakeConfigEditor()
+    const state = createRevisionState()
+    const written = await updateSettings(editor, state, { taskEveryRounds: 2 })
+    expect(written.revision).toBe(1)
+    expect(written.config.taskEveryRounds).toBe(2)
+    expect(editor.writeCount).toBe(1)
+    expect(editor.rows[0].config.taskEveryRounds).toBe(2)
+
+    const writes = editor.editCalls
+    for (const value of [0, -1, '3', null, true, Number.NaN]) {
+      await expect(updateSettings(editor, state, { taskEveryRounds: value })).rejects.toMatchObject({
+        code: 'onebot-settings/bad-request',
+      })
+    }
+    expect(editor.editCalls).toBe(writes) // 拒写绝不触达宿主 edit
+    expect(getSettings(editor, state).revision).toBe(1)
+    expect(getSettings(editor, state).config.taskEveryRounds).toBe(2) // 拒写不改生效值
+
+    // 其它数字键的 0 语义不受影响（0 = 关闭，仍是合法值）。
+    const restored = await updateSettings(editor, state, { taskEveryRounds: 1, deferredTimeoutMs: 0 })
+    expect(restored.config.taskEveryRounds).toBe(1)
+    expect(restored.config.deferredTimeoutMs).toBe(0)
+  })
+
+  it('validatePatch 单键校验：0 报 ≥1，1 / 2 放行', () => {
+    expect(() => validatePatch({ taskEveryRounds: 0 })).toThrow(/taskEveryRounds 必须是 ≥1 的有限数字/)
+    expect(validatePatch({ taskEveryRounds: 1 })).toEqual({ taskEveryRounds: 1 })
+    expect(validatePatch({ taskEveryRounds: 2 })).toEqual({ taskEveryRounds: 2 })
+    expect(validatePatch({ deferredTimeoutMs: 0 })).toEqual({ deferredTimeoutMs: 0 })
   })
 })

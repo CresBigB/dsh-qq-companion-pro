@@ -119,7 +119,8 @@ export function vEnum(values: string[]): Schema<string> {
 /** 设置页上页 116 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
  *  出现一次，patchSchema 由同一份 shape 逐键派生，两侧键集天然一致）。
  *  类型与宿主 Config 一致；数字区间与宿主 numberRange 一致：port 1–65535，
- *  其余（时长 / 次数 / 字节数 / 像素）≥ 0；关系矩阵的三个比例是 0–1。 */
+ *  taskEveryRounds ≥ 1，其余（时长 / 次数 / 字节数 / 像素）≥ 0；关系矩阵的三个
+ *  比例是 0–1。 */
 const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   // connection（6）
   host: vString(0, 256),
@@ -179,7 +180,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   newMessagePolicy: vEnum(['queue', 'steer']),
   autoSteerPolicy: vEnum(['admin', 'all']),
   deferredTimeoutMs: vNumber(0),
-  taskEveryRounds: vNumber(0),
+  taskEveryRounds: vNumber(1),
   unknownCommand: vEnum(['intercept', 'passthrough']),
   rateLimitPerMinute: vNumber(0),
   idleResetHours: vNumber(0),

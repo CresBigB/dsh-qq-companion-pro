@@ -144,10 +144,13 @@ export const SCHEMA_DEFAULTS: Readonly<Record<string, unknown>> = Object.fromEnt
 /** 快照返回侧脱敏的键。 */
 export const SECRET_KEYS: readonly string[] = ['accessToken']
 
-/** 数字键的取值范围：端口 1–65535，其余（时长、次数、字节数）≥ 0；越界在
+/** 数字键的取值范围：端口 1–65535，taskEveryRounds ≥ 1（与宿主 Config 的
+ *  `.min(1)` 一致：0 没有语义），其余（时长、次数、字节数）≥ 0；越界在
  *  Remote 层直接拒绝。 */
 function numberRange(key: string): readonly [number, number | undefined] {
-  return key === 'port' ? [1, 65535] : [0, undefined]
+  if (key === 'port') return [1, 65535]
+  if (key === 'taskEveryRounds') return [1, undefined]
+  return [0, undefined]
 }
 
 /** OnebotSettingsSnapshot。 */
