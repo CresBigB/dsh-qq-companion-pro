@@ -102,6 +102,24 @@ export declare const Config: Z<Config>;
 export declare const defaultMediaDir: typeof import("./config.js").defaultMediaDir, dshHome: typeof import("./config.js").dshHome, resolveDeprecatedConfig: typeof import("./config.js").resolveDeprecatedConfig;
 /** Log a meta event; periodic heartbeat events are silenced to keep the log readable. */
 export declare function logMetaEvent(selfId: string, event: OneBotEvent, minLevel?: Config['logLevel']): void;
+/** 「accessToken 还没配」判定：schema 默认就是空串（config.ts 的
+ *  `accessToken: z.string().role('secret').default('')`），纯空白同样视为没配
+ *  ——连接层只拒绝 `=== ''`，一份只由空格组成的 token 能通过它的检查但连不上
+ *  任何东西。非字符串（旧配置/手写 YAML 的 null）一并按未配置处理。 */
+export declare function isAccessTokenUnconfigured(token: unknown): boolean;
+/** 「等待配置」态的挂载：accessToken 缺失/纯空白时的**正常**状态，不是错误。
+ *
+ *  为什么不能照常启动：OneBotConnection.start() 对空 token 直接抛
+ *  `reverse mode requires a non-empty accessToken`（安全校验，保留不动），
+ *  抛在 apply 里会让本插件 fiber 变成 failed；而宿主 configEditor.edit 只对
+ *  `fiber.state === 2`（active）的条目写配置 —— fiber 一 failed，设置页就再也
+ *  存不进 token，用户只能手改 profile YAML 救场（部署后「设置不能保存」的死锁）。
+ *
+ *  所以这里停在等待配置：fiber 保持 active，**不建 OneBotConnection**（不监听
+ *  端口、不连 NapCat），不初始化 bridge / 调度器 / 媒体 IO / 会话，也不伪造
+ *  online；只挂只读状态服务让设置页概览显示「未连接」。填好 token 保存后宿主
+ *  按新配置重启本条目，走下面的正常启动路径。 */
+export declare function mountWaitingForAccessToken(ctx: Context, config: Config): void;
 /** Mount the plugin. */
 export declare function apply(ctx: Context, config: Config): void;
 export {};

@@ -112,10 +112,54 @@ export function logMetaEvent(selfId: string, event: OneBotEvent, minLevel: Confi
   console.log('[qq-companion] meta event; bot QQ: ' + selfId + '; ' + metaType)
 }
 
+/** 「accessToken 还没配」判定：schema 默认就是空串（config.ts 的
+ *  `accessToken: z.string().role('secret').default('')`），纯空白同样视为没配
+ *  ——连接层只拒绝 `=== ''`，一份只由空格组成的 token 能通过它的检查但连不上
+ *  任何东西。非字符串（旧配置/手写 YAML 的 null）一并按未配置处理。 */
+export function isAccessTokenUnconfigured(token: unknown): boolean {
+  return typeof token !== 'string' || token.trim() === ''
+}
+
+/** 「等待配置」态的挂载：accessToken 缺失/纯空白时的**正常**状态，不是错误。
+ *
+ *  为什么不能照常启动：OneBotConnection.start() 对空 token 直接抛
+ *  `reverse mode requires a non-empty accessToken`（安全校验，保留不动），
+ *  抛在 apply 里会让本插件 fiber 变成 failed；而宿主 configEditor.edit 只对
+ *  `fiber.state === 2`（active）的条目写配置 —— fiber 一 failed，设置页就再也
+ *  存不进 token，用户只能手改 profile YAML 救场（部署后「设置不能保存」的死锁）。
+ *
+ *  所以这里停在等待配置：fiber 保持 active，**不建 OneBotConnection**（不监听
+ *  端口、不连 NapCat），不初始化 bridge / 调度器 / 媒体 IO / 会话，也不伪造
+ *  online；只挂只读状态服务让设置页概览显示「未连接」。填好 token 保存后宿主
+ *  按新配置重启本条目，走下面的正常启动路径。 */
+export function mountWaitingForAccessToken(ctx: Context, config: Config): void {
+  // 不含任何秘密：只说「没配置」，绝不回显 token（空串/空白也不打印）。
+  console.warn('[qq-companion] 未配置 accessToken：插件停在「等待配置」状态 —— 不监听 '
+    + config.host + ':' + config.port + '、不连接 NapCat、不启动会话/定时任务/媒体 IO。'
+    + '请在设置页「NapCat 连接」填写 OneBot access_token 并保存；保存后插件会按新配置重启并自动连接。')
+  // 概览可见（available: true），连接如实报「未连接」：没有 connection 对象，
+  // online 未知（null），transport 仍显示配置里的地址（NapCat 该拨的地方）。
+  provideCompanionStatus(ctx, {
+    snapshot: () => buildCompanionStatusSnapshot({
+      connection: () => ({ connected: false, selfId: '' }),
+      transport: { host: config.host, port: config.port },
+      botQQ: config.botQQ,
+      permissions: { admin: config.adminPermission ?? '', member: config.memberPermission ?? '' },
+    }),
+  })
+}
+
 /** Mount the plugin. */
 export function apply(ctx: Context, config: Config): void {
   // honor the deprecated config names before any consumer reads them.
   config = resolveDeprecatedConfig(config)
+  // 部署后首次启动的常见情形：accessToken 还是 schema 默认的空串。必须在这里
+  // 早退（理由见 mountWaitingForAccessToken），否则 connection.start() 抛出会把
+  // fiber 打成 failed，设置页从此写不进 token。
+  if (isAccessTokenUnconfigured(config.accessToken)) {
+    mountWaitingForAccessToken(ctx, config)
+    return
+  }
   const mediaDir = config.mediaDir !== '' ? config.mediaDir : defaultMediaDir()
   const policy = resolvePolicy(config)
   /** Console log line callback (level, message) — shared by the bridge deps,
