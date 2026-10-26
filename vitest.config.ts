@@ -1,7 +1,9 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // diagnostics 下的独立 node:test 由 node --test 执行，不由 Vitest 执行。
+    exclude: [...configDefaults.exclude, 'diagnostics/**'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

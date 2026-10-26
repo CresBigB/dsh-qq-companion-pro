@@ -118,8 +118,24 @@ export function draftText(draft: Record<string, unknown> | null | undefined, key
   return raw === undefined || raw === null ? '' : String(raw)
 }
 
-/** 10 组 116 键字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
+/** 字段定义（顺序 = 导航顺序 = 宿主 SETTINGS_GROUPS 的键序）。 */
 export const GROUPS: GroupMeta[] = [
+  {
+    id: 'capabilities',
+    title: '功能权限',
+    desc: '按管理员私聊、非管理员私聊和群组分别选择功能；工具执行限制仍然生效',
+    fields: [
+      { key: 'capabilitiesDeny', label: '全局禁止的功能', type: 'stringArray', hint: '所有关系均禁止，优先于 grant。' + capabilityCatalogText(), section: '按关系精细设置' },
+      { key: 'ownerDeny', label: '不给管理员私聊用的功能', type: 'stringArray', hint: '只影响管理员私聊，群里管理员发言仍按群组规则。', section: '按关系精细设置' },
+      { key: 'friendDeny', label: '不给好友用的功能', type: 'stringArray', hint: '只影响好友名单中的非管理员私聊。', section: '按关系精细设置' },
+      { key: 'memberDeny', label: '不给群聊用的功能', type: 'stringArray', hint: '影响群组全体，包括管理员在群里发言。', section: '按关系精细设置' },
+      { key: 'strangerDeny', label: '不给陌生人用的功能', type: 'stringArray', hint: '只影响不在好友名单中的非管理员私聊。', section: '按关系精细设置' },
+      { key: 'ownerGrant', label: '给管理员私聊加开的功能', type: 'stringArray', hint: '管理员默认全开；此项保留兼容旧的精细配置，不绕过执行守卫。', section: '按关系精细设置' },
+      { key: 'friendGrant', label: '给好友加开的功能', type: 'stringArray', hint: '仅为默认关闭的能力加开好友私聊许可。' + defaultOffNoteText(), section: '按关系精细设置' },
+      { key: 'memberGrant', label: '给群聊加开的功能', type: 'stringArray', hint: '仅为默认关闭的能力加开群组许可；不绕过执行守卫。' + defaultOffNoteText(), section: '按关系精细设置' },
+      { key: 'strangerGrant', label: '给陌生人加开的功能', type: 'stringArray', hint: '仅为默认关闭的能力加开陌生人私聊许可。' + defaultOffNoteText(), section: '按关系精细设置' },
+    ],
+  },
   {
     id: 'connection',
     title: '连接',
@@ -156,19 +172,6 @@ export const GROUPS: GroupMeta[] = [
       { key: 'restrictedMemberPrefix', label: '非管理员消息加关系绸标', type: 'boolean', hint: '群里和非管理员私聊的消息前加一条关系绸标（如 [关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]），写明关系 / 语气 / 服从度 / 亲密 / 能否指挥。关掉后提示词里群友和主人没有区别。', section: '群聊', danger: next => (next === false ? 'risk.restrictedPrefixOff' : null) },
       { key: 'autoAcceptAdminRequests', label: '自动同意管理员的好友/拉群请求', type: 'boolean', hint: '别人的请求不同意，会私聊告诉管理员。', section: '自动处理请求' },
       { key: 'autoAllowInvitedGroups', label: '管理员拉进的群自动加白名单', type: 'boolean', hint: '管理员把机器人拉进的群自动加入群白名单，保存在 mediaDir/group-allowlist.json。', section: '自动处理请求' },
-      { key: 'capabilitiesDeny', label: '关闭的功能', type: 'stringArray', hint: '每行一个能力 id，关掉的功能在主人私聊里也不再提供（对应工具不注册给模型；grant 也开不回来）。' + capabilityCatalogText() + '；留空 = 全部开启。', section: '功能开关' },
-      // T11 r1：三个 deny 只「按关系关」，别的档不受影响（默认位全开时这才是真正
-      // 有用的那一半）；四个 grant（T11 的好友 / 群 / 陌生人 + T14 r2 的主人私聊）
-      // 只「按关系加开」，配的是默认关闭的能力。
-      // 全局 deny 永远最高优先。
-      { key: 'friendDeny', label: '不给好友用的功能', type: 'stringArray', hint: '每行一个能力 id：只对好友（好友名单里的人）关掉的功能，主人私聊、群聊、陌生人都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
-      { key: 'memberDeny', label: '不给群聊用的功能', type: 'stringArray', hint: '每行一个能力 id：只对群聊关掉的功能（所有群成员；群里主人发言也按群友档），私聊都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
-      { key: 'strangerDeny', label: '不给陌生人用的功能', type: 'stringArray', hint: '每行一个能力 id：只对陌生人私聊（不在好友名单里的非管理员）关掉的功能，主人私聊、好友私聊、群聊都不受影响。' + capabilityCatalogText() + '；capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。', section: '功能开关' },
-      // T14 r2：第四个 grant，只给主人私聊加开 ownerDefault 为 false 的能力。
-      { key: 'ownerGrant', label: '给主人私聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认连主人私聊也关、单独给管理员本人开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给主人私聊开就写在这里（只有主人自己的回合会真的执行）。要把主人这一档单独关掉用「关闭的功能」。', section: '功能开关' },
-      { key: 'friendGrant', label: '给好友加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给好友（好友名单里的人）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给好友开就写在这里。要把好友这一档单独关掉用「不给好友用的功能」。', section: '功能开关' },
-      { key: 'memberGrant', label: '给群聊加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给群聊（所有群成员；群里主人发言也按群友档）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给群开就写在这里（群里一开，谁都能让模型把主人的群和好友念出来，谨慎）。要把群聊这一档单独关掉用「不给群聊用的功能」。', section: '功能开关' },
-      { key: 'strangerGrant', label: '给陌生人加开的功能', type: 'stringArray', hint: '每行一个能力 id：默认关闭、单独给陌生人私聊（不在好友名单里的非管理员）开的功能。' + capabilityCatalogText() + '；默认位已开启的不需要写进来，留空 = 不加开。' + defaultOffNoteText() + '，要给陌生人开就写在这里（等于把主人的社交关系给不认识的人，谨慎）。要把陌生人这一档单独关掉用「不给陌生人用的功能」。', section: '功能开关' },
     ],
   },
   {
@@ -357,6 +360,7 @@ export const DEFAULTS: Record<string, unknown> = {
   autoAcceptAdminRequests: false,
   autoAllowInvitedGroups: false,
   capabilitiesDeny: [],
+  ownerDeny: [],
   friendDeny: [],
   memberDeny: [],
   strangerDeny: [],

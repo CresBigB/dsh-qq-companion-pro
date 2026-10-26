@@ -101,18 +101,18 @@ function parameterNames(fn: Function): string[] {
   return inner === '' ? [] : inner.split(',').map((part) => part.trim())
 }
 
-describe('设置页覆盖清单 — 125 键自检（后端新增键忘了上页会在这里失败）', () => {
+describe('设置页覆盖清单 — 126 键自检（后端新增键忘了上页会在这里失败）', () => {
   const schemaKeys = Object.keys((Config as unknown as { dict: Record<string, unknown> }).dict)
 
   it('排除列表与上页键不重叠：ALL_KEYS ∩ EXCLUDED_KEYS = ∅', () => {
     for (const key of EXCLUDED_KEYS) expect(ALL_KEYS).not.toContain(key)
   })
 
-  it('Config.dict 的键 − 排除列表 = ALL_KEYS（130 − 5 = 125）', () => {
+  it('Config.dict 的键 − 排除列表 = ALL_KEYS（131 − 5 = 126）', () => {
     const onPage = schemaKeys.filter((key) => !EXCLUDED_KEYS.includes(key))
     expect([...onPage].sort()).toEqual([...ALL_KEYS].sort())
-    expect(schemaKeys).toHaveLength(130)
-    expect(ALL_KEYS).toHaveLength(125)
+    expect(schemaKeys).toHaveLength(131)
+    expect(ALL_KEYS).toHaveLength(126)
   })
 
   it('ALL_KEYS 不重不漏：跨分组与分组内都无重复，每个子页都至少有一个键', () => {
@@ -631,11 +631,39 @@ describe('onebotSettings remote — deferredTimeoutMs 白名单扩展（conversa
   })
 })
 
-describe('onebotSettings remote — 表情包 4 键（media 子页「表情包库」卡片，用户待办 4）', () => {
-  /** 规范 §1.2 的 10 个子页顺序（overview 不含配置键、不进 SETTINGS_GROUPS）。 */
-  const GROUP_ORDER = ['connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+describe('onebotSettings remote — 独立功能矩阵', () => {
+  it('capabilities首组九键固定，access不再包含权限键，ownerDeny默认空', () => {
+    const keys = ['capabilitiesDeny', 'ownerDeny', 'friendDeny', 'memberDeny', 'strangerDeny', 'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant']
+    const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
+    expect(Object.keys(SETTINGS_GROUPS)[0]).toBe('capabilities')
+    expect(SETTINGS_GROUPS.capabilities).toEqual(keys)
+    expect(snapshot.groups.capabilities).toEqual(keys)
+    expect(SETTINGS_GROUPS.access.filter(key => keys.includes(key))).toEqual([])
+    expect(SCHEMA_DEFAULTS.ownerDeny).toEqual([])
+    expect(snapshot.config.ownerDeny).toEqual([])
+  })
 
-  it('十个分组按规范顺序排列；表情包 4 键是 media 组前四位，stickerDir 默认空、单张上限默认 4MB', () => {
+  it('ownerDeny字符串数组可写；错误类型整单拒绝不落盘、不变revision', async () => {
+    const editor = new FakeConfigEditor()
+    const state = createRevisionState()
+    const next = await updateSettings(editor, state, { ownerDeny: ['qq.send.image', ' future.id '] })
+    expect(next.config.ownerDeny).toEqual(['qq.send.image', ' future.id '])
+    expect(editor.rows[0].config.ownerDeny).toEqual(['qq.send.image', ' future.id '])
+    const calls = editor.editCalls
+    for (const invalid of ['qq.send.image', [1], ['qq.send.image', null], null, true]) {
+      await expect(updateSettings(editor, state, { ownerDeny: invalid })).rejects.toMatchObject({ code: 'onebot-settings/bad-request' })
+    }
+    expect(editor.editCalls).toBe(calls)
+    expect(getSettings(editor, state).revision).toBe(1)
+    expect(getSettings(editor, state).config.ownerDeny).toEqual(['qq.send.image', ' future.id '])
+  })
+})
+
+describe('onebotSettings remote — 表情包 4 键（media 子页「表情包库」卡片，用户待办 4）', () => {
+  /** 规范 §1.2 的 11 个子页顺序（overview 不含配置键、不进 SETTINGS_GROUPS）。 */
+  const GROUP_ORDER = ['capabilities', 'connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+
+  it('十一个分组按规范顺序排列；表情包 4 键是 media 组前四位，stickerDir 默认空、单张上限默认 4MB', () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(Object.keys(SETTINGS_GROUPS)).toEqual(GROUP_ORDER)
     expect([...SETTINGS_GROUPS.media].slice(0, 4)).toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])

@@ -79,15 +79,16 @@ export const EXCLUDED_KEYS: readonly string[] = [
  *  都从配置定义 src/config.ts 读取，这里只决定哪些键上设置页、怎么分组。
  *  分组 id 与键序按前端设计规范 §1.2 / §3 各表从上到下（各子页 id 即导航 id）。 */
 export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
+  capabilities: [
+    'capabilitiesDeny', 'ownerDeny', 'friendDeny', 'memberDeny', 'strangerDeny',
+    'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant',
+  ],
   connection: ['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'attachWorkspaceMode'],
   access: [
     'adminUsers', 'friendUsers', 'memberObedience', 'friendObedience', 'friendIntimacy',
     'dmPolicy', 'allowFrom', 'allowAllUsers',
     'groupPolicy', 'groupAllowFrom', 'requireMention', 'restrictedMemberPrefix',
     'autoAcceptAdminRequests', 'autoAllowInvitedGroups',
-    'capabilitiesDeny',
-    'friendDeny', 'memberDeny', 'strangerDeny',
-    'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant',
   ],
   persona: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'memberPermission', 'adminWorkspacePath', 'groupReasoningEffort'],
   messaging: [

@@ -33,7 +33,9 @@ export interface SelfCheckInput {
     typingDelayMaxMs?: number;
     /** 全局关闭的能力 id（未知 id 在这里告警：写错了不会关掉任何东西）。 */
     capabilitiesDeny?: readonly string[];
-    /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；未知 id 同样告警）。 */
+    /** 只对管理员私聊关闭；未知 id 同样告警。 */
+    ownerDeny?: readonly string[];
+    /** 只对管理员 / 好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；未知 id 同样告警）。 */
     friendDeny?: readonly string[];
     memberDeny?: readonly string[];
     strangerDeny?: readonly string[];

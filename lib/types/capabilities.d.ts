@@ -5,7 +5,7 @@
  * 工具（只受「表情包库开了没」「记忆文件配了没」这两个运行时依赖限制），没有任何
  * 按功能的开关。把「工具 → 能力」的对应关系集中在这里之后，插件可以：
  * 1. 用 `capabilitiesDeny` 全局关掉某几项功能（主人私聊也关）；
- * 2. **按关系收权（T11 r1，当前真正有用的一半）**：`friendDeny` / `memberDeny` /
+ * 2. **按关系收权**：`ownerDeny` / `friendDeny` / `memberDeny` /
  *    `strangerDeny` 只关掉某一档人的某几项能力，别的档不受影响——典型用法
  *    「群友不许用 qq.napcat.api，主人私聊照常」；
  * 3. 按关系放权（T11）：`friendGrant` / `memberGrant` / `strangerGrant` 把
@@ -34,15 +34,13 @@
  *   （`bridge.canEditFiles`），不是主人回合就直接拒绝、一个请求都不发；能力层
  *   的 grant 只决定「这个会话有没有入口」，回合层才决定「这一次能不能真的做」。
  * - 推论（T11 r1 的存在理由）：对默认位为 true 的能力，**grant 是空转的**（写了也
- *   不会改变任何东西），所以「某一档人不许用某项功能」只能靠三个 deny 表达——deny
+ *   不会改变任何东西），所以「某一档人不许用某项功能」只能靠四个关系 deny 表达——deny
  *   是「减」，与默认位无关，永远生效。对 T12 的三个隐私能力与 T14 的戳 / 点赞，grant
  *   才是唯一入口。
- * - **例外（T14）**：`qq.interact.poke`（戳一戳）/ `qq.interact.like`（点赞）两个
- *   轻互动能力的**三个默认位**（`memberDefault` / `groupDefault` / `ownerDefault`）
- *   全是 false——它们会真的动到别人的账号（戳一下会弹提示、点赞会改对方资料卡上的
- *   赞数），连主人私聊也默认不给。要开就给对应的 grant：群友写 `memberGrant`，
- *   好友 / 陌生人写 `friendGrant` / `strangerGrant`，**主人私聊写 `ownerGrant`**
- *   （T14 r2 新增的第四个 grant；否则 poke/like 在主人私聊里永远是关的）。
+ * - **轻互动（T14）**：`qq.interact.poke`（戳一戳）/ `qq.interact.like`（点赞）两个
+ *   轻互动能力对非管理员私聊和群聊默认关闭；管理员私聊默认授权全部能力。
+ *   非主人需要对应 grant，主人可用 ownerDeny 独立关闭。ownerGrant 保留旧配置兼容。
+ *   能力授权不绕过工具执行体里的回合守卫。
  *   第三个 `qq.interact.react`（表情回应）只是贴一个表情，三个默认位都是 true。
  * @module dsh-qq-companion/capabilities
  */
@@ -68,19 +66,8 @@ export interface CapabilityDef {
     /** 默认是否在群聊开放。 */
     groupDefault: boolean;
     /**
-     * 默认是否对**管理员私聊**开放（T14）。
-     *
-     * 省略 = true，也就是改造前与 T12 / T13 的语义（{@link decideCapability} 第 5 步：
-     * owner 档的默认位恒开）。写 false 之后主人私聊也不再默认开放，但**不是关死**：
-     * 主人可以在配置里写 `ownerGrant: [能力 id]` 把它单独加开（T14 r2 新增的第四个
-     * grant，{@link CapabilityGrantKey}）。要把主人私聊也彻底关掉仍然只能写
-     * `capabilitiesDeny`（全局 deny 压过一切 grant）。
-     *
-     * 为什么要这一位 + ownerGrant：T14 的两个轻互动能力（戳一戳 / 点赞）对群聊与好友 /
-     * 陌生人都是默认关，同时也不该在主人私聊里默认开放——它们会真的动别人的账号。
-     * 于是「主人私聊的默认位」必须能单独表达（`ownerDefault: false`），而「主人真想
-     * 自己用」必须有个入口（`ownerGrant`）；两者缺一，主人要么被默默开了权限，要么
-     * 永远开不了。
+     * 管理员私聊的默认许可（省略 = true）；当前注册表所有能力默认授权。
+     * ownerDeny 独立关闭管理员，ownerGrant 保留旧配置兼容；依赖与执行守卫不变。
      */
     ownerDefault?: boolean;
 }
@@ -90,7 +77,7 @@ export interface CapabilityDef {
  * 默认位的来历见文件头：改造前的 11 项全为 true（零行为变化的等价表达），
  * T12 新增的三个隐私能力（群列表 / 好友列表 / 私聊历史）两个默认位都是 false，
  * T13 的两个群管理写操作同样是 false（`ownerDefault` 省略 = 主人私聊仍开），
- * T14 的戳一戳 / 点赞连 `ownerDefault` 也写了 false（表情回应是三个位全 true）。
+ * 管理员私聊对全部能力默认授权（仍受 deny、依赖与执行守卫限制）。
  */
 export declare const CAPABILITIES: readonly CapabilityDef[];
 /** 全部能力 id（顺序同注册表）。 */
@@ -101,7 +88,7 @@ export declare function allToolNames(): string[];
 export declare function findCapability(id: string): CapabilityDef | undefined;
 /** 某个工具名属于哪个能力（未知 = undefined）。 */
 export declare function capabilityOfTool(toolName: string): CapabilityDef | undefined;
-/** 一个能力 id 列表里认不出的 id（启动自检告警用；capabilitiesDeny、三个按关系
+/** 一个能力 id 列表里认不出的 id（启动自检告警用；capabilitiesDeny、四个按关系
  *  的 deny 与四个 grant 共用这一份校验；每项只报一次，保持出现顺序）。 */
 export declare function unknownCapabilityIds(deny: readonly string[] | undefined): string[];
 /** 配置项 `capabilitiesDeny` 的描述正文：列出全部能力 id 与中文含义（由注册表生成，
@@ -153,12 +140,14 @@ export interface CapabilityChatContext {
 /** 四个 grant（按关系加开能力）的配置键。`ownerGrant` 是 T14 r2 新增的：主人私聊
  *  在 `ownerDefault: false` 的能力上唯一的加开入口。 */
 export type CapabilityGrantKey = 'ownerGrant' | 'friendGrant' | 'memberGrant' | 'strangerGrant';
-/** 三个 deny（按关系关掉能力）的配置键——T11 r1 的一等公民。 */
-export type CapabilityDenyKey = 'friendDeny' | 'memberDeny' | 'strangerDeny';
-/** 能力相关的配置（全局 deny + 三个按关系 deny + 四个 grant）。 */
+/** 四个关系 deny，分别独立关闭管理员、好友、群聊和陌生人。 */
+export type CapabilityDenyKey = 'ownerDeny' | 'friendDeny' | 'memberDeny' | 'strangerDeny';
+/** 能力相关的配置（全局 deny + 四个按关系 deny + 四个 grant）。 */
 export interface CapabilityConfig {
     /** 全局关闭（最高优先，按关系 deny / grant 都绕不过它）。 */
     capabilitiesDeny?: readonly string[];
+    /** 只关闭管理员私聊的能力。 */
+    ownerDeny?: readonly string[];
     /** 只不给好友私聊用的能力 id（群聊 / 陌生人 / 主人都照常）。 */
     friendDeny?: readonly string[];
     /** 只不给群聊用的能力 id（对所有群成员生效；群里主人发言也按群友档）。 */
@@ -176,7 +165,7 @@ export interface CapabilityConfig {
 }
 /** 只描述「一份配置 + 当前进程具备的依赖」的入参（摘要按它算四个关系）。 */
 export interface CapabilityViewInput {
-    /** 相关配置（全局 deny + 三个按关系 deny + 四个 grant）。 */
+    /** 相关配置（全局 deny + 四个按关系 deny + 四个 grant）。 */
     config: CapabilityConfig;
     /** 当前进程里实际具备的运行时依赖。 */
     deps: Iterable<CapabilityDependency>;
@@ -219,7 +208,7 @@ export interface CapabilityDecisionInput {
     deny: ReadonlySet<string>;
     /** 当前进程具备的运行时依赖。 */
     available: ReadonlySet<CapabilityDependency>;
-    /** 这个会话视角要看的按关系的 deny（null = 这个视角没有 deny 位，例如主人私聊）。 */
+    /** 这个会话视角要看的按关系的 deny（null = 这个视角没有 deny 位）。 */
     relationDeny?: {
         key: CapabilityDenyKey;
         ids: ReadonlySet<string>;
@@ -278,7 +267,7 @@ export interface CapabilitySummary {
  * 把一份配置（+ 当前进程的依赖）压成摘要。
  *
  * `enabled` / `disabled` 取**主人私聊视角**——主人的私聊是权限最高的一类会话，
- * 缺什么就是配置层真关了什么（全局 deny + 依赖；按关系的 deny 不影响这一档）。
+ * 缺什么就是全局 deny、ownerDeny 或运行时依赖关闭了什么。
  * `byRelation` 另外给出四个关系各自的已开数（T11），供 /doctor 与设置页概览展示
  * 差异：`memberDeny` 写一项，群友数少 1、其余三个不变。
  */
@@ -307,8 +296,7 @@ export declare const INTERACTION_CAPABILITY_IDS: readonly CapabilityId[];
  *
  * 判据与 {@link groupWriteWarningLine} 相同：这两个能力里**只要有任意一个在非主人档
  * （好友 / 群友 / 陌生人）真的开着**就出一句警告。不算主人私聊那一档的理由也一样
- * ——它们对主人私聊默认关（`ownerDefault: false`），但主人写 `ownerGrant` 就能开，
- * 而「主人自己开了要用」不该被当成事故，所以这一档不进警告。
+ * ——管理员私聊默认授权，但「主人自己要用」不该被当成事故，所以这一档不进警告。
  *
  * 为什么值得提示：戳与点赞会真的在对方（或群里某个人）的账号上留痕。第二道闸
  * （只有主人本人的回合才会真的执行）挡的是「群友让她戳人」，挡不住「主人自己

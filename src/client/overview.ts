@@ -398,7 +398,7 @@ function sessionsCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatus
  * byRelation 单独缺失时只有那一行显示「—」。
  * T9 起卡片顶部多一行输出协议（B 档）状态与今天的控制块成功率（缺失同样显示「—」）。
  */
-function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatusLike | null): ReactElement {
+function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewStatusLike | null, options: RenderOverviewOptions): ReactElement {
   const summary = status == null || status.capabilities == null ? null : status.capabilities
   const disabled = summary == null || !Array.isArray(summary.disabled) ? [] : summary.disabled
   const counts = summary == null || summary.byRelation == null ? null : summary.byRelation
@@ -456,7 +456,11 @@ function capabilitiesCard(ReactImpl: ReactLike, t: Translate, status: OverviewSt
   }, protocolText)
   return h(ReactImpl, 'section', { className: 'qqc-card', 'data-section': t('overview.capabilities'), 'data-role': 'overview-capabilities', key: 'capabilities-card' },
     h(ReactImpl, 'div', { className: 'qqc-card-head' },
-      h(ReactImpl, 'h3', { className: 'qqc-card-title' }, t('overview.capabilities'))),
+      h(ReactImpl, 'h3', { className: 'qqc-card-title' }, t('overview.capabilities')),
+      h(ReactImpl, 'button', {
+        className: 'qqc-btn qqc-btn--sm', type: 'button', 'data-role': 'overview-go-capabilities',
+        onClick: () => { options.onGoToPage?.('capabilities') },
+      }, t('overview.manageCapabilities'))),
     protocolRow,
     relationRow,
     ...body)
@@ -521,6 +525,6 @@ export function renderOverview(ReactImpl: ReactLike, opts?: RenderOverviewOption
   nodes.push(memoryCard(ReactImpl, t, status))
   nodes.push(scheduledCard(ReactImpl, t, status))
   nodes.push(sessionsCard(ReactImpl, t, status))
-  nodes.push(capabilitiesCard(ReactImpl, t, status))
+  nodes.push(capabilitiesCard(ReactImpl, t, status, options))
   return nodes
 }

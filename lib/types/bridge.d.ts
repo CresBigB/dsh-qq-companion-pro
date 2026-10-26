@@ -499,7 +499,7 @@ export declare class ChatBridge {
     platformPromptText(chatId: ChatId): string;
     /** 按一个聊天算能力（会话类型 + 关系档 + 当前进程的运行时依赖）。 */
     private resolveChatCapabilities;
-    /** 能力相关的配置（全局 deny + 三个按关系 deny + 四个 grant；缺省一律空 = 现状）。 */
+    /** 能力相关的配置（全局 deny + 四个按关系 deny + 四个 grant；缺省一律空 = 现状）。 */
     private capabilityConfig;
     /**
      * 这个**会话**的关系档（T11 的能力视角，与逐条消息的关系绸标不是一回事）：

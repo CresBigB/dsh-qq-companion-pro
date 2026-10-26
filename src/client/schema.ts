@@ -116,12 +116,22 @@ export function vEnum(values: string[]): Schema<string> {
   }
 }
 
-/** 设置页上页 116 键的「非可选」校验器（顺序同宿主 ALL_KEYS；键名只在这里
+/** 设置页快照校验器（顺序同宿主 ALL_KEYS；ownerDeny缺席仅兼容旧Host；键名只在这里
  *  出现一次，patchSchema 由同一份 shape 逐键派生，两侧键集天然一致）。
  *  类型与宿主 Config 一致；数字区间与宿主 numberRange 一致：port 1–65535，
  *  taskEveryRounds ≥ 1，其余（时长 / 次数 / 字节数 / 像素）≥ 0；关系矩阵的三个
  *  比例是 0–1。 */
 const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
+  // capabilities（9，顺序与宿主 SETTINGS_GROUPS 对齐）
+  capabilitiesDeny: vArray(vString(0, 64)),
+  ownerDeny: vOptional(vArray(vString(0, 64))),
+  friendDeny: vArray(vString(0, 64)),
+  memberDeny: vArray(vString(0, 64)),
+  strangerDeny: vArray(vString(0, 64)),
+  ownerGrant: vArray(vString(0, 64)),
+  friendGrant: vArray(vString(0, 64)),
+  memberGrant: vArray(vString(0, 64)),
+  strangerGrant: vArray(vString(0, 64)),
   // connection（6）
   host: vString(0, 256),
   port: vNumber(1, 65535),
@@ -129,7 +139,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   botQQ: vString(0, 64),
   workspacePath: vString(0, 1024),
   attachWorkspaceMode: vEnum(['existing', 'auto', 'off']),
-  // access（20）
+  // access（14）
   adminUsers: vArray(vString(0, 64)),
   friendUsers: vArray(vString(0, 64)),
   memberObedience: vNumber(0, 1),
@@ -144,14 +154,6 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   restrictedMemberPrefix: vBoolean(),
   autoAcceptAdminRequests: vBoolean(),
   autoAllowInvitedGroups: vBoolean(),
-  capabilitiesDeny: vArray(vString(0, 64)),
-  friendDeny: vArray(vString(0, 64)),
-  memberDeny: vArray(vString(0, 64)),
-  strangerDeny: vArray(vString(0, 64)),
-  ownerGrant: vArray(vString(0, 64)),
-  friendGrant: vArray(vString(0, 64)),
-  memberGrant: vArray(vString(0, 64)),
-  strangerGrant: vArray(vString(0, 64)),
   // persona（7）
   ownerTitle: vString(0, 1024),
   agentPreset: vString(0, 1024),

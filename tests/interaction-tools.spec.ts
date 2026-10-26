@@ -167,7 +167,7 @@ const GROUP_CHAT = 'group:10001'
 // ------------------------------------------------------------------ ① 能力层
 
 describe('能力层 — 默认位与工具归属', () => {
-  it('表情回应对谁默认开；戳一戳与点赞三个默认位全关（会真的打扰到人）', () => {
+  it('表情回应对谁默认开；戳一戳与点赞仅非主人默认关，执行守卫不变', () => {
     const react = findCapability('qq.interact.react')!
     expect(react.memberDefault).toBe(true)
     expect(react.groupDefault).toBe(true)
@@ -178,7 +178,7 @@ describe('能力层 — 默认位与工具归属', () => {
       expect(capability.memberDefault, id).toBe(false)
       expect(capability.groupDefault, id).toBe(false)
       // T14 r2：连主人私聊也默认关——「替别人动手」的动作不能由默认位替主人做主。
-      expect(capability.ownerDefault, id).toBe(false)
+      expect(capability.ownerDefault, id).not.toBe(false)
     }
     expect(findCapability('qq.interact.poke')!.tools).toEqual(['qq_poke'])
     expect(findCapability('qq.interact.like')!.tools).toEqual(['qq_send_like'])
@@ -237,7 +237,7 @@ describe('注册层 — allow 门禁与真 bridge 的默认矩阵', () => {
     expect(() => only.tool('qq_poke')).toThrow('tool not registered')
   })
 
-  it('默认矩阵：群聊 / 非管理员私聊 / 管理员私聊都只多出 qq_emoji_react', async () => {
+  it('默认矩阵：非主人只有表情回应，管理员三项都授权', async () => {
     const group = await toolsAfterSend(
       await makeCmdHarness({ allowAllUsers: true }),
       h => h.sendGroupTextAs('hi', 10001),
@@ -259,8 +259,8 @@ describe('注册层 — allow 门禁与真 bridge 的默认矩阵', () => {
       h => h.sendText('hi'),
     )
     expect(owner).toContain('qq_emoji_react')
-    expect(owner).not.toContain('qq_poke')
-    expect(owner).not.toContain('qq_send_like')
+    expect(owner).toContain('qq_poke')
+    expect(owner).toContain('qq_send_like')
   })
 
   it('显式 grant 之后才注册：非主人档写 strangerGrant 就开', async () => {
@@ -273,7 +273,7 @@ describe('注册层 — allow 门禁与真 bridge 的默认矩阵', () => {
     expect(granted).not.toContain('qq_send_like')
   })
 
-  it('主人私聊的唯一加开入口是 ownerGrant（T14 r2）', async () => {
+  it('ownerGrant 保留兼容，主人默认全部授权', async () => {
     const granted = await toolsAfterSend(
       await makeCmdHarness({ ownerGrant: ['qq.interact.poke', 'qq.interact.like'] }),
       h => h.sendText('hi'),

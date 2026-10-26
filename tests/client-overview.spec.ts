@@ -11,13 +11,13 @@
  *
  * @module dsh-qq-companion-pro/tests/client-overview
  */
-import { readFileSync } from 'node:fs'
+import { buildClientSource } from './client-bundle.js'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SCHEMA_DEFAULTS } from '../src/settings-remote.js'
 
-const CLIENT_SOURCE = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+const CLIENT_SOURCE = buildClientSource()
 
 /** 极简 React 替身：createElement 产出可遍历的元素树。 */
 type StubElement = { type: unknown; props: Record<string, unknown>; children: unknown[] }

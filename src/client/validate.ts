@@ -11,8 +11,9 @@
  * 两者都不持有状态、不碰 DOM，可以在 Node 里直接跑。
  */
 import { ALL_FIELDS, draftNumber, type FieldMeta } from './fields.js'
+import { MATRIX_KEYS } from '../capability-matrix.js'
 import { zh } from './i18n.js'
-import { coerceValue, format, valueEquals } from './logic.js'
+import { coerceValue, format, tagsOf, valueEquals } from './logic.js'
 
 /** 翻译函数签名（与 render.ts 同形；缺省读 zh 词条）。 */
 export type Translate = (key: string) => string
@@ -165,6 +166,14 @@ export function collectRisks(
   }
 
   for (const field of ALL_FIELDS) {
+    if (MATRIX_KEYS.some(key => key === field.key)) {
+      const before = tagsOf(effective[field.key])
+      const after = tagsOf(values[field.key])
+      const expands = field.key.endsWith('Deny')
+        ? before.some(id => !after.includes(id))
+        : after.some(id => !before.includes(id))
+      if (expands) push(field, 'risk.capabilityGrant')
+    }
     if (typeof field.danger !== 'function') continue
     if (field.type === 'secret') {
       // 密钥永远不回显明文：草稿恒为 ''，改动的唯一形态是「清空」标记。

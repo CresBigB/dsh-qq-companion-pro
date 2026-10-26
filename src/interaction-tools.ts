@@ -16,8 +16,8 @@
  *    会弹提示，点赞会改对方资料卡上的赞数），所以多一道**回合层**门禁：
  *    {@link InteractionToolHost.canEditFiles}（本回合发起者是主人，回合开始时冻结、
  *    fail-closed 为 member）。不是主人回合 → 当场返回结构化错误，**一个 OneBot
- *    请求都不发**（连参数都不再看）。它们的三个默认位全是 false（连主人私聊也关）：
- *    要给群里开必须显式 `memberGrant`，要给主人私聊开必须显式 `ownerGrant`。
+ *    请求都不发**（连参数都不再看）。非管理员私聊与群聊默认关闭，管理员私聊默认授权。
+ *    要给群里开必须显式 `memberGrant`；ownerDeny 可单独关闭管理员，不改变执行守卫。
  *
  * 审计：每次调用都写一行到 `mediaDir/qq-actions.log`（`bridge.auditAction` →
  * `OutboundPipeline.auditWrite`，jsonl：ts / chatId / action / ok / reason），

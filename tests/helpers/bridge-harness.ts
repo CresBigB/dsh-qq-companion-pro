@@ -275,6 +275,7 @@ export async function makeCmdHarness(opts?: {
   /** 全局关闭的能力 id（absent = 全部开启；能力矩阵测试用）。 */
   capabilitiesDeny?: string[]
   /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；absent = 不额外关）。 */
+  ownerDeny?: string[]
   friendDeny?: string[]
   memberDeny?: string[]
   strangerDeny?: string[]
@@ -383,6 +384,7 @@ export async function makeCmdHarness(opts?: {
       ...(opts?.protocolChats !== undefined ? { protocolChats: opts.protocolChats } : {}),
       ...(opts?.publicMemoryFile !== undefined ? { publicMemoryFile: opts.publicMemoryFile } : {}),
       ...(opts?.capabilitiesDeny !== undefined ? { capabilitiesDeny: opts.capabilitiesDeny } : {}),
+      ...(opts?.ownerDeny !== undefined ? { ownerDeny: opts.ownerDeny } : {}),
       ...(opts?.friendDeny !== undefined ? { friendDeny: opts.friendDeny } : {}),
       ...(opts?.memberDeny !== undefined ? { memberDeny: opts.memberDeny } : {}),
       ...(opts?.strangerDeny !== undefined ? { strangerDeny: opts.strangerDeny } : {}),

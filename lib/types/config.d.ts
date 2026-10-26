@@ -91,13 +91,15 @@ export interface Config {
     memberPermission: string;
     /** 全局关闭的能力 id（见 src/capabilities.ts；主人私聊也关）。 */
     capabilitiesDeny: string[];
+    /** 只关闭管理员私聊的能力（其余关系不受影响）。 */
+    ownerDeny: string[];
     /** 只不给好友（friendUsers 里的人）用的能力 id（其他三档照常）。 */
     friendDeny: string[];
     /** 只不给群聊用的能力 id（所有群成员；群里主人发言也按群友档）。 */
     memberDeny: string[];
     /** 只不给陌生私聊（不在好友名单里的非管理员）用的能力 id。 */
     strangerDeny: string[];
-    /** 额外给主人私聊开放的能力 id（只对 ownerDefault 为 false 的能力有意义）。 */
+    /** 兼容旧配置的管理员私聊 grant；当前管理员默认全部授权。 */
     ownerGrant: string[];
     /** 额外给好友（friendUsers 里的人）开放的能力 id（默认关闭、单独给好友开）。 */
     friendGrant: string[];

@@ -1,6 +1,7 @@
 /** 纯函数工具层：草稿/生效值/patch 之间的换算，以及 Remote 结果解包。
  *  全部模块级可测，不依赖 hooks 或副作用。 */
 import { ALL_FIELDS, DEFAULTS, type OnebotField } from './fields.js'
+import { MATRIX_KEYS } from '../capability-matrix.js'
 
 /** computePatch 的附加选项。 */
 export interface ComputePatchOptions {
@@ -195,7 +196,11 @@ export function formatDefaultValue(field: OnebotField, value: unknown): string {
  *  accessToken 恒 ''，明文绝不进入草稿——host 快照已脱敏）。 */
 export function snapshotValueToDraft(field: OnebotField, value: unknown): unknown {
   if (field.type === 'secret') return '' // 脱敏回显：密码框恒空
-  if (field.type === 'stringArray') return tagsOf(value)
+  if (field.type === 'stringArray') {
+    // 权限旧规则含未来id、重复项或空白时，未触碰的配置必须原样往返。
+    if (MATRIX_KEYS.some(key => key === field.key) && Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string')
+    return tagsOf(value)
+  }
   if (field.type === 'number') return value === undefined || value === null ? '' : String(value)
   if (field.type === 'boolean') return value === true
   return value === undefined || value === null ? '' : String(value)
@@ -221,7 +226,10 @@ export function coerceValue(field: OnebotField, raw: unknown): unknown {
     return Number.isFinite(n) ? n : NaN
   }
   if (field.type === 'boolean') return raw === true
-  if (field.type === 'stringArray') return tagsOf(raw)
+  if (field.type === 'stringArray') {
+    if (MATRIX_KEYS.some(key => key === field.key) && Array.isArray(raw)) return raw.filter((entry): entry is string => typeof entry === 'string')
+    return tagsOf(raw)
+  }
   return String(raw == null ? '' : raw)
 }
 
@@ -248,6 +256,8 @@ export function computePatch(
   const invalidKeys: string[] = []
   for (const field of ALL_FIELDS) {
     if (field.type === 'secret') continue // accessToken 走 secretDraft/clearSecret 专用通道
+    // 新UI可能遇到尚未重启的旧Remote；绝不把不支持的新增键夹带进其它设置保存。
+    if (field.key === 'ownerDeny' && !Array.isArray(config_.ownerDeny)) continue
     const next = coerceValue(field, draft[field.key])
     if (field.type === 'number' && Number.isNaN(next)) {
       invalidKeys.push(field.key)

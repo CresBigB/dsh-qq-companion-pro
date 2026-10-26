@@ -61,7 +61,7 @@ const ALL_DEPS: CapabilityDependency[] = ['memoryNote', 'stickerLib', 'tts']
  * 主人私聊视角下默认关的能力，顺序同注册表（T15 起的离线语音，T14 r2 起的戳与
  * 点赞）：这几项连主人私聊的默认位也写了 false，要开必须显式写 ownerGrant。
  */
-const OWNER_DISABLED_IDS = ['qq.voice.tts', 'qq.interact.poke', 'qq.interact.like']
+const OWNER_DISABLED_IDS: string[] = []
 
 /**
  * 主人私聊在空配置下默认能开的能力：全部能力减去上面那几项。主人档虽然不是
@@ -143,7 +143,7 @@ describe('能力注册表 — 结构自洽', () => {
     ]
     /** T14 r2 / T15：这几项连主人私聊的默认位也写了 false——「替别人动手」和
      *  「替主人开口」都不该由默认位做主，要开就显式写 ownerGrant。 */
-    const OFF_FOR_OWNER = ['qq.interact.poke', 'qq.interact.like', 'qq.voice.tts']
+    const OFF_FOR_OWNER: string[] = []
     /** T14 新增的三项，与「改造前 11 项」分开数。 */
     const T14_IDS = ['qq.interact.react', 'qq.interact.poke', 'qq.interact.like']
     /** T15 新增的一项，同样不算「改造前 11 项」。 */
@@ -230,7 +230,7 @@ describe('工具清单一致性 — 两份手写清单 ≡ 注册表 ≡ 实际�
     // T14 r2：poke/like 连主人私聊也默认关（要 ownerGrant），所以实际注册比注册表少这两项；
     // T15：harness 没配 ttsEngine，语音工具同样不注册。
     const expected = REGISTRY_TOOLS.filter(tool =>
-      tool !== 'qq_poke' && tool !== 'qq_send_like' && !TTS_TOOLS.includes(tool))
+      !TTS_TOOLS.includes(tool))
     expect([...h.captured.channelTools].sort()).toEqual([...expected].sort())
   })
 })
@@ -289,7 +289,7 @@ const INTERACT_DEFAULT_TOOLS = ['qq_emoji_react']
 function expectedTools(key: string): string {
   const legacy = PRE_CHANGE_TOOLS[key]
   const extra = key.startsWith('admin-private|')
-    ? [...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS, ...INTERACT_DEFAULT_TOOLS]
+    ? [...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS, ...INTERACT_TOOLS]
     : INTERACT_DEFAULT_TOOLS
   return [...legacy.split(' '), ...extra].sort().join(' ')
 }
@@ -457,7 +457,7 @@ describe('T11 · grant 生效 — 三个 grant 各自只影响自己的关系档
     expect([...owner.enabled].sort()).toEqual([...OWNER_DEFAULT_IDS].sort())
     for (const id of OWNER_DEFAULT_IDS) expect(owner.why(id)).toBe('管理员私聊默认开启')
     for (const id of ['qq.interact.poke', 'qq.interact.like'] as const) {
-      expect(owner.why(id)).toBe('管理员私聊默认关闭')
+      expect(owner.why(id)).toBe('管理员私聊默认开启')
     }
     // 主人私聊的唯一加开入口是 ownerGrant（T14 r2）。
     const granted = resolveCapabilities({
@@ -467,7 +467,7 @@ describe('T11 · grant 生效 — 三个 grant 各自只影响自己的关系档
     })
     expect(granted.enabled.has('qq.interact.poke')).toBe(true)
     expect(granted.why('qq.interact.poke')).toBe('主人 grant（ownerGrant）已开放')
-    expect(granted.enabled.has('qq.interact.like')).toBe(false)
+    expect(granted.enabled.has('qq.interact.like')).toBe(true)
   })
 
   it('端到端：群聊里 grant 只影响 why，不改变已注册工具（默认位全开时无差）', async () => {
@@ -742,7 +742,7 @@ describe('T11 · 默认关闭的能力被 grant 打开（第 3 步确实先于�
 })
 
 describe('resolveCapabilities — 判定顺序与 why 文案', () => {
-  it('主人私聊 + 依赖全开 → 默认位（戳/点赞要 ownerGrant），tools = 这些能力的工具名', () => {
+  it('主人私聊 + 依赖全开 → 管理员默认全部授权，tools = 这些能力的工具名', () => {
     const resolved = resolveCapabilities({
       config: { capabilitiesDeny: [] },
       deps: ALL_DEPS,
@@ -756,7 +756,7 @@ describe('resolveCapabilities — 判定顺序与 why 文案', () => {
     for (const id of OWNER_DEFAULT_IDS) expect(resolved.why(id)).toBe('管理员私聊默认开启')
     // T14 r2 / T15：这几项要显式写 ownerGrant 才开。
     for (const id of ['qq.voice.tts', 'qq.interact.poke', 'qq.interact.like'] as const) {
-      expect(resolved.why(id)).toBe('管理员私聊默认关闭')
+      expect(resolved.why(id)).toBe('管理员私聊默认开启')
     }
   })
 
@@ -785,7 +785,7 @@ describe('resolveCapabilities — 判定顺序与 why 文案', () => {
     expect(resolved.why('qq.sticker.manage')).toBe('已在 capabilitiesDeny 里关闭')
     // 无依赖的能力不受影响。
     expect(resolved.enabled.has('qq.send.image')).toBe(true)
-    expect(resolved.enabled.size).toBe(defaultOpenCount('owner') - 3)
+    expect(resolved.enabled.size).toBe(defaultOpenCount('owner') - 4)
   })
 
   it('群聊 / 非管理员私聊按各自的默认位判定（why 文案区分会话类型）', () => {
@@ -846,14 +846,14 @@ describe('四个关系 × 全部能力：空 grant 时的实际开启矩阵', ()
     })
   }
 
-  it('主人私聊默认也少戳/点赞两项（T14 r2）；群友 / 好友 / 陌生人各少三个隐私能力、两个写操作与戳/点赞', () => {
+  it('主人私聊默认全部授权；群友 / 好友 / 陌生人各少三个隐私能力、两个写操作与戳/点赞', () => {
     const owner = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf('owner') })
     expect(owner.enabled.size).toBe(defaultOpenCount('owner'))
     // T14 r2：poke/like 三个默认位全关——连主人私聊也要 ownerGrant 才开，
     // 因为「替别人动手」这一类动作不应该由默认位替主人做主。
     for (const id of ['qq.interact.poke', 'qq.interact.like'] as const) {
-      expect(owner.enabled.has(id), '主人私聊不该默认开 ' + id).toBe(false)
-      expect(owner.why(id)).toBe('管理员私聊默认关闭')
+      expect(owner.enabled.has(id), '主人私聊默认授权 ' + id).toBe(true)
+      expect(owner.why(id)).toBe('管理员私聊默认开启')
     }
     expect(owner.enabled.has('qq.interact.react'), '主人私聊该开表情回应').toBe(true)
     for (const relation of ['friend', 'groupMember', 'stranger'] as const) {
@@ -879,7 +879,7 @@ describe('四个关系 × 全部能力：空 grant 时的实际开启矩阵', ()
       const withDeps = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf(relation) })
       const without = resolveCapabilities({ config: {}, deps: [], chat: chatViewOf(relation) })
       const lost = [...withDeps.enabled].filter(id => !without.enabled.has(id)).sort()
-      expect(lost, RELATION_NAMES[relation]).toEqual(['qq.memory.note', 'qq.sticker.manage', 'qq.sticker.use'])
+      expect(lost, RELATION_NAMES[relation]).toEqual(relation === 'owner' ? ['qq.memory.note', 'qq.sticker.manage', 'qq.sticker.use', 'qq.voice.tts'] : ['qq.memory.note', 'qq.sticker.manage', 'qq.sticker.use'])
     }
   })
 
@@ -892,7 +892,7 @@ describe('四个关系 × 全部能力：空 grant 时的实际开启矩阵', ()
     }
   })
 
-  it('ownerGrant 只对主人私聊生效：写了 poke/like 主人档才出现，群聊 / 私聊档不受影响（T14 r2）', async () => {
+  it('ownerGrant 只对主人私聊生效：旧 poke/like grant 兼容且不影响其它档，群聊 / 私聊档不受影响（T14 r2）', async () => {
     const owner = await toolsOf('admin-private', { stickers: false, memory: false, ownerGrant: ['qq.interact.poke', 'qq.interact.like'] })
     expect(owner).toContain('qq_poke')
     expect(owner).toContain('qq_send_like')
@@ -1015,15 +1015,13 @@ describe('/doctor 与状态快照', () => {
       + '（共 ' + CAPABILITIES.length + '）',
     )
     // 有默认关闭项时，那一行末尾会点出是哪几项、为什么关（T15 / T14 r2 起恒有三项）。
-    expect(formatCapabilityLine(all)).toContain(
-      '关闭的：qq.voice.tts（管理员私聊默认关闭）、qq.interact.poke（管理员私聊默认关闭）、qq.interact.like（管理员私聊默认关闭）',
-    )
+    expect(formatCapabilityLine(all)).not.toContain('关闭的：')
 
     const some = summarizeCapabilities({ config: { capabilitiesDeny: ['qq.send.image'] }, deps: [] })
     const line = formatCapabilityLine(some)
     // 每个关系统一再少 4 项：deny 1（qq.send.image）+ 依赖缺 3（表情包 2 + 记忆 1）。
     const lost = 4
-    expect(line).toContain('能力：主人 ' + (defaultOpenCount('owner') - lost)
+    expect(line).toContain('能力：主人 ' + (defaultOpenCount('owner') - lost - 1)
       + ' / 好友 ' + (defaultOpenCount('friend') - lost)
       + ' / 群友 ' + (defaultOpenCount('groupMember') - lost)
       + ' / 陌生人 ' + (defaultOpenCount('stranger') - lost)
@@ -1055,7 +1053,7 @@ describe('/doctor 与状态快照', () => {
     // 主人视角的 enabled / disabled 不受按关系 deny 影响（关的不是主人这一档）；
     // 默认关的那几项（T15 的语音、T14 r2 的戳/点赞）始终在 disabled 里，且不受 deny 影响。
     expect(summary.enabled).toBe(defaultOpenCount('owner'))
-    expect(summary.disabled.map(item => item.id)).toEqual([...OWNER_DISABLED_IDS])
+    expect(summary.disabled).toEqual([])
     expect(formatCapabilityLine(summary)).toContain(
       '能力：主人 ' + defaultOpenCount('owner') + ' / 好友 ' + defaultOpenCount('friend')
       + ' / 群友 ' + (defaultOpenCount('groupMember') - 1) + ' / 陌生人 ' + defaultOpenCount('stranger')
@@ -1091,8 +1089,7 @@ describe('/doctor 与状态快照', () => {
     // 点赞，不参 deny 的那一档）- 语音工具。表情回应默认开，所以各档都保留它。
     const memberTools = REGISTRY_TOOLS.length - PRIVACY_TOOLS.length - GROUP_WRITE_TOOLS.length
       - INTERACT_TOOLS.length + INTERACT_DEFAULT_TOOLS.length - TTS_TOOLS.length
-    const ownerTools = REGISTRY_TOOLS.length - INTERACT_TOOLS.length + INTERACT_DEFAULT_TOOLS.length
-      - TTS_TOOLS.length
+    const ownerTools = REGISTRY_TOOLS.length - TTS_TOOLS.length
     expect({ owner, friend, group, stranger }).toEqual({
       owner: ownerTools,
       friend: memberTools,
@@ -1147,11 +1144,11 @@ describe('/doctor 与状态快照', () => {
     const h = await makeCmdHarness({ stickers: {}, publicMemoryFile: join(mkdtempSync(join(tmpdir(), 'cap-mem-')), 'AGENTS.md') })
     const bridgeSummary = h.bridge.capabilitySummary()
     h.client.close()
-    expect(bridgeSummary.enabled).toBe(defaultOpenCount('owner'))
+    expect(bridgeSummary.enabled).toBe(defaultOpenCount('owner') - 1)
     expect(bridgeSummary.total).toBe(CAPABILITIES.length)
-    expect(bridgeSummary.disabled.map(item => item.id)).toEqual([...OWNER_DISABLED_IDS])
+    expect(bridgeSummary.disabled.map(item => item.id)).toEqual(['qq.voice.tts'])
     expect(bridgeSummary.byRelation).toEqual({
-        owner: defaultOpenCount('owner'),
+        owner: defaultOpenCount('owner') - 1,
         friend: defaultOpenCount('friend'),
         groupMember: defaultOpenCount('groupMember'),
         stranger: defaultOpenCount('stranger'),
@@ -1163,13 +1160,13 @@ describe('/doctor 与状态快照', () => {
     const summary = h.bridge.capabilitySummary()
     h.client.close()
     expect(summary.byRelation).toEqual({
-      owner: defaultOpenCount('owner'),
+      owner: defaultOpenCount('owner') - 1,
       friend: defaultOpenCount('friend'),
       groupMember: defaultOpenCount('groupMember') - 1,
       stranger: defaultOpenCount('stranger'),
     })
-    expect(summary.enabled).toBe(defaultOpenCount('owner'))
-    expect(summary.disabled.map(item => item.id)).toEqual([...OWNER_DISABLED_IDS])
+    expect(summary.enabled).toBe(defaultOpenCount('owner') - 1)
+    expect(summary.disabled.map(item => item.id)).toEqual(['qq.voice.tts'])
   })
 
   it('bridge 的摘要跟随 capabilitiesDeny 与运行时依赖', async () => {
@@ -1179,17 +1176,17 @@ describe('/doctor 与状态快照', () => {
     // 表情包库 / 记忆文件都没开 → 两项本来就因依赖关闭，这里再 deny 也还是关；
     // 但 deny 的原因优先。顺序同注册表（T15 的语音排在记忆与表情包之前）。
     expect(summary.disabled.map(item => item.id))
-      .toEqual(['qq.voice.tts', 'qq.memory.note', 'qq.sticker.use', 'qq.sticker.manage', 'qq.interact.poke', 'qq.interact.like'])
+      .toEqual(['qq.voice.tts', 'qq.memory.note', 'qq.sticker.use', 'qq.sticker.manage'])
     expect(summary.disabled[1].reason).toBe('已在 capabilitiesDeny 里关闭')
     expect(summary.disabled[2].reason).toBe('已在 capabilitiesDeny 里关闭')
     // 没被 deny 的那一项仍按依赖说明原因；语音没配引擎，报的是依赖原因（依赖比默认位硬）。
     expect(summary.disabled[0].reason).toContain('语音合成没开，或引擎用不了')
     expect(summary.disabled[3].reason).toBe('表情包库未开启（stickerDir 为空）')
     // 主人视角：老能力与隐私能力照开，少这 3 项 + 默认关的语音/戳/点赞。
-    expect(summary.enabled).toBe(defaultOpenCount('owner') - 3)
+    expect(summary.enabled).toBe(defaultOpenCount('owner') - 4)
     // deny / 依赖对所有档一致：每个关系都在自己的默认位上少 3 项。
     for (const relation of RELATIONS) {
-      expect(summary.byRelation[relation], RELATION_NAMES[relation]).toBe(defaultOpenCount(relation) - 3)
+      expect(summary.byRelation[relation], RELATION_NAMES[relation]).toBe(defaultOpenCount(relation) - (relation === 'owner' ? 4 : 3))
     }
   })
 })

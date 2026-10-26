@@ -1731,8 +1731,8 @@ export class ChatBridge {
     // 群管理写操作（T13）：能力层默认关，且每个执行体还有一道回合门禁
     // （群里谁在说话只有回合级知道），见 src/group-tools.ts。
     registerGroupTools(agentCtx, this, this.deps.connection, allow)
-    // 轻互动（T14）：表情回应默认开、有会话绑定 + 消息归属两道门禁；戳 / 点赞三个
-    // 默认位全关（连主人私聊也要 ownerGrant），且每个执行体还有一道回合门禁
+    // 轻互动：表情回应默认开；戳 / 点赞非主人默认关，管理员默认授权。
+    // 每个执行体仍有会话绑定与回合门禁
     // （谁在说话只有回合级知道），见 src/interaction-tools.ts。
     registerInteractionTools(agentCtx, this, this.deps.connection, allow)
   }
@@ -1773,11 +1773,12 @@ export class ChatBridge {
     })
   }
 
-  /** 能力相关的配置（全局 deny + 三个按关系 deny + 四个 grant；缺省一律空 = 现状）。 */
+  /** 能力相关的配置（全局 deny + 四个按关系 deny + 四个 grant；缺省一律空 = 现状）。 */
   private capabilityConfig(): CapabilityConfig {
     const config = this.deps.config
     return {
       capabilitiesDeny: config.capabilitiesDeny ?? [],
+      ownerDeny: config.ownerDeny ?? [],
       friendDeny: config.friendDeny ?? [],
       memberDeny: config.memberDeny ?? [],
       strangerDeny: config.strangerDeny ?? [],

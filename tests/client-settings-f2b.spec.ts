@@ -12,13 +12,13 @@
  *
  * @module dsh-qq-companion-pro/tests/client-settings-f2b
  */
-import { readFileSync } from 'node:fs'
+import { buildClientSource } from './client-bundle.js'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SCHEMA_DEFAULTS } from '../src/settings-remote.js'
 
-const CLIENT_SOURCE = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+const CLIENT_SOURCE = buildClientSource()
 
 /** 极简 React 替身：createElement 产出可遍历的元素树。 */
 type StubElement = { type: unknown; props: Record<string, unknown>; children: unknown[] }
@@ -1014,6 +1014,120 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     await harness.settle()
     expect(harness.calls.updateSettings).toHaveLength(0)
     expect(textOf(harness.tree)).toContain('没有需要保存的变更。')
+  })
+
+  it('矩阵连续点击原子合并多键patch，权限放开仍需确认后才保存', async () => {
+    vi.useFakeTimers()
+    const harness = mountPanel({ config: { ...SCHEMA_DEFAULTS, ownerDeny: [], capabilitiesDeny: ['qq.send.image'] } })
+    await harness.settle()
+    gotoPage(harness, 'capabilities')
+    const row = byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!
+    const input = (scope: string) => walk(byClass(row, 'qqc-cap-check').find(item => item.props['data-scope'] === scope)).find(item => item.type === 'input')!
+    // 同一渲染闭包里连续调用；第二次必须基于第一个functional updater后的草稿。
+    input('owner').props.onChange({ target: { checked: true } })
+    input('private').props.onChange({ target: { checked: true } })
+    harness.flush()
+    const current = byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!
+    const checks = walk(current).filter(item => item.type === 'input')
+    expect(checks.map(item => item.props.checked)).toEqual([true, true, false])
+    savebarButtons(harness.tree)[1].props.onClick()
+    harness.flush()
+    expect(byRole(harness.tree, 'risk-dialog')).toHaveLength(1)
+    expect(harness.calls.updateSettings).toEqual([])
+    byId(harness.tree, 'qqc-risk-confirm').props.onClick()
+    harness.flush()
+    await harness.settle()
+    expect(harness.calls.updateSettings).toEqual([{ patch: { capabilitiesDeny: [], memberDeny: ['qq.send.image'] }, revision: 1 }])
+  })
+
+  it.each(['capabilities', 'overview'])('搜索期间导航直达%s会清查询，但保留草稿与只看改动', async page => {
+    vi.useFakeTimers()
+    const harness = mountPanel({})
+    await harness.settle()
+    gotoPage(harness, 'persona')
+    byId(harness.tree, 'qqc-f-ownerTitle').props.onChange({ target: { value: '保留的草稿' } })
+    harness.flush()
+    walk(byClass(harness.tree, 'qqc-filter')[0]).find(item => item.type === 'input')!.props.onChange({ target: { checked: true } })
+    byClass(harness.tree, 'qqc-search')[0].props.onChange({ target: { value: 'not-found-query' } })
+    harness.flush()
+    expect(byClass(harness.tree, 'qqc-search')[0].props.value).toBe('not-found-query')
+    gotoPage(harness, page)
+    expect(byClass(harness.tree, 'qqc-search')[0].props.value).toBe('')
+    expect(walk(byClass(harness.tree, 'qqc-filter')[0]).find(item => item.type === 'input')!.props.checked).toBe(true)
+    expect(byClass(harness.tree, 'qqc-savebar')).toHaveLength(1)
+    gotoPage(harness, 'persona')
+    expect(byId(harness.tree, 'qqc-f-ownerTitle').props.value).toBe('保留的草稿')
+    expect(harness.calls.updateSettings).toEqual([])
+  })
+
+  it('矩阵改动经概览按钮/导航切页不丢草稿，还原恢复原mixed配置', async () => {
+    vi.useFakeTimers()
+    const harness = mountPanel({ config: { ...SCHEMA_DEFAULTS, ownerDeny: [], friendDeny: ['qq.send.image'] } })
+    await harness.settle()
+    byRole(harness.tree, 'overview-go-capabilities')[0].props.onClick()
+    harness.flush()
+    let row = byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!
+    const privateInput = walk(byClass(row, 'qqc-cap-check').find(item => item.props['data-scope'] === 'private')).find(item => item.type === 'input')!
+    expect(privateInput.props['aria-checked']).toBe('mixed')
+    privateInput.props.onChange({ target: { checked: true } })
+    harness.flush()
+    gotoPage(harness, 'overview')
+    expect(byClass(harness.tree, 'qqc-savebar')).toHaveLength(1)
+    byRole(harness.tree, 'overview-go-capabilities')[0].props.onClick()
+    harness.flush()
+    row = byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!
+    expect(row.props['data-dirty']).toBe(true)
+    savebarButtons(harness.tree)[0].props.onClick()
+    harness.flush()
+    row = byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!
+    expect(byRole(row, 'capability-mixed-note')).toHaveLength(1)
+    expect(byClass(harness.tree, 'qqc-savebar')).toHaveLength(0)
+    expect(harness.calls.updateSettings).toEqual([])
+  })
+
+  it('矩阵保存进行中全部checkbox禁用；冲突保留草稿并支持重新加载', async () => {
+    vi.useFakeTimers()
+    let finish: (value: unknown) => void = () => {}
+    const pending = new Promise(resolve => { finish = resolve })
+    const harness = mountPanel({ updateResult: pending })
+    await harness.settle()
+    gotoPage(harness, 'capabilities')
+    const row = byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!
+    walk(row).find(item => item.type === 'input')!.props.onChange({ target: { checked: false } })
+    harness.flush()
+    savebarButtons(harness.tree)[1].props.onClick()
+    harness.flush()
+    const matrix = byRole(harness.tree, 'capability-matrix')[0]
+    expect(walk(matrix).filter(item => item.type === 'input').every(item => item.props.disabled === true)).toBe(true)
+    finish({ ok: false, error: { code: 'onebot-settings/conflict', message: 'expectedRevision mismatch' } })
+    await harness.settle()
+    expect(byRole(harness.tree, 'conflict-reload')).toHaveLength(1)
+    expect(byClass(harness.tree, 'qqc-cap-row').find(item => item.props['data-capability'] === 'qq.send.image')!.props['data-dirty']).toBe(true)
+    byRole(harness.tree, 'conflict-reload')[0].props.onClick()
+    harness.flush()
+    await harness.settle()
+    expect(byClass(harness.tree, 'qqc-savebar')).toHaveLength(0)
+  })
+
+  it.each([false, true])('旧权限原值不被无关保存规范化，Remote无矩阵键：ownerDeny存在=%s', async supported => {
+    vi.useFakeTimers()
+    const config: Record<string, unknown> = { ...SCHEMA_DEFAULTS }
+    for (const key of ['capabilitiesDeny', 'ownerDeny', 'friendDeny', 'memberDeny', 'strangerDeny', 'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant']) config[key] = ['future.capability', ' qq.send.image ', 'future.capability', '']
+    if (!supported) delete config.ownerDeny
+    const harness = mountPanel({ config })
+    await harness.settle()
+    gotoPage(harness, 'connection')
+    byId(harness.tree, 'qqc-f-port').props.onChange({ target: { value: '9999' } })
+    harness.flush()
+    gotoPage(harness, 'diagnostics')
+    byId(harness.tree, 'qqc-f-logLevel').props.onChange({ target: { value: 'debug' } })
+    harness.flush()
+    harness.tree.props.onKeyDown({ key: 's', ctrlKey: true, preventDefault: () => {} })
+    harness.flush()
+    byId(harness.tree, 'qqc-risk-confirm').props.onClick() // port风险仍按原保存流程确认。
+    harness.flush()
+    await harness.settle()
+    expect(harness.calls.updateSettings).toEqual([{ patch: { port: 9999, logLevel: 'debug' }, revision: 1 }])
   })
 
   it('对话框不往 document.body 挂节点：document.body 从未被读取', async () => {

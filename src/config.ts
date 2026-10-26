@@ -106,13 +106,15 @@ export interface Config {
   memberPermission: string
   /** 全局关闭的能力 id（见 src/capabilities.ts；主人私聊也关）。 */
   capabilitiesDeny: string[]
+  /** 只关闭管理员私聊的能力（其余关系不受影响）。 */
+  ownerDeny: string[]
   /** 只不给好友（friendUsers 里的人）用的能力 id（其他三档照常）。 */
   friendDeny: string[]
   /** 只不给群聊用的能力 id（所有群成员；群里主人发言也按群友档）。 */
   memberDeny: string[]
   /** 只不给陌生私聊（不在好友名单里的非管理员）用的能力 id。 */
   strangerDeny: string[]
-  /** 额外给主人私聊开放的能力 id（只对 ownerDefault 为 false 的能力有意义）。 */
+  /** 兼容旧配置的管理员私聊 grant；当前管理员默认全部授权。 */
   ownerGrant: string[]
   /** 额外给好友（friendUsers 里的人）开放的能力 id（默认关闭、单独给好友开）。 */
   friendGrant: string[]
@@ -365,6 +367,8 @@ export const Config: Z<Config> = z.object({
     .description('非管理员的私聊与所有群聊，每个新会话自动切换的宿主权限预设，建议 read-only（留空=宿主默认预设；如果宿主默认是完整权限，群友和陆生人也会拿到完整权限）。群聊里管理员发言也使用该群会话的权限（一个群只有一个会话）'),
   capabilitiesDeny: z.array(z.string()).default([])
     .description('全局关闭的能力 id 列表（主人私聊也关；留空 = 全部开启）。每项是一个能力，对应一组模型工具：' + capabilityCatalogText()),
+  ownerDeny: z.array(z.string()).default([])
+    .description('只关闭管理员私聊的能力 id；不影响好友、群聊或陌生人。优先于 ownerGrant，仍受全局 capabilitiesDeny 和运行时依赖限制。' + capabilityCatalogText()),
   friendDeny: z.array(z.string()).default([])
     .description('只不给好友（friendUsers 里的人）用的能力 id 列表——主人私聊、群聊、陌生私聊都照常（留空 = 不额外关）。capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。' + capabilityCatalogText()),
   memberDeny: z.array(z.string()).default([])
@@ -372,7 +376,7 @@ export const Config: Z<Config> = z.object({
   strangerDeny: z.array(z.string()).default([])
     .description('只不给陌生人私聊（不在好友名单里的非管理员）用的能力 id 列表——主人私聊、好友私聊、群聊都照常；留空 = 不额外关。capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。' + capabilityCatalogText()),
   ownerGrant: z.array(z.string()).default([])
-    .description('额外给主人私聊（管理员本人）开放的能力 id 列表——这是「默认关闭、单独给主人私聊开」：只有把 ownerDefault 写成 false 的能力（戳一戳 / 点赞）需要写，默认位已开启的能力不需要写进来。' + DEFAULT_OFF_NOTE + '，要给主人私聊开就写在这里（主人自己的回合才执行，所以这里是唯一不会替别人动手的入口）。要把主人这一档单独关掉用 capabilitiesDeny（主人私聊没有按关系的 deny）；capabilitiesDeny 里的能力写在这里也仍然关闭；不知道填什么就看 /doctor。' + capabilityCatalogText()),
+    .description('兼容旧配置的管理员私聊 grant；管理员现在默认拥有全部能力许可，无需重复添加。ownerDeny 可单独关闭管理员私聊；全局 capabilitiesDeny、运行时依赖与工具执行守卫仍然生效。' + capabilityCatalogText()),
   friendGrant: z.array(z.string()).default([])
     .description('额外给好友（friendUsers 里的人）开放的能力 id 列表——这是「默认关闭、单独给好友开」：默认位已开启的能力不需要写进来。' + DEFAULT_OFF_NOTE + '，要给好友开就写在这里。要把好友这一档单独关掉用 friendDeny；capabilitiesDeny 里的能力写在这里也仍然关闭；不知道填什么就看 /doctor。' + capabilityCatalogText()),
   memberGrant: z.array(z.string()).default([])

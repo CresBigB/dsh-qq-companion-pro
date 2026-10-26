@@ -14,6 +14,14 @@ const good: SelfCheckInput = {
 }
 
 describe('selfCheck', () => {
+  it('ownerDeny同样校验未知能力，trim合法id不告警，重复未知id只报一次', () => {
+    expect(selfCheck({ ...good, ownerDeny: [' qq.send.image '] })).toEqual([])
+    const problems = selfCheck({ ...good, ownerDeny: [' future.id ', 'future.id'] })
+    expect(problems.filter(problem => problem.includes('ownerDeny'))).toEqual([
+      'ownerDeny 里的「future.id」不是已知能力 id，不会对任何人关闭功能（可用 id 见 /doctor）',
+    ])
+  })
+
   it('passes a sane config', () => {
     expect(selfCheck(good)).toEqual([])
   })

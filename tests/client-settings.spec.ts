@@ -19,7 +19,7 @@
  *
  * @module dsh-qq-companion-pro/tests/client-settings
  */
-import { readFileSync } from 'node:fs'
+import { buildClientSource } from './client-bundle.js'
 
 import { describe, expect, it } from 'vitest'
 
@@ -34,7 +34,7 @@ import {
   SETTINGS_GROUPS,
 } from '../src/settings-remote.js'
 
-const CLIENT_SOURCE = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+const CLIENT_SOURCE = buildClientSource()
 
 /** 客户端字段表的一条（lib 产物形态；§3.12 静态 + 函数型元数据）。 */
 interface ClientField {
@@ -438,6 +438,18 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
     expect(parsed.effect).toBe(REMOTE_EFFECT)
   })
 
+  it('旧Host只允许新增ownerDeny缺席，保持其它字段严格且不伪造空数组', () => {
+    const getSettings = descriptors[0] as { result: { schema: { parse(value: unknown): { config: Record<string, unknown> } } } }
+    const config: Record<string, unknown> = { ...SCHEMA_DEFAULTS }
+    delete config.ownerDeny
+    const snapshot = { revision: 0, entryActive: true, config, secrets: [], groups: SETTINGS_GROUPS, effect: REMOTE_EFFECT }
+    const parsed = getSettings.result.schema.parse(snapshot)
+    expect(parsed.config.ownerDeny).toBeUndefined()
+    expect(() => getSettings.result.schema.parse({ ...snapshot, config: { ...config, ownerDeny: 'unsupported' } })).toThrow()
+    delete config.friendDeny
+    expect(() => getSettings.result.schema.parse(snapshot)).toThrow()
+  })
+
   it('result codec 拒绝缺键/多 effect 快照（严格 codec，防宿主契约漂移静默通过）', () => {
     const getSettings = descriptors[0] as { result: { schema: { parse(value: unknown): unknown } } }
     const config: Record<string, unknown> = { ...SCHEMA_DEFAULTS }
@@ -458,7 +470,7 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
 
 describe('客户端 bundle — 分组、键集、默认值与 host 一致', () => {
   /** 规范 §1.2 的子页顺序（不含 overview：它不承载配置键，F3 才加）。 */
-  const GROUP_ORDER = ['connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+  const GROUP_ORDER = ['capabilities', 'connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
 
   it('分组 id 顺序 = 规范 §1.2 的 10 个子页（显式钉住导航顺序）', () => {
     expect(groups.map((group) => group.id)).toEqual(GROUP_ORDER)
@@ -470,7 +482,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(125)
+    expect(ALL_KEYS).toHaveLength(126)
   })
 
   it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 125 键（恢复默认值唯一来源）', () => {
@@ -517,7 +529,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   })
 
   it('每组有 §1.2 的中文名称与一句话说明；每个字段有卡片名和中文标签', () => {
-    expect(groups.map((group) => group.title)).toEqual(['连接', '谁能找她', '她', '说话方式', '会话与任务', '群聊', '记忆', '主动聊天', '媒体与语音', '诊断'])
+    expect(groups.map((group) => group.title)).toEqual(['功能权限', '连接', '谁能找她', '她', '说话方式', '会话与任务', '群聊', '记忆', '主动聊天', '媒体与语音', '诊断'])
     for (const group of groups) {
       expect(group.desc.length).toBeGreaterThan(8)
       for (const field of group.fields) {
@@ -617,58 +629,34 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     expect(patchSchema.parse({ deferredTimeoutMs: 0 })).toEqual({ deferredTimeoutMs: 0 })
   })
 
-  it('「功能开关」八个能力键的 hint 里只有一份能力清单，且那份清单 ≡ 注册表（不手写）', () => {
+  it('功能权限的9个高级键来自独立首组，能力文案只由注册表生成', () => {
     const catalog = capabilityCatalogText()
     const note = defaultOffNoteText()
-    const CAPABILITY_KEYS = [
-      'capabilitiesDeny',
-      'friendDeny', 'memberDeny', 'strangerDeny', 'ownerGrant',
-      'friendGrant', 'memberGrant', 'strangerGrant',
-    ]
-    for (const key of CAPABILITY_KEYS) {
-      const field = allFields.find((item) => item.key === key)!
-      expect(field, key).toBeTruthy()
-      expect(field.type, key).toBe('stringArray')
-      expect(field.section, key).toBe('功能开关')
-      const hint = field.hint ?? ''
-      expect(hint, key).toContain(catalog)
-      // 能力 id / 中文名只能来自注册表生成的两段文案（完整清单 + 「默认关闭的是哪些」）：
-      // 把两段原文都去掉后，不该再出现任何一项（以后改了注册表却手写一份新清单，这条会失败）。
-      const rest = hint.split(catalog).join('').split(note).join('')
+    const keys = ['capabilitiesDeny', 'ownerDeny', 'friendDeny', 'memberDeny', 'strangerDeny', 'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant']
+    const capabilityGroup = groups.find(group => group.id === 'capabilities')!
+    expect(capabilityGroup.fields.map(field => field.key)).toEqual(keys)
+    for (const field of capabilityGroup.fields) {
+      expect(field.type).toBe('stringArray')
+      expect(field.section).toBe('按关系精细设置')
+      const rest = (field.hint ?? '').split(catalog).join('').split(note).join('')
       for (const capability of CAPABILITIES) {
-        expect(rest, key + ' 手写了能力 id ' + capability.id).not.toContain(capability.id)
-        expect(rest, key + ' 手写了中文名 ' + capability.title).not.toContain(capability.title)
-      }
-      // 三个 grant 的 hint 都讲清「默认关闭、单独给某一档开」与「默认位已开启的不用写」，
-      // 并点明哪些能力是默认关的（同一段生成文案，不手写）。
-      if (key.endsWith('Grant')) {
-        expect(hint, key).toContain('默认关闭')
-        expect(hint, key).toContain('默认位已开启的不需要写进来')
-        expect(hint, key).toContain(note)
+        expect(rest).not.toContain(capability.id)
+        expect(rest).not.toContain(capability.title)
       }
     }
-    // 三个按关系 deny（T11 r1）的 hint 讲清「只针对这一档」，并收尾在
-    // 「capabilitiesDeny 是全局关…两边都写了以 capabilitiesDeny 为准」（与文档同句）。
-    for (const key of ['friendDeny', 'memberDeny', 'strangerDeny']) {
-      const hint = allFields.find((item) => item.key === key)!.hint ?? ''
-      expect(hint, key).toContain('只对')
-      expect(hint, key).toContain('capabilitiesDeny 是全局关，这里只针对这一档人；两边都写了以 capabilitiesDeny 为准。')
+    expect(capabilityGroup.fields[0].hint).toContain(catalog)
+    expect(capabilityGroup.fields.find(field => field.key === 'ownerGrant')!.hint).toContain('管理员默认全开')
+    for (const key of ['friendGrant', 'memberGrant', 'strangerGrant']) {
+      expect(capabilityGroup.fields.find(field => field.key === key)!.hint).toContain(note)
     }
-    // 三个 grant 的 hint 指回对应的 deny（默认位全开时 grant 是空转的，要关只能用 deny）。
-    expect(allFields.find((item) => item.key === 'friendGrant')!.hint).toContain('不给好友用的功能')
-    expect(allFields.find((item) => item.key === 'memberGrant')!.hint).toContain('不给群聊用的功能')
-    expect(allFields.find((item) => item.key === 'strangerGrant')!.hint).toContain('不给陌生人用的功能')
-    // 「功能开关」卡片的七个键在 access 子页里是连续的一段（渲染按组内顺序切卡片）。
-    const access = groups.find((group) => group.id === 'access')!
-    const switchKeys = access.fields.filter((field) => field.section === '功能开关').map((field) => field.key)
-    expect(switchKeys).toEqual(CAPABILITY_KEYS)
+    expect(groups.find(group => group.id === 'access')!.fields.some(field => keys.includes(field.key))).toBe(false)
   })
 
   it('configSchema / patchSchema 的键集 ≡ ALL_KEYS（快照多返的键会被静默丢弃，靠这条守住）', () => {
     expect([...configSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
     expect([...patchSchemaKeys].sort()).toEqual([...ALL_KEYS].sort())
-    expect(configSchemaKeys).toHaveLength(125)
-    expect(patchSchemaKeys).toHaveLength(125)
+    expect(configSchemaKeys).toHaveLength(ALL_KEYS.length)
+    expect(patchSchemaKeys).toHaveLength(ALL_KEYS.length)
   })
 
   it('accessToken 是唯一 secret 字段（脱敏约定：密码型输入 + 不明文回显）', () => {
@@ -1145,15 +1133,9 @@ describe('搜索与高亮切分纯函数（§5.3）', () => {
     // 媒体子页的表情包库 4 键（顺序即键序）。
     expect(matches.filter(match => match.groupId === 'media').map(match => match.field.key))
       .toEqual(['stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'])
-    // T6/T11/T14 r2 的能力开关（access 子页）hint 里也写着表情包能力 id，所以它同样是
-    // 命中项（全局 deny + 三个按关系 deny + 四个 grant 各自的 hint 都由注册表生成，
-    // 都带这串清单）。
-    expect(matches.filter(match => match.groupId === 'access').map(match => match.field.key))
-      .toEqual([
-        'capabilitiesDeny',
-        'friendDeny', 'memberDeny', 'strangerDeny', 'ownerGrant',
-        'friendGrant', 'memberGrant', 'strangerGrant',
-      ])
+    // 高级字段仍可由纯字段搜索命中；主视图改用能力行搜索，不展开9个原始大列表。
+    expect(matches.filter(match => match.groupId === 'capabilities').map(match => match.field.key))
+      .toEqual(['capabilitiesDeny'])
     const stickerDir = matches.find(match => match.field.key === 'stickerDir')!
     expect(stickerDir.hits).toContain('section')
     expect(searchFields('')).toEqual([])
@@ -1272,12 +1254,12 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     expect(byClass(nav, 'qqc-filter')).toHaveLength(1)
     const items = byClass(nav, 'qqc-nav-item')
     // §1.2：概览恒排第一（不含配置键），其余 10 个子页即 SETTINGS_GROUPS 的分组。
-    expect(items).toHaveLength(11)
+    expect(items).toHaveLength(12)
     expect(items.map(item => item.props['data-page'])).toEqual(['overview', ...groups.map(group => group.id)])
     expect(items.map(item => textOf(byClass(item, 'qqc-nav-label')[0]))).toEqual(['概览', ...groups.map(group => group.title)])
     const main = byClass(body, 'qqc-main')[0]
     expect(textOf(byClass(main, 'qqc-page-title')[0])).toBe('连接')
-    expect(textOf(byClass(main, 'qqc-page-desc')[0])).toBe(groups[0].desc)
+    expect(textOf(byClass(main, 'qqc-page-desc')[0])).toBe(groups.find(group => group.id === 'connection')!.desc)
     const cards = byClass(main, 'qqc-card')
     expect(cards.length).toBeGreaterThan(0)
     expect(cards.map(card => card.props['data-section'])).toEqual(['NapCat 连接', '工作区'])
@@ -1294,7 +1276,7 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     // 首项是「概览」（§1.2：导航顺序第一）。
     expect(items[0].props['data-page']).toBe('overview')
     items[1].props.onClick()
-    expect(changes).toEqual(['connection'])
+    expect(changes).toEqual(['capabilities'])
   })
 
   it('导航项右侧显示该子页的已改动计数（没有改动则不显示）', () => {
@@ -1361,7 +1343,7 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const view = SettingsView(viewProps({ embedded: true }))
     expect(view.props['data-embedded']).toBe('true')
     expect(byClass(view, 'qqc-header')).toHaveLength(0)
-    expect(byClass(view, 'qqc-nav-item')).toHaveLength(11) // 导航照常（概览 + 10 个子页）
+    expect(byClass(view, 'qqc-nav-item')).toHaveLength(12) // 导航照常（概览 + 10 个子页）
   })
 
   it('保存条：有改动才出现，显示「已修改 N 项」+ 还原 + 保存', () => {
@@ -1410,9 +1392,10 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     const view = SettingsView(viewProps({ query: '表情', onPageChange: (next: string) => { changes.push(next) } }))
     expect(textOf(byClass(view, 'qqc-page-title')[0])).toBe('搜索结果')
     const resultGroups = byClass(view, 'qqc-result-group')
-    // T6：「功能开关」的 hint 里也列着表情包能力 id，所以命中两个子页（access + media）。
-    expect(resultGroups.map(group => group.props['data-group'])).toEqual(['access', 'media'])
-    const mediaGroup = resultGroups[1]
+    expect(byRole(view, 'capability-matrix')).toHaveLength(1)
+    expect(byClass(view, 'qqc-cap-row').length).toBeGreaterThan(0)
+    expect(resultGroups.map(group => group.props['data-group'])).toEqual(['media'])
+    const mediaGroup = resultGroups[0]
     expect(byClass(mediaGroup, 'qqc-row')).toHaveLength(4)
     const marks = byClass(mediaGroup, 'qqc-mark')
     expect(marks.length).toBeGreaterThan(0)

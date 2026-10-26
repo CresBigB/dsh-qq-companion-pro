@@ -7,6 +7,8 @@
  * computePatch（纯函数）→ updateSettings(patch, revision)（§5.6）。
  */
 import { React } from './react-runtime.js'
+import { setMatrixState, type MatrixScope } from '../capability-matrix.js'
+import type { CapabilityId } from '../capabilities.js'
 import { ALL_FIELDS, DEFAULTS, GROUPS, type FieldMeta } from './fields.js'
 import { zh } from './i18n.js'
 import {
@@ -382,7 +384,7 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     conflict: conflict,
     conflictShowMine: showMine,
     riskDialog: riskDialog,
-    onPageChange: (next: string) => { setPage(next) },
+    onPageChange: (next: string) => { setPage(next); setQuery('') },
     onQueryChange: (next: string) => { setQuery(next) },
     onChangedOnlyChange: (next: boolean) => { setChangedOnly(next) },
     onRetry: () => { refetch() },
@@ -392,6 +394,12 @@ export function OnebotSettingsPanel(props: OnebotSettingsPanelProps) {
     onToggleMine: () => { setShowMine(!showMine) },
     onRiskCancel: () => { setRiskDialog(null) },
     onRiskConfirm: () => { setRiskDialog(null); commit() },
+    onMatrixChange: (id: CapabilityId, scope: MatrixScope, enabled: boolean) => {
+      if (busy || config == null || !Array.isArray(config.ownerDeny)) return
+      markEdited()
+      // helper在functional updater内计算并一次合并：连续点击不会覆盖旧闭包草稿。
+      setDraft(previous => previous == null ? previous : { ...previous, ...setMatrixState(previous, id, scope, enabled) })
+    },
     onChange: (field: FieldMeta, next: unknown) => {
       if (draft == null) return
       markEdited()

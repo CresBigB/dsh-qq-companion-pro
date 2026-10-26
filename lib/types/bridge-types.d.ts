@@ -72,13 +72,15 @@ export interface BridgeConfig {
     /** 全局关闭的能力 id（见 src/capabilities.ts；absent = 全部开启）。能力注册表
      *  据此决定这个聊天注册哪些 qq_* 工具（主人私聊也关）。 */
     capabilitiesDeny?: readonly string[];
+    /** 只关闭管理员私聊的能力；不影响其他关系。 */
+    ownerDeny?: readonly string[];
     /** 只不给好友私聊用的能力 id（T11 r1 的按关系 deny；absent = 不额外关）。 */
     friendDeny?: readonly string[];
     /** 只不给群聊用的能力 id（含群里发言的主人；absent = 不额外关）。 */
     memberDeny?: readonly string[];
     /** 只不给陌生人私聊用的能力 id（absent = 不额外关）。 */
     strangerDeny?: readonly string[];
-    /** 额外给主人私聊开放的能力 id（T14 r2；只对 ownerDefault 为 false 的能力有意义；
+    /** 兼容旧配置的管理员私聊 grant（管理员当前默认全部授权；
      *  absent = 不加开）。 */
     ownerGrant?: readonly string[];
     /** 额外给好友私聊开放的能力 id（T11 的 grant；absent = 不加开）。 */

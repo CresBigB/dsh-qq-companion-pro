@@ -9,6 +9,7 @@
 import type { ReactElement } from 'react'
 import { React } from './react-runtime.js'
 import { ALL_FIELDS, DEFAULTS, GROUPS, type CardNote, type FieldMeta } from './fields.js'
+import { CAPABILITIES_PAGE_ID, matchingCapabilities, renderCapabilityMatrix, type CapabilityMatrixOptions } from './capability-matrix.js'
 import { computePatch, format, tagsOf } from './logic.js'
 import { OVERVIEW_PAGE_ID, renderOverview, renderScheduledList, type OverviewStatusLike } from './overview.js'
 import { searchFields } from './search.js'
@@ -33,6 +34,8 @@ export interface WorkspaceViewState {
 
 /** 面板视图 props。 */
 export interface SettingsViewProps extends RenderFieldsOptions {
+  /** 单次功能开关意图；容器用共享helper原子更新多键。 */
+  onMatrixChange?: CapabilityMatrixOptions['onMatrixChange']
   /** 翻译函数（宿主 locale 注入）。 */
   t: Translate
   /** embedded 模式（plugins.row.config 入口）：不渲染页头。 */
@@ -131,13 +134,14 @@ function withStrong(template: string, n: number): unknown[] {
 }
 
 /** 每组里命中的键数（导航徽标与保存条共用）。 */
-export function groupCounts(keys: string[]): Record<string, number> {
+export function groupCounts(keys: string[], draft?: Record<string, unknown> | null, config?: Record<string, unknown> | null): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const group of GROUPS) {
     let count = 0
     for (const field of group.fields) if (keys.indexOf(field.key) >= 0) count += 1
     counts[group.id] = count
   }
+  if (draft != null && config != null) counts[CAPABILITIES_PAGE_ID] = matchingCapabilities({ draft, config, changedOnly: true }).length
   return counts
 }
 
@@ -151,11 +155,11 @@ function renderNav(props: SettingsViewProps, dirtyKeys: string[], invalid: Recor
   const onPageChange = typeof props.onPageChange === 'function' ? props.onPageChange : () => {}
   const onQueryChange = typeof props.onQueryChange === 'function' ? props.onQueryChange : () => {}
   const onChangedOnlyChange = typeof props.onChangedOnlyChange === 'function' ? props.onChangedOnlyChange : () => {}
-  const dirtyCounts = groupCounts(dirtyKeys)
+  const dirtyCounts = groupCounts(dirtyKeys, props.draft, props.config)
   const errorCounts = groupCounts(Object.keys(invalid))
   const pages: Array<{ id: string; title: string }> = [
     { id: OVERVIEW_PAGE_ID, title: t('overview.title') },
-    ...GROUPS.map(group => ({ id: group.id, title: group.title })),
+    ...GROUPS.map(group => ({ id: group.id, title: group.id === CAPABILITIES_PAGE_ID ? t('capabilities.title') : group.title })),
   ]
   const badgeOf = (groupId: string): ReactElement | null => {
     const errorCount = errorCounts[groupId] == null ? 0 : errorCounts[groupId]
@@ -488,11 +492,15 @@ export function SettingsView(props: SettingsViewProps): ReactElement {
   if (loading) {
     content = h(React, 'div', { className: 'qqc-main' }, ...conflictTop, skeletonCards())
   } else if (searching) {
-    const matches = searchFields(query)
-    if (matches.length === 0) {
+    // 能力搜索按行命中，不让9个原始大列表掩盖矩阵入口。
+    const matches = searchFields(query, GROUPS.filter(group => group.id !== CAPABILITIES_PAGE_ID))
+    const matrixOptions: CapabilityMatrixOptions = { t, draft, config, query, changedOnly: onlyChanged, disabled: props.busy === true, onMatrixChange: props.onMatrixChange }
+    const capabilityMatches = matchingCapabilities(matrixOptions)
+    if (matches.length === 0 && capabilityMatches.length === 0) {
       content = h(React, 'div', { className: 'qqc-main' },
         ...conflictTop,
-        h(React, 'div', { className: 'qqc-empty' }, format(t('search.empty'), { q: query.trim() })))
+        h(React, 'div', { className: 'qqc-empty' }, format(t('search.empty'), { q: query.trim() })),
+        renderSavebar(props, dirtyKeys, invalid))
     } else {
       const resultGroups = renderSearchResults(React, matches, Object.assign(
         fieldOptions(props, { highlight: query, onlyChanged: false, invalid: invalid, riskKeys: riskKeys }),
@@ -501,7 +509,9 @@ export function SettingsView(props: SettingsViewProps): ReactElement {
       content = h(React, 'div', { className: 'qqc-main' },
         ...conflictTop,
         h(React, 'p', { className: 'qqc-page-title', key: 'search-title' }, t('search.results')),
-        resultGroups)
+        capabilityMatches.length === 0 ? null : renderCapabilityMatrix(React, matrixOptions),
+        resultGroups,
+        renderSavebar(props, dirtyKeys, invalid))
     }
   } else if (props.page === OVERVIEW_PAGE_ID) {
     // §1.2 / §4.14：概览子页不含配置键，也不受搜索与「只看已改动」影响
@@ -518,10 +528,25 @@ export function SettingsView(props: SettingsViewProps): ReactElement {
       ...conflictTop,
       ...overviewNodes,
       renderSavebar(props, dirtyKeys, invalid))
+  } else if (props.page === CAPABILITIES_PAGE_ID) {
+    const group = GROUPS.find(item => item.id === CAPABILITIES_PAGE_ID)!
+    const supported = Array.isArray(config.ownerDeny)
+    content = h(React, 'div', { className: 'qqc-main' },
+      ...conflictTop,
+      h(React, 'div', { className: 'qqc-page-head' },
+        h(React, 'div', { className: 'qqc-page-head-text' },
+          h(React, 'h3', { className: 'qqc-page-title' }, t('capabilities.title')),
+          h(React, 'p', { className: 'qqc-page-desc' }, t('capabilities.desc')))),
+      renderCapabilityMatrix(React, { t, draft, config, changedOnly: onlyChanged, disabled: props.busy === true, onMatrixChange: props.onMatrixChange }),
+      h(React, 'details', { className: 'qqc-cap-advanced' },
+        h(React, 'summary', null, t('capabilities.advanced')),
+        h(React, 'p', { className: 'qqc-page-desc' }, t('capabilities.advancedNote')),
+        renderGroup(React, group, fieldOptions(props, { invalid, riskKeys, disabled: props.busy === true || !supported }))),
+      renderSavebar(props, dirtyKeys, invalid))
   } else {
     const group = GROUPS.find(item => item.id === props.page) != null
       ? GROUPS[GROUPS.findIndex(item => item.id === props.page)]
-      : GROUPS[0]
+      : GROUPS.find(item => item.id === 'connection')!
     // 卡片是 .qqc-main 的直接 flex 子项（§6.2 的 16px 间距由 .qqc-main 提供）。
     const cards = renderGroup(React, group, fieldOptions(props, { invalid: invalid, riskKeys: riskKeys }))
     const mainChildren: unknown[] = [

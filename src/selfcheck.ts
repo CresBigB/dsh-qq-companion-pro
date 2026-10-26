@@ -40,7 +40,9 @@ export interface SelfCheckInput {
   typingDelayMaxMs?: number
   /** 全局关闭的能力 id（未知 id 在这里告警：写错了不会关掉任何东西）。 */
   capabilitiesDeny?: readonly string[]
-  /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；未知 id 同样告警）。 */
+  /** 只对管理员私聊关闭；未知 id 同样告警。 */
+  ownerDeny?: readonly string[]
+  /** 只对管理员 / 好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；未知 id 同样告警）。 */
   friendDeny?: readonly string[]
   memberDeny?: readonly string[]
   strangerDeny?: readonly string[]
@@ -137,8 +139,9 @@ export function selfCheck(c: SelfCheckInput): string[] {
   for (const id of unknownCapabilityIds(c.capabilitiesDeny)) {
     problems.push('capabilitiesDeny 里的「' + id + '」不是已知能力 id，不会关掉任何功能（' + capabilityCatalogText() + '）')
   }
-  // 三个按关系的 deny（T11 r1）同理：写错 id 时那一档不会少任何功能，静默无效。
+  // 四个按关系的 deny（T11 r1）同理：写错 id 时那一档不会少任何功能，静默无效。
   const relationDenies: Array<[string, readonly string[] | undefined]> = [
+    ['ownerDeny', c.ownerDeny],
     ['friendDeny', c.friendDeny],
     ['memberDeny', c.memberDeny],
     ['strangerDeny', c.strangerDeny],
