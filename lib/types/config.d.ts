@@ -19,6 +19,8 @@ export interface Config {
     sideAskConcurrency: number;
     /** 单条消息能进入旁问的字数上限，超出的按普通排队处理。 */
     sideAskMaxChars: number;
+    /** 旁问子级能看到的主会话背景字数（0=不带背景）；0–20000，默认 4000。 */
+    sideAskContextChars: number;
     /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
     newMessagePolicy: 'queue' | 'steer';
     /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */

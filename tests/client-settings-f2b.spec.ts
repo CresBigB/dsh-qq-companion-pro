@@ -602,11 +602,11 @@ describe('collectRisks — §5.5 每个触发条件', () => {
 })
 
 describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () => {
-  const NEW_KEYS = ['groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars']
+  const NEW_KEYS = ['groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars']
 
   it('字段进入群聊 / 会话与任务页，旧快照控件禁用且无关保存不夹带缺席键', () => {
     expect(GROUPS.find(group => group.id === 'access')?.fields.map(field => field.key)).toContain('groupTriggerPolicy')
-    expect(GROUPS.find(group => group.id === 'conversation')?.fields.map(field => field.key)).toEqual(expect.arrayContaining(['sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars']))
+    expect(GROUPS.find(group => group.id === 'conversation')?.fields.map(field => field.key)).toEqual(expect.arrayContaining(['sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars']))
 
     const oldConfig = Object.assign({}, SCHEMA_DEFAULTS)
     for (const key of NEW_KEYS) delete oldConfig[key]
@@ -615,6 +615,7 @@ describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () =>
     oldDraft.sideAskEnabled = true
     oldDraft.sideAskConcurrency = '4'
     oldDraft.sideAskMaxChars = '1000'
+    oldDraft.sideAskContextChars = '2000'
     const patch = computePatch(oldDraft, oldConfig).patch
     for (const key of NEW_KEYS) expect(patch[key]).toBeUndefined()
 

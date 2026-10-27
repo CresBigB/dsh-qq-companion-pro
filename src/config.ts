@@ -34,6 +34,8 @@ export interface Config {
   sideAskConcurrency: number
   /** 单条消息能进入旁问的字数上限，超出的按普通排队处理。 */
   sideAskMaxChars: number
+  /** 旁问子级能看到的主会话背景字数（0=不带背景）；0–20000，默认 4000。 */
+  sideAskContextChars: number
   /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
   newMessagePolicy: 'queue' | 'steer'
   /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
@@ -252,6 +254,8 @@ export const Config: Z<Config> = z.object({
     .description('旁问同时运行上限（1–8；跨所有 QQ 聊天）；占满时新消息退回排队/插话策略'),
   sideAskMaxChars: z.number().min(1).max(8000).default(8000)
     .description('单条消息能进入旁问的最大字符数（1–8000）；超出的按普通排队处理'),
+  sideAskContextChars: z.number().min(0).max(20000).default(4000)
+    .description('旁问子级能看到的主会话背景字符数（0–20000，默认 4000；0=不带背景，只回答这一条）'),
   newMessagePolicy: z.union([z.const('queue'), z.const('steer')]).default('queue')
     .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
   autoSteerPolicy: z.union([z.const('admin'), z.const('all')]).default('admin')

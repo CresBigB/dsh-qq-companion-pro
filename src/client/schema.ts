@@ -189,6 +189,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   sideAskEnabled: vOptional(vBoolean()),
   sideAskConcurrency: vOptional(vNumber(1, 8)),
   sideAskMaxChars: vOptional(vNumber(1, 8000)),
+  sideAskContextChars: vOptional(vNumber(0, 20000)),
   idleResetHours: vNumber(0),
   privateResetDays: vNumber(0),
   groupResetDays: vNumber(0),

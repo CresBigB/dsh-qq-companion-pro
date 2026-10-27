@@ -124,6 +124,93 @@ describe('sideAskAgentOf 调用形状', () => {
   })
 })
 
+describe('sideAskAgentOf 主会话背景', () => {
+  const userEvent = (text: string) => ({ type: 'user/message', seq: 0, data: { role: 'user', content: [{ type: 'text', text }] } })
+  const botEvent = (text: string) => ({ type: 'assistant/message', seq: 1, data: { message: { role: 'assistant', content: [{ type: 'text', text }] } } })
+  const parentOf = (events: readonly unknown[]) => ({ id: 'parent-agent', session: { snapshotEvents: () => events } })
+  const promptTextOf = (calls: Array<Record<string, unknown>>, index = 0): string => {
+    const request = calls[index]!.request as { prompt: { text: string }[] }
+    return request.prompt[0]!.text
+  }
+
+  it('把主会话最近的对话当背景带过去，问题仍在最后', async () => {
+    const { subagents, calls } = makeSubagents({})
+    const port = sideAskAgentOf(ctxOf(subagents))
+    const parent = parentOf([userEvent('帮我把季度报告整理一下'), botEvent('好的，我先读一下原始数据。')])
+    await port!.ask(parent, '现在进度到哪了', new AbortController().signal)
+
+    const text = promptTextOf(calls)
+    expect(text).toContain('用户：帮我把季度报告整理一下')
+    expect(text).toContain('她：好的，我先读一下原始数据。')
+    expect(text.indexOf('用户：帮我把季度报告整理一下')).toBeLessThan(text.indexOf('现在进度到哪了'))
+    // 问题永远在最后：身份前缀在最前。
+    expect(text.endsWith('现在进度到哪了')).toBe(true)
+    expect(text.startsWith('你是一次性的旁问专家')).toBe(true)
+  })
+
+  it('预算为 0 时不带任何背景，只发这一条问题', async () => {
+    const { subagents, calls } = makeSubagents({})
+    const port = sideAskAgentOf(ctxOf(subagents), 0)
+    await port!.ask(parentOf([userEvent('帮我整理报告'), botEvent('好的')]), '现在几点了', new AbortController().signal)
+
+    const text = promptTextOf(calls)
+    expect(text).not.toContain('帮我把季度报告')
+    expect(text).not.toContain('帮我整理报告')
+    expect(text).not.toContain('以下是主会话最近的对话')
+    expect(text.endsWith('现在几点了')).toBe(true)
+  })
+
+  it('预算装不下更早的消息时只保留最近的那几条', async () => {
+    const { subagents, calls } = makeSubagents({})
+    const port = sideAskAgentOf(ctxOf(subagents), 12)
+    const long = '这是一段很长很长的历史，长到预算装不下它'
+    await port!.ask(parentOf([userEvent(long), botEvent('收到')]), '继续', new AbortController().signal)
+
+    const text = promptTextOf(calls)
+    expect(text).not.toContain(long)
+    expect(text).toContain('她：收到')
+  })
+
+  it('只投影文字块：工具块、空文本都不进背景', async () => {
+    const { subagents, calls } = makeSubagents({})
+    const port = sideAskAgentOf(ctxOf(subagents))
+    const parent = parentOf([
+      { type: 'user/message', seq: 0, data: { role: 'user', content: [{ type: 'text', text: '读这个文件' }] } },
+      { type: 'assistant/message', seq: 1, data: { message: { role: 'assistant', content: [{ type: 'tool-call', name: 'read_file' }] } } },
+      { type: 'tool/result', seq: 2, data: { message: { role: 'tool', content: [{ type: 'text', text: 'SECRET-FILE-BODY' }] } } },
+      { type: 'assistant/message', seq: 3, data: { message: { role: 'assistant', content: [{ type: 'text', text: '  ' }] } } },
+    ])
+    await port!.ask(parent, '看的怎么样了', new AbortController().signal)
+
+    const text = promptTextOf(calls)
+    expect(text).toContain('用户：读这个文件')
+    expect(text).not.toContain('SECRET-FILE-BODY')
+    expect(text).not.toContain('tool-call')
+  })
+
+  it('父会话读不到日志时照旧回答：没有 session、抛错都只是不带背景', async () => {
+    const { subagents, calls } = makeSubagents({})
+    const port = sideAskAgentOf(ctxOf(subagents))
+    await port!.ask({ id: 'no-session' }, '问题一', new AbortController().signal)
+    await port!.ask({ id: 'boom', session: { snapshotEvents: () => { throw new Error('session closed') } } }, '问题二', new AbortController().signal)
+
+    expect(calls).toHaveLength(2)
+    expect(promptTextOf(calls, 0)).toContain('问题一')
+    expect(promptTextOf(calls, 1)).toContain('问题二')
+    expect(promptTextOf(calls, 1)).not.toContain('以下是主会话最近的对话')
+  })
+
+  it('单条超长历史会被截断，不会一条吃掉整个预算', async () => {
+    const { subagents, calls } = makeSubagents({})
+    const port = sideAskAgentOf(ctxOf(subagents), 4000)
+    await port!.ask(parentOf([userEvent('啊'.repeat(3000))]), '说重点', new AbortController().signal)
+
+    const text = promptTextOf(calls)
+    expect(text).toContain('…')
+    expect(text.length).toBeLessThan(2000)
+  })
+})
+
 describe('sideAskAgentOf 取消', () => {
   it('运行中取消会 dispose 该 activation', async () => {
     const { subagents, dispose } = makeSubagents({ hold: true })

@@ -159,17 +159,28 @@ export declare function mountWaitingForAccessToken(ctx: Context, config: Config)
 export interface ServiceReader {
     get?: (key: string) => unknown;
 }
+/** 把主会话最近的纯文字对话做成旁问的背景简报。
+ *
+ *  spawn 提供方不继承父上下文，所以「旁问要知道现在在干什么」只能由调用方带过去：
+ *  这里只读父会话日志（`snapshotEvents()`，与宿主 fork provider 同款只读口），
+ *  只投影 user/assistant 的文字块，从尾部往前收集到字数预算为止，
+ *  读不到（没有 session、抛错、事件形状不对）就不带背景。 */
+export declare function sideAskContextOf(parent: unknown, limit: number): string;
+/** 一条旁问的完整提示词：固定身份前缀 + （可选的）主会话背景 + 最后是这句问题。 */
+export declare function sideAskPromptOf(prompt: string, context: string): string;
 /** Build the BTW-style side-answer seam from the optional host subagents service.
  *
  * 用的是宿主公开的 `startActivation`（provider `spawn`，`delivery: 'caller'`）：
  * - spawn 提供方 `inheritsParentContext === false`，子级不复制父会话历史，
  *   因此不会像 fork 那样每条旁问都给会话库添一份前缀副本；
+ * - 代价是子级看不到主会话，所以由调用方只读父会话日志、把最近几轮纯文字
+ *   做成背景简报塞进提示词（见 {@link sideAskContextOf}）；
  * - `delivery: 'caller'` 由调用方自己收结果，不向父会话投递完成通知，
  *   主任务不会被旁问的结算消息打断；
  * - 子级按父级的 preset 组装（工具同父级），所以提示词明确要求只作答；
  *   真正需要收窄工具时由 profile 的 preset 决定，插件不伪造这个边界。
  * 拿不到 subagents/spawn 时返回 undefined，调用方退回排队/插话。 */
-export declare function sideAskAgentOf(ctx: ServiceReader): SideAskAgentPort | undefined;
+export declare function sideAskAgentOf(ctx: ServiceReader, contextChars?: number): SideAskAgentPort | undefined;
 /** Mount the plugin. */
 export declare function apply(ctx: Context, config: Config): void;
 export {};

@@ -100,7 +100,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   conversation: [
     'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'taskEveryRounds',
     'unknownCommand', 'rateLimitPerMinute',
-    'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars',
+    'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars',
     'idleResetHours', 'privateResetDays', 'groupResetDays', 'sessionTitleTemplate',
     'privateSessionKeepDays', 'groupSessionKeepDays', 'chatIdleEvictDays',
     'protocolMode', 'protocolChats',
