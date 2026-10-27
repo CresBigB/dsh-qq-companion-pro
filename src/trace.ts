@@ -92,7 +92,7 @@ export const TRACE_REASONS = {
   busyTurnQueued: '任务运行中，新消息已入队等待当前回合结束',
   busyTurnSteered: '任务运行中，新消息已作为补充指令插话',
   busyTurnSideAsk: '任务运行中，新消息已交给独立旁问回答',
-  busyTurnSideAskFull: '任务运行中，旁问并发已满，新消息按排队/插话策略处理',
+  busyTurnSideAskFull: '任务运行中，这条消息没进旁问（并发已满或超过字数上限），按排队/插话策略处理',
   mediaResolveFailed: '媒体解析失败，占位符保留原文',
   nasFileTooLarge: 'QQ 文件超过大小上限，已跳过获取',
   nasFileFailed: 'QQ 文件获取失败：无可用来源',
