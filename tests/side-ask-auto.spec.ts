@@ -3,15 +3,15 @@
  *
  * 语义定案（用户裁决 2026-10-28）：旁问不是指令，而是忙碌回合的自动行为 ——
  * 当前聊天正在跑任务时又发来的普通纯文字消息，交给一个继承上下文的独立
- * fork 立刻回答，回答作为另一条 QQ 消息发回；主任务完全不受影响（既不
+ * 旁问子代理立刻回答，回答作为另一条 QQ 消息发回；主任务完全不受影响（既不
  * steer 也不新开回合）。
  *
  * 边界（与既有 busy 策略的交接）：
- * - 只接纯文字：带媒体 / 引用 / 转发 的消息仍走排队（fork 拿不到附件）。
+ * - 只接纯文字：带媒体 / 引用 / 转发 的消息仍走排队（旁问子级拿不到附件）。
  * - 只接有资格的人：沿用 autoSteerPolicy 的资格判定（默认 admin），带关系
  *   绸标的非管理员消息任何档都不进侧道，避免拿父会话上下文回答陌生人。
  * - 并发占满或超过 sideAskMaxChars 时不报错，静默退回排队/插话。
- * - 功能默认关闭；没有 fork 适配器时行为与开启前完全一致。
+ * - 功能默认关闭；没有 subagents 适配器时行为与开启前完全一致。
  * - 侧道失败只回一句通用提示：问题正文与宿主错误都不外泄。
  * @module dsh-qq-companion/tests/side-ask-auto
  */
@@ -29,9 +29,9 @@ function setRunning(h: Awaited<ReturnType<typeof makeCmdHarness>>, chatId = 'pri
 }
 
 describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
-  it('运行中收到的纯文本交给 fork：不入队、不插话、无排队提示，回答单独发回', async () => {
+  it('运行中收到的纯文本交给旁问子级：不入队、不插话、无排队提示，回答单独发回', async () => {
     const h = await makeCmdHarness({
-      sideAsk: { fork: async () => '这是旁问的回答' },
+      sideAsk: { ask: async () => '这是旁问的回答' },
     })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -40,7 +40,7 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
     h.sendText('顺手问一句别的')
     await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('这是旁问的回答'))).toBe(true))
 
-    // fork 收到的正是这条消息，且主流水线没有被触发
+    // 旁问适配器收到的正是这条消息，且主流水线没有被触发
     expect(h.captured.sideAsks).toHaveLength(1)
     expect(h.captured.sideAsks[0]).toContain('顺手问一句别的')
     expect(h.captured.followups).toHaveLength(1) // 不新开回合
@@ -56,7 +56,7 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
   it('steer 模式下旁问优先：不再作为补充指令插进当前任务', async () => {
     const h = await makeCmdHarness({
       newMessagePolicy: 'steer',
-      sideAsk: { fork: async () => '旁问的回答' },
+      sideAsk: { ask: async () => '旁问的回答' },
     })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -72,12 +72,12 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('并发占满时静默退回排队：fork 只跑一次、消息照旧入队并给一次排队提示', async () => {
+  it('并发占满时静默退回排队：旁问只跑一次、消息照旧入队并给一次排队提示', async () => {
     let release!: (text: string) => void
     const h = await makeCmdHarness({
       sideAsk: {
         concurrency: 1,
-        fork: () => new Promise<string>(resolve => { release = resolve }),
+        ask: () => new Promise<string>(resolve => { release = resolve }),
       },
     })
     h.sendText('启动任务')
@@ -101,7 +101,7 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
 
   it('超过 sideAskMaxChars 的消息不进侧道，仍按排队处理', async () => {
     const h = await makeCmdHarness({
-      sideAsk: { maxChars: 4, fork: async () => '不该出现' },
+      sideAsk: { maxChars: 4, ask: async () => '不该出现' },
     })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -116,9 +116,9 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('fork 失败只回通用提示：问题正文与宿主错误都不外泄', async () => {
+  it('旁问失败只回通用提示：问题正文与宿主错误都不外泄', async () => {
     const h = await makeCmdHarness({
-      sideAsk: { fork: async () => { throw new Error('host exploded: secret-detail') } },
+      sideAsk: { ask: async () => { throw new Error('host exploded: secret-detail') } },
     })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -134,12 +134,37 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
     await h.bridge.stop()
     await h.connection.stop()
   }, 60_000)
+
+  it('宿主子代理名额满（ACTIVATION_LIMIT_REACHED）时给出可操作提示，不冒充已回答', async () => {
+    const h = await makeCmdHarness({
+      sideAsk: {
+        ask: async () => {
+          const error = new Error('subagent capacity is full') as Error & { code: string }
+          error.code = 'ACTIVATION_LIMIT_REACHED'
+          throw error
+        },
+      },
+    })
+    h.sendText('启动任务')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    setRunning(h)
+
+    h.sendText('这条进不了旁问')
+    await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes('子代理名额已满'))).toBe(true))
+    const all = sentTexts(h.outbound).join('\n')
+    expect(all).not.toContain('subagent capacity is full')
+    expect(all).not.toContain('这条进不了旁问')
+
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  }, 60_000)
 })
 
 describe('自动旁问 — 关闭时行为逐字不变', () => {
-  it('sideAskEnabled=false（即使宿主给了 fork）仍走排队', async () => {
+  it('sideAskEnabled=false（即使宿主给了旁问适配器）仍走排队', async () => {
     const h = await makeCmdHarness({
-      sideAsk: { enabled: false, fork: async () => '不该出现' },
+      sideAsk: { enabled: false, ask: async () => '不该出现' },
     })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -155,8 +180,8 @@ describe('自动旁问 — 关闭时行为逐字不变', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('没有 fork 适配器时开启也不报错，行为与关闭一致', async () => {
-    const h = await makeCmdHarness() // 无 sideAsk = 无 fork
+  it('没有旁问适配器时开启也不报错，行为与关闭一致', async () => {
+    const h = await makeCmdHarness() // 无 sideAsk = 无旁问适配器
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     setRunning(h)
@@ -175,7 +200,7 @@ describe('自动旁问 — 资格与消息形态限制', () => {
   it('关系绸标下的非管理员消息不进侧道（不拿父会话上下文回答陌生人）', async () => {
     const h = await makeCmdHarness({
       restrictedMemberPrefix: true,
-      sideAsk: { fork: async () => '不该出现' },
+      sideAsk: { ask: async () => '不该出现' },
     })
     // 群成员先建立群会话，再进入运行态
     h.sendGroupTextAs('发起群任务', 20003)
@@ -191,8 +216,8 @@ describe('自动旁问 — 资格与消息形态限制', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('带媒体的消息不进侧道（fork 拿不到附件），仍排队', async () => {
-    const h = await makeCmdHarness({ sideAsk: { fork: async () => '不该出现' } })
+  it('带媒体的消息不进侧道（旁问子级拿不到附件），仍排队', async () => {
+    const h = await makeCmdHarness({ sideAsk: { ask: async () => '不该出现' } })
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     setRunning(h)

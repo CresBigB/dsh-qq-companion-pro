@@ -16,6 +16,7 @@ import type { SessionStore } from '@deepseek-ai/dsh-session';
 import type { ModelSelection } from '@deepseek-ai/dsh-agent';
 import type Z from '@deepseek-ai/schemastery';
 import type { OneBotEvent } from './connection.js';
+import type { SideAskAgentPort } from './bridge.js';
 type Context = CordisContext & {
     tools: ToolRuntime;
     systemPrompt: SystemPrompt;
@@ -96,25 +97,33 @@ type Context = CordisContext & {
     subagents?: {
         getProvider(name: string): {
             inheritsParentContext?: boolean;
-        } | undefined;
-        start?(provider: string, options: {
-            parent: unknown;
-            label: string;
-            signal: AbortSignal;
-            prompt: readonly {
-                type: 'text';
-                text: string;
-            }[];
-            agentOptions?: {
-                maxTokens?: number;
-                disableTools?: boolean;
+            capabilities?: {
+                agentOptions?: boolean;
             };
+        } | undefined;
+        startActivation?(spec: {
+            provider: string;
+            label: string;
+            request: {
+                parent: unknown;
+                prompt: readonly {
+                    type: 'text';
+                    text: string;
+                }[];
+                agentOptions?: {
+                    maxTokens?: number;
+                };
+            };
+            signal?: AbortSignal;
+            delivery?: 'parent' | 'caller';
         }): Promise<{
+            childId: string;
             result: Promise<{
                 output?: readonly {
                     type?: string;
                     text?: string;
                 }[];
+                stopReason?: string;
             }>;
             dispose(): Promise<void>;
         }>;
@@ -146,6 +155,21 @@ export declare function isAccessTokenUnconfigured(token: unknown): boolean;
  *  online；只挂只读状态服务让设置页概览显示「未连接」。填好 token 保存后宿主
  *  按新配置重启本条目，走下面的正常启动路径。 */
 export declare function mountWaitingForAccessToken(ctx: Context, config: Config): void;
+/** 惰性读服务需要的最小上下文形状：只有 `get`。 */
+export interface ServiceReader {
+    get?: (key: string) => unknown;
+}
+/** Build the BTW-style side-answer seam from the optional host subagents service.
+ *
+ * 用的是宿主公开的 `startActivation`（provider `spawn`，`delivery: 'caller'`）：
+ * - spawn 提供方 `inheritsParentContext === false`，子级不复制父会话历史，
+ *   因此不会像 fork 那样每条旁问都给会话库添一份前缀副本；
+ * - `delivery: 'caller'` 由调用方自己收结果，不向父会话投递完成通知，
+ *   主任务不会被旁问的结算消息打断；
+ * - 子级按父级的 preset 组装（工具同父级），所以提示词明确要求只作答；
+ *   真正需要收窄工具时由 profile 的 preset 决定，插件不伪造这个边界。
+ * 拿不到 subagents/spawn 时返回 undefined，调用方退回排队/插话。 */
+export declare function sideAskAgentOf(ctx: ServiceReader): SideAskAgentPort | undefined;
 /** Mount the plugin. */
 export declare function apply(ctx: Context, config: Config): void;
 export {};

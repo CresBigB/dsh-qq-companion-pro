@@ -263,9 +263,10 @@ export interface LlmCatalogPort {
     listProviders(): LlmProviderInfo[];
     listModels(provider: string): Promise<LlmModelInfo[]>;
 }
-/** Narrow host seam for one BTW-style fork. The adapter owns the host run and
- * disposal; bridge code only sees a text result and never host subagent state. */
-export interface SideAskForkPort {
+/** Narrow host seam for one BTW-style side answer. The adapter owns the host
+ * activation and its cancellation; bridge code only sees a text result and
+ * never host subagent state. */
+export interface SideAskAgentPort {
     ask(parent: unknown, prompt: string, signal: AbortSignal): Promise<string>;
 }
 /** Session-event feed port: the narrowed event-bus surface the bridge
@@ -391,8 +392,9 @@ export interface BridgeDeps {
     /** 宿主 goals 服务（T16 长任务）：live 查找，absent = 部署未启用
      * dsh-goal。只经公开服务方法读写，插件自己不落盘、不排轮次。 */
     goals?: (() => GoalsPortLike | undefined) | undefined;
-    /** 可选 BTW/fork 适配器；absent 表示宿主管不了旁问，功能整体不可用。 */
-    sideAskFork?: SideAskForkPort;
+    /** 可选旁问适配器（宿主 subagent activation）；absent 表示宿主管不了
+     * 旁问，功能整体不可用。 */
+    sideAskAgent?: SideAskAgentPort;
     config: BridgeConfig;
     policy: AccessPolicyConfig;
     /** health: the ALREADY-redacted plugin config snapshot (secrets

@@ -64,6 +64,10 @@ export interface SelfCheckInput {
   ttsModel?: string
   ttsMaxChars?: number
   ttsTimeoutMs?: number
+  /** 自动旁问（T18）：开启时要求宿主真的提供了 subagents(spawn) 适配器。 */
+  sideAskEnabled?: boolean
+  /** 挂载时是否拿到了旁问适配器（sideAskAgentOf 的结果非空）。 */
+  sideAskAvailable?: boolean
 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -134,6 +138,11 @@ export function selfCheck(c: SelfCheckInput): string[] {
     if (!Number.isFinite(c.ttsTimeoutMs ?? 60_000) || (c.ttsTimeoutMs ?? 60_000) < 1_000) {
       problems.push('ttsTimeoutMs 小于 1 秒：合成还没开始就被杀掉，这条语音永远发不出去')
     }
+  }
+  // 自动旁问（T18）：开关开着但宿主没有 subagents(spawn) 时，功能会静默退化成
+  // 「照旧排队」——这正是上一版让人以为功能坏了的那种失败，所以必须报出来。
+  if (c.sideAskEnabled === true && c.sideAskAvailable !== true) {
+    problems.push('自动旁问已开启，但宿主没有可用的 subagents(spawn) 服务：任务运行中的新消息仍会排队（旁问不生效，可在设置页关掉这项）')
   }
   // 能力开关写错 id 时不会关掉任何功能（静默无效），启动时点出来。
   for (const id of unknownCapabilityIds(c.capabilitiesDeny)) {

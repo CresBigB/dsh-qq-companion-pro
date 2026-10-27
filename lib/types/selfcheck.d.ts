@@ -57,6 +57,10 @@ export interface SelfCheckInput {
     ttsModel?: string;
     ttsMaxChars?: number;
     ttsTimeoutMs?: number;
+    /** 自动旁问（T18）：开启时要求宿主真的提供了 subagents(spawn) 适配器。 */
+    sideAskEnabled?: boolean;
+    /** 挂载时是否拿到了旁问适配器（sideAskAgentOf 的结果非空）。 */
+    sideAskAvailable?: boolean;
 }
 /** All problems found (empty = all good). */
 export declare function selfCheck(c: SelfCheckInput): string[];

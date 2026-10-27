@@ -26,6 +26,15 @@ describe('selfCheck', () => {
     expect(selfCheck(good)).toEqual([])
   })
 
+  it('自动旁问开着但宿主没给适配器时要报出来，接上了就不报', () => {
+    const off = selfCheck({ ...good, sideAskEnabled: true, sideAskAvailable: true })
+    expect(off.filter(problem => problem.includes('自动旁问'))).toEqual([])
+    const silent = selfCheck({ ...good, sideAskEnabled: true, sideAskAvailable: false })
+    expect(silent.filter(problem => problem.includes('自动旁问'))).toHaveLength(1)
+    // 关闭时不提这事。
+    expect(selfCheck({ ...good, sideAskEnabled: false }).filter(problem => problem.includes('自动旁问'))).toEqual([])
+  })
+
   it('flags the settings that would silently do nothing', () => {
     const problems = selfCheck({
       ...good,

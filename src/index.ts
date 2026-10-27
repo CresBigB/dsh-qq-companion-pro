@@ -22,7 +22,7 @@ import type { SessionStore } from '@deepseek-ai/dsh-session'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type Z from '@deepseek-ai/schemastery'
 import type { OneBotEvent } from './connection.js'
-import type { BridgeDeps, SideAskForkPort, WorkspaceRegistryLike } from './bridge.js'
+import type { BridgeDeps, SideAskAgentPort, WorkspaceRegistryLike } from './bridge.js'
 import type { SessionTitleLike } from './session-title.js'
 import { join } from 'node:path'
 
@@ -91,14 +91,22 @@ type Context = CordisContext & {
     execute(agent: unknown, line: string, submittedAttachments: readonly unknown[], signal: AbortSignal): Promise<{ kind?: string; text?: string; result?: { kind?: string; text?: string } }>
   }
   subagents?: {
-    getProvider(name: string): { inheritsParentContext?: boolean } | undefined
-    start?(provider: string, options: {
-      parent: unknown
+    getProvider(name: string): { inheritsParentContext?: boolean; capabilities?: { agentOptions?: boolean } } | undefined
+    startActivation?(spec: {
+      provider: string
       label: string
-      signal: AbortSignal
-      prompt: readonly { type: 'text'; text: string }[]
-      agentOptions?: { maxTokens?: number; disableTools?: boolean }
-    }): Promise<{ result: Promise<{ output?: readonly { type?: string; text?: string }[] }>; dispose(): Promise<void> }>
+      request: {
+        parent: unknown
+        prompt: readonly { type: 'text'; text: string }[]
+        agentOptions?: { maxTokens?: number }
+      }
+      signal?: AbortSignal
+      delivery?: 'parent' | 'caller'
+    }): Promise<{
+      childId: string
+      result: Promise<{ output?: readonly { type?: string; text?: string }[]; stopReason?: string }>
+      dispose(): Promise<void>
+    }>
   }
 }
 
@@ -164,44 +172,84 @@ export function mountWaitingForAccessToken(ctx: Context, config: Config): void {
  *  会让主插件在没有该服务的宿主上永远 pending，所以这里惰性读取。 */
 type SubagentsLike = NonNullable<Context['subagents']>
 
+/** 惰性读服务需要的最小上下文形状：只有 `get`。 */
+export interface ServiceReader {
+  get?: (key: string) => unknown
+}
+
 /** 惰性读取一个宿主服务：`ctx.get` 不存在或服务未注册都返回 undefined。 */
-function optionalService<T>(ctx: Context, name: string): T | undefined {
-  const get = (ctx as unknown as { get?: (key: string) => unknown }).get
+function optionalService<T>(ctx: ServiceReader, name: string): T | undefined {
+  const get = ctx.get
   if (typeof get !== 'function') return undefined
   const service = get.call(ctx, name)
   return service === undefined || service === null ? undefined : service as T
 }
 
-/** Build the BTW-style fork seam from the optional host subagents service.
- * The adapter refuses to start unless the fork provider explicitly advertises
- * parent-context inheritance; it owns disposal and extracts text only. */
-function sideAskForkOf(ctx: Context): SideAskForkPort | undefined {
+/** 旁问子级的固定前缀：一句话交代身份与边界，问题正文原样附在后面。 */
+const SIDE_ASK_INSTRUCTION = '你是一次性的旁问专家：只回答下面这条消息，只输出文字，不要继续主任务、不要调用工具。\n\n'
+
+/** 旁问子级的输出预算：旁问要短、要快，不需要整轮长文。 */
+const SIDE_ASK_MAX_TOKENS = 32_000
+
+/** 从 activation 结果里取最后一条文字的纯文本；没有文字就是空串。 */
+function sideAskTextOf(result: { output?: readonly { type?: string; text?: string }[] }): string {
+  const blocks = result.output ?? []
+  return blocks
+    .filter(block => block.type === 'text')
+    .map(block => block.text ?? '')
+    .join('')
+    .trim()
+}
+
+/** Build the BTW-style side-answer seam from the optional host subagents service.
+ *
+ * 用的是宿主公开的 `startActivation`（provider `spawn`，`delivery: 'caller'`）：
+ * - spawn 提供方 `inheritsParentContext === false`，子级不复制父会话历史，
+ *   因此不会像 fork 那样每条旁问都给会话库添一份前缀副本；
+ * - `delivery: 'caller'` 由调用方自己收结果，不向父会话投递完成通知，
+ *   主任务不会被旁问的结算消息打断；
+ * - 子级按父级的 preset 组装（工具同父级），所以提示词明确要求只作答；
+ *   真正需要收窄工具时由 profile 的 preset 决定，插件不伪造这个边界。
+ * 拿不到 subagents/spawn 时返回 undefined，调用方退回排队/插话。 */
+export function sideAskAgentOf(ctx: ServiceReader): SideAskAgentPort | undefined {
   const subagents = optionalService<SubagentsLike>(ctx, 'subagents')
-  if (subagents === undefined || typeof subagents.getProvider !== 'function') return undefined
-  if (typeof subagents.start !== 'function') return undefined
-  const provider = subagents.getProvider('fork')
-  if (provider?.inheritsParentContext !== true) return undefined
-  // A prompt saying "不要调用工具" is not a capability boundary. This host
-  // API does not declare a disable-tools/tool-policy option for activation, so
-  // activation-only providers are intentionally rejected. The legacy start
-  // API is used only because its disableTools option is explicit below.
+  if (subagents === undefined) return undefined
+  if (typeof subagents.startActivation !== 'function') return undefined
+  if (typeof subagents.getProvider !== 'function') return undefined
+  let provider: ReturnType<SubagentsLike['getProvider']>
+  try {
+    provider = subagents.getProvider('spawn')
+  } catch {
+    return undefined
+  }
+  if (provider === undefined) return undefined
+  const startActivation = subagents.startActivation
   return {
     ask: async (parent, prompt, signal) => {
-      const promptBlocks = [{ type: 'text' as const, text: '你是一次性的旁问专家，只基于继承的上下文回答问题；只输出文字，不调用工具，不继续主任务。\n\n' + prompt }]
-      const run = await subagents.start!('fork', {
-        parent,
-        label: 'QQ 旁问专家',
+      const handle = await startActivation.call(subagents, {
+        provider: 'spawn',
+        label: 'QQ 旁问',
+        request: {
+          parent,
+          prompt: [{ type: 'text', text: SIDE_ASK_INSTRUCTION + prompt }],
+          agentOptions: { maxTokens: SIDE_ASK_MAX_TOKENS },
+        },
         signal,
-        prompt: promptBlocks,
-        agentOptions: { maxTokens: 32_000, disableTools: true },
+        // 结果由我们自己收：父会话不该收到旁问的完成通知。
+        delivery: 'caller',
       })
+      // 信号只取消「尚未发布」的阶段；发布之后的取消走 dispose()。
+      const cancel = (): void => {
+        void Promise.resolve(handle.dispose()).catch(() => undefined)
+      }
+      if (signal.aborted) cancel()
+      else signal.addEventListener('abort', cancel, { once: true })
       try {
-        const result = await run.result
-        const text = (result.output ?? []).filter(block => block.type === 'text').map(block => block.text ?? '').join('').trim()
+        const text = sideAskTextOf(await handle.result)
         if (text === '') throw new Error('side ask returned no text')
         return text
       } finally {
-        await run.dispose()
+        signal.removeEventListener('abort', cancel)
       }
     },
   }
@@ -406,6 +454,12 @@ export function apply(ctx: Context, config: Config): void {
     liveness.onMeta(event)
     logMetaEvent(connection.selfId, event, config.logLevel)
   }
+  // 自动旁问适配器只在这里解析一次：桥接与 /doctor 自检看到的是同一个结论，
+  // 不会出现「运行端没接上、自检却说正常」的分叉。
+  const sideAskAgent = config.sideAskEnabled ? sideAskAgentOf(ctx) : undefined
+  if (config.sideAskEnabled && sideAskAgent === undefined) {
+    log('warn', '旁问已开启，但宿主没有可用的 subagents（spawn）服务；任务运行中的新消息仍按原策略排队/插话')
+  }
   const bridge: import('./bridge.js').ChatBridge = new ChatBridge({
     ctx,
     // the bridge sees only explicit ports — the session-event feed
@@ -457,11 +511,7 @@ export function apply(ctx: Context, config: Config): void {
         return undefined
       }
     },
-    ...(config.sideAskEnabled ? (() => {
-      const sideAskFork = sideAskForkOf(ctx)
-      if (sideAskFork === undefined) log('warn', '旁问已开启，但宿主未提供安全的 fork provider；任务运行中的新消息仍按原策略排队/插话')
-      return sideAskFork === undefined ? {} : { sideAskFork }
-    })() : {}),
+    ...(sideAskAgent === undefined ? {} : { sideAskAgent }),
     defaultModel: () => {
       try {
         return ctx.agentDefaultModel.currentSelection()
@@ -640,7 +690,12 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   // Configuration self-check: plain-language warnings, once at mount.
-  const problems = selfCheck({ ...config, adminUsers: policy.adminUsers, allowAllUsers: policy.allowAllUsers })
+  const problems = selfCheck({
+    ...config,
+    adminUsers: policy.adminUsers,
+    allowAllUsers: policy.allowAllUsers,
+    sideAskAvailable: sideAskAgent !== undefined,
+  })
   if (problems.length === 0) log('info', '配置自检通过')
   else for (const problem of problems) log('warn', '配置自检：' + problem)
   console.log('[qq-companion] mounted (listen=' + config.host + ':' + config.port + ', media=' + mediaDir + ', admins=' + policy.adminUsers.length + ')')

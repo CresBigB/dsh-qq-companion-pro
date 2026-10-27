@@ -72,9 +72,9 @@ export declare class ChatBridge {
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
     /** Optional BTW-style side-question scheduler. It is constructed only when
-     * explicitly enabled and backed by a verified host fork adapter. */
+     * explicitly enabled and backed by a host subagent adapter. */
     private readonly sideAsk;
-    private readonly sideAskFork;
+    private readonly sideAskAgent;
     constructor(deps: BridgeDeps);
     /** Start listening: wire connection handlers and the session event feed. */
     start(): void;
@@ -258,9 +258,9 @@ export declare class ChatBridge {
      * so the agent's own plan-mode instruction section governs planning. */
     private prefixTurn;
     /** Hand a message that arrived while the chat's turn is still running to the
-     * isolated host fork (BTW-style side lane: the main task keeps running and the
-     * answer arrives as its own QQ message). The question text only travels to the
-     * adapter; it is not logged, persisted, or injected into the main session.
+     * host subagent adapter (BTW-style side lane: the main task keeps running and
+     * the answer arrives as its own QQ message). The question text only travels to
+     * the adapter; it is not logged, persisted, or injected into the main session.
      * @returns 'taken' when the message became a side ask; 'full' when the lane is
      * enabled but its concurrency is exhausted (or the message is too long); and
      * 'off' when the lane is not configured at all. Anything but 'taken' makes the
