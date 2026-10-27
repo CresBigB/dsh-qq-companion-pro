@@ -188,7 +188,6 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   rateLimitPerMinute: vNumber(0),
   sideAskEnabled: vOptional(vBoolean()),
   sideAskConcurrency: vOptional(vNumber(1, 8)),
-  sideAskOverflow: vOptional(vEnum(['queue', 'reject', 'preempt'])),
   sideAskMaxChars: vOptional(vNumber(1, 8000)),
   idleResetHours: vNumber(0),
   privateResetDays: vNumber(0),

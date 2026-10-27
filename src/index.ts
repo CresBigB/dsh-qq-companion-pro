@@ -459,7 +459,7 @@ export function apply(ctx: Context, config: Config): void {
     },
     ...(config.sideAskEnabled ? (() => {
       const sideAskFork = sideAskForkOf(ctx)
-      if (sideAskFork === undefined) log('warn', '旁问已开启，但宿主未提供安全的 fork provider；/sideask 不可用')
+      if (sideAskFork === undefined) log('warn', '旁问已开启，但宿主未提供安全的 fork provider；任务运行中的新消息仍按原策略排队/插话')
       return sideAskFork === undefined ? {} : { sideAskFork }
     })() : {}),
     defaultModel: () => {

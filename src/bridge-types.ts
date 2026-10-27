@@ -31,10 +31,9 @@ export interface BridgeConfig {
    * message with a closest-match suggestion or a hint; 'passthrough' restores
    * the old fall-through to the model. */
   unknownCommand?: 'intercept' | 'passthrough'
-  /** BTW-style side questions; absent/false keeps the feature disabled. */
+  /** 任务运行中新消息自动走独立旁问（BTW 式侧道）；absent/false 保持关闭。 */
   sideAskEnabled?: boolean
   sideAskConcurrency?: number
-  sideAskOverflow?: 'queue' | 'reject' | 'preempt'
   sideAskMaxChars?: number
   interimMessages: boolean
   /** Per-interim auto-recall delay (ms) from each interim's send completion
@@ -370,7 +369,7 @@ export interface BridgeDeps {
   /** 宿主 goals 服务（T16 长任务）：live 查找，absent = 部署未启用
    * dsh-goal。只经公开服务方法读写，插件自己不落盘、不排轮次。 */
   goals?: (() => GoalsPortLike | undefined) | undefined
-  /** Optional BTW/fork adapter; absent means /sideask reports unavailable. */
+  /** 可选 BTW/fork 适配器；absent 表示宿主管不了旁问，功能整体不可用。 */
   sideAskFork?: SideAskForkPort
   config: BridgeConfig
   policy: AccessPolicyConfig

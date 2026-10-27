@@ -168,6 +168,9 @@ export class SideAskScheduler {
     }
     item.settled = true
     item.finalStatus = status
+    // ids 只在存活期间需要唯一：自动旁问会持续提交，settle 后必须回收，
+    // 否则 Set 会随聊天量无限增长。
+    this.#ids.delete(item.id)
     if (status === 'fulfilled') item.resolve(value)
     else item.reject(error)
     this.#drain()
@@ -177,6 +180,7 @@ export class SideAskScheduler {
     if (item.settled) return false
     item.settled = true
     item.finalStatus = 'cancelled'
+    this.#ids.delete(item.id)
     if (item.started) {
       item.controller.abort(reason)
     } else {

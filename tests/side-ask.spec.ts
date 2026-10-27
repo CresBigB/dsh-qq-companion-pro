@@ -165,12 +165,18 @@ describe('SideAskScheduler', () => {
     expect(scheduler.snapshot()).toEqual({ running: 0, queued: 0, capacity: 2 })
   })
 
-  it('keeps ids stable and rejects duplicate ids', async () => {
+  it('keeps ids stable, rejects duplicates while alive, and recycles them on settle', async () => {
     const scheduler = new SideAskScheduler(1)
-    const one = scheduler.submit(() => 'ok', { id: 'stable-id' })
+    const gate = deferred<string>()
+    const one = scheduler.submit(() => gate.promise, { id: 'stable-id' })
     expect(one.id).toBe('stable-id')
-    await expect(one.promise).resolves.toBe('ok')
+    // 存活期间同 id 仍被拒绝（调用方显式 id 的唯一性只在存活期有意义）
     expect(() => scheduler.submit(() => 'again', { id: 'stable-id' })).toThrow('already exists')
+    gate.resolve('ok')
+    await expect(one.promise).resolves.toBe('ok')
+    // 自动旁问会持续提交，settle 后必须回收 id，否则内部 Set 无限增长
+    const reused = scheduler.submit(() => 'again', { id: 'stable-id' })
+    await expect(reused.promise).resolves.toBe('again')
   })
 
   it('does not expose executor input in its snapshot', async () => {

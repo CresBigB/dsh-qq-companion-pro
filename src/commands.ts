@@ -5,7 +5,7 @@
  * @module dsh-qq-companion/commands
  */
 import { CommandContext, CommandSender } from './commands/types.js'
-import { handleGoalCommand, handleRetryCommand, handleSessionCommand, handleSideAskCommand, handleSteerCommand, handleStopCommand } from './commands/session.js'
+import { handleGoalCommand, handleRetryCommand, handleSessionCommand, handleSteerCommand, handleStopCommand } from './commands/session.js'
 import { handleModelCommand, handlePresetCommand, handleWorkspaceCommand } from './commands/model.js'
 import { handleDoctorCommand, handleIdCommand, handleStatusCommand, handleVerCommand } from './commands/info.js'
 import { handlePermissionCommand, handlePlanCommand } from './commands/host.js'
@@ -55,7 +55,6 @@ export const COMMANDS: CommandDefinition[] = [
   } },
   { name: 'stop', adminOnly: true, group: '操作', help: '停止当前生成', handler: (ctx, chatId) => handleStopCommand(ctx, chatId) },
   { name: 'steer', adminOnly: true, group: '操作', help: '<补充内容> 向运行中的任务补充指令', handler: (ctx, chatId, arg, sender) => handleSteerCommand(ctx, chatId, arg, sender) },
-  { name: 'sideask', aliases: ['btw'], adminOnly: true, group: '操作', help: '<问题> 在独立 fork 中旁问（主任务继续）', handler: (ctx, chatId, arg) => handleSideAskCommand(ctx, chatId, arg) },
   { name: 'model', adminOnly: true, group: '其他', help: '[--default] <provider> <model> 切换模型（--default 改部署默认；无参两级序号列表）', handler: (ctx, chatId, arg) => handleModelCommand(ctx, chatId, arg) },
   { name: 'workspace', adminOnly: true, group: '会话', help: '[路径|序号|list|attach] 查看或切换工作区（attach=把当前会话归入工作区）', handler: (ctx, chatId, arg) => handleWorkspaceCommand(ctx, chatId, arg) },
   { name: 'preset', adminOnly: true, group: '会话', help: '[id|序号] 查看/切换 agent 预设', handler: (ctx, chatId, arg) => handlePresetCommand(ctx, chatId, arg) },

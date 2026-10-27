@@ -101,18 +101,18 @@ function parameterNames(fn: Function): string[] {
   return inner === '' ? [] : inner.split(',').map((part) => part.trim())
 }
 
-describe('设置页覆盖清单 — 131 键自检（后端新增键忘了上页会在这里失败）', () => {
+describe('设置页覆盖清单 — 130 键自检（后端新增键忘了上页会在这里失败）', () => {
   const schemaKeys = Object.keys((Config as unknown as { dict: Record<string, unknown> }).dict)
 
   it('排除列表与上页键不重叠：ALL_KEYS ∩ EXCLUDED_KEYS = ∅', () => {
     for (const key of EXCLUDED_KEYS) expect(ALL_KEYS).not.toContain(key)
   })
 
-  it('Config.dict 的键 − 排除列表 = ALL_KEYS（136 − 5 = 131）', () => {
+  it('Config.dict 的键 − 排除列表 = ALL_KEYS（135 − 5 = 130）', () => {
     const onPage = schemaKeys.filter((key) => !EXCLUDED_KEYS.includes(key))
     expect([...onPage].sort()).toEqual([...ALL_KEYS].sort())
-    expect(schemaKeys).toHaveLength(136)
-    expect(ALL_KEYS).toHaveLength(131)
+    expect(schemaKeys).toHaveLength(135)
+    expect(ALL_KEYS).toHaveLength(130)
   })
 
   it('ALL_KEYS 不重不漏：跨分组与分组内都无重复，每个子页都至少有一个键', () => {

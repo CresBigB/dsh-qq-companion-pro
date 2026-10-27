@@ -13,13 +13,11 @@ export interface Config {
     groupTriggerPolicy: string;
     /** Unknown slash-command handling: intercept（默认）=拦截并给建议；passthrough=透传给模型。 */
     unknownCommand: 'intercept' | 'passthrough';
-    /** BTW-style side questions; disabled by default for zero behavior change. */
+    /** 任务运行中的新消息自动交给独立旁问（BTW 式侧道）回答；默认关闭。 */
     sideAskEnabled: boolean;
-    /** Maximum concurrent side questions across all QQ chats. */
+    /** 所有 QQ 聊天合计的旁问并发上限；满了就退回排队/插话。 */
     sideAskConcurrency: number;
-    /** Behavior when all side-question slots are occupied. */
-    sideAskOverflow: 'queue' | 'reject' | 'preempt';
-    /** Maximum question length accepted by /sideask. */
+    /** 单条消息能进入旁问的字数上限，超出的按普通排队处理。 */
     sideAskMaxChars: number;
     /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
     newMessagePolicy: 'queue' | 'steer';

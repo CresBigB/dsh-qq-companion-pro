@@ -257,10 +257,16 @@ export declare class ChatBridge {
      * text. Plan mode is host-owned now (/plan forwards to the host command),
      * so the agent's own plan-mode instruction section governs planning. */
     private prefixTurn;
-    /** Submit a side question to the isolated host fork. The question is passed
-     * only to the adapter; it is not logged, persisted, or included in the main
-     * session. Completion is delivered as a normal QQ message. */
-    private submitSideAsk;
+    /** Hand a message that arrived while the chat's turn is still running to the
+     * isolated host fork (BTW-style side lane: the main task keeps running and the
+     * answer arrives as its own QQ message). The question text only travels to the
+     * adapter; it is not logged, persisted, or injected into the main session.
+     * @returns 'taken' when the message became a side ask; 'full' when the lane is
+     * enabled but its concurrency is exhausted (or the message is too long); and
+     * 'off' when the lane is not configured at all. Anything but 'taken' makes the
+     * caller fall back to the normal queue/steer policy.
+     */
+    private trySideAsk;
     /**
      * Slash-command router. Commands are admin-only and are matched on the
      * first word; a leading @mention glued to the command (QQ group at + text)

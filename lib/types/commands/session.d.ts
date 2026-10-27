@@ -27,7 +27,6 @@ export declare const STEER_USAGE_HINT = "\u7528\u6CD5\uFF1A/steer <\u8865\u5145\
  * boundary as every inbound payload (same wrapUserMessage shape, qq +
  * nickname attributes) — /steer is admin-gated (trusted sender) but the
  * boundary posture must not fork between the two steerMessage callers. */
-export declare function handleSideAskCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void>;
 export declare function handleSteerCommand(ctx: CommandContext, chatId: ChatId, arg: string, sender: CommandSender): Promise<void>;
 /** /retry: re-feed the last user message into the agent. */
 export declare function handleRetryCommand(ctx: CommandContext, chatId: ChatId): Promise<void>;

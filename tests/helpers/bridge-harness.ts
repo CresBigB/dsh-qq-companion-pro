@@ -307,6 +307,13 @@ export async function makeCmdHarness(opts?: {
   goals?: () => unknown
   /** 长任务回传节奏（T16；absent = 配置默认值 1 = 逐轮回传）。 */
   taskEveryRounds?: number
+  /** 自动旁问（BTW 式侧道）：给 fork 就等于开启功能并接线（T18 自动模式）。 */
+  sideAsk?: {
+    enabled?: boolean
+    concurrency?: number
+    maxChars?: number
+    fork?: (parent: unknown, prompt: string, signal: AbortSignal) => Promise<string>
+  }
 }) {
   const ctx = new Context()
   const sessionIds: string[] = []
@@ -316,6 +323,8 @@ export async function makeCmdHarness(opts?: {
   const captured = {
     followups: [] as Array<{ text: string; sessionId: string; id?: string; source?: unknown }>,
     steers: [] as Array<{ text: string; sessionId: string }>,
+    /** 自动旁问收到的 prompt（fork 侧只看得到这段文字）。 */
+    sideAsks: [] as string[],
     createdMeta: capturedMeta,
     /** names of the tools registered on an agent's own scope (installChannelScope). */
     channelTools: [] as string[],
@@ -342,6 +351,15 @@ export async function makeCmdHarness(opts?: {
     ...(opts?.stickers !== undefined ? { stickers: opts.stickers as never } : {}),
     // T16：和立即生产接线同构——宿主没有 goals 服务时 deps 里也不放它。
     ...(opts?.goals !== undefined ? { goals: opts.goals as never } : {}),
+    // T18：只有真的拿到 fork 适配器才接线，和 src/index.ts 的降级路径同构。
+    ...(opts?.sideAsk?.fork !== undefined ? {
+      sideAskFork: {
+        ask: (parent: unknown, prompt: string, signal: AbortSignal) => {
+          captured.sideAsks.push(prompt)
+          return opts.sideAsk!.fork!(parent, prompt, signal)
+        },
+      },
+    } : {}),
     // T15：和立即生产接线同构——引擎没配好（ready 为 false）时 deps 里也不放合成器。
     ...(() => {
       if (opts?.tts === undefined) return {}
@@ -387,6 +405,11 @@ export async function makeCmdHarness(opts?: {
       // deferred-delivery timeout override (absent = the 10min default).
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
       ...(opts?.taskEveryRounds !== undefined ? { taskEveryRounds: opts.taskEveryRounds } : {}),
+      ...(opts?.sideAsk !== undefined ? {
+        sideAskEnabled: opts.sideAsk.enabled ?? true,
+        ...(opts.sideAsk.concurrency !== undefined ? { sideAskConcurrency: opts.sideAsk.concurrency } : {}),
+        ...(opts.sideAsk.maxChars !== undefined ? { sideAskMaxChars: opts.sideAsk.maxChars } : {}),
+      } : {}),
       sensitivePatterns: [], mediaDir, maxImageBytes: 8 * 1024 * 1024,
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
       textImageThreshold: opts?.textImageThreshold ?? 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
