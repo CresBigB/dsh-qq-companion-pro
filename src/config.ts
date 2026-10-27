@@ -11,6 +11,7 @@ import z from '@deepseek-ai/schemastery'
 import type Z from '@deepseek-ai/schemastery'
 
 import type { AccessPolicyConfig } from './chat.js'
+import type { GroupTriggerConfig } from './group-trigger-policy.js'
 import type { ScheduledPrompt } from './companion/index.js'
 import { capabilityCatalogText, defaultOffNoteText } from './capabilities.js'
 import { IMAGE_MAX_BYTES, MEDIA_MAX_BYTES, VOICE_MAX_BYTES } from './media.js'
@@ -23,8 +24,18 @@ export interface Config {
   accessToken: string
   botQQ: string
   requireMention: boolean
+  /** JSON policy for ordinary group-message triggering; malformed JSON safely falls back. */
+  groupTriggerPolicy: string
   /** Unknown slash-command handling: intercept（默认）=拦截并给建议；passthrough=透传给模型。 */
   unknownCommand: 'intercept' | 'passthrough'
+  /** BTW-style side questions; disabled by default for zero behavior change. */
+  sideAskEnabled: boolean
+  /** Maximum concurrent side questions across all QQ chats. */
+  sideAskConcurrency: number
+  /** Behavior when all side-question slots are occupied. */
+  sideAskOverflow: 'queue' | 'reject' | 'preempt'
+  /** Maximum question length accepted by /sideask. */
+  sideAskMaxChars: number
   /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
   newMessagePolicy: 'queue' | 'steer'
   /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
@@ -233,8 +244,18 @@ export const Config: Z<Config> = z.object({
     .description('机器人自身 QQ 号；留空则从 meta 事件自动学习'),
   requireMention: z.boolean().default(true)
     .description('群聊是否仅在 @机器人（或回复其消息）时响应'),
+  groupTriggerPolicy: z.string().default('{}')
+    .description('普通群消息触发策略 JSON；默认 {} 保持既有 requireMention 行为。可填 replyMode=all|related|probability|off、probability=0..1、mentionRequired/proactiveEnabled、botName/botNames/aliases/botAliases/keywords，以及 groups/users 按群号/QQ号覆盖；坏 JSON 自动降级为默认行为'),
   unknownCommand: z.union([z.const('intercept'), z.const('passthrough')]).default('intercept')
     .description('未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为）'),
+  sideAskEnabled: z.boolean().default(false)
+    .description('是否启用管理员私聊 /sideask 旁问；默认关闭，不改变现有行为'),
+  sideAskConcurrency: z.number().min(1).max(8).default(2)
+    .description('旁问同时运行上限（1–8；跨所有 QQ 聊天）'),
+  sideAskOverflow: z.union([z.const('queue'), z.const('reject'), z.const('preempt')]).default('queue')
+    .description('旁问达到并发上限时：queue 排队、reject 拒绝、preempt 取消最早运行的一条'),
+  sideAskMaxChars: z.number().min(1).max(8000).default(8000)
+    .description('单条 /sideask 问题最大字符数（1–8000）'),
   newMessagePolicy: z.union([z.const('queue'), z.const('steer')]).default('queue')
     .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
   autoSteerPolicy: z.union([z.const('admin'), z.const('all')]).default('admin')
@@ -493,6 +514,48 @@ export const Config: Z<Config> = z.object({
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn'), z.const('error')]).default('info')
     .description('控制台日志级别门槛（debug < info < warn < error）：低于该级别的日志不输出。debug=全部输出（含「session 事件早退」等调试行）；info=常规信息（启动、连接建立、meta 事件等，默认）；warn=仅警告与错误；error=仅错误'),
 })
+
+/** Parse and defensively sanitize the optional JSON policy; bad values never block startup. */
+export function parseGroupTriggerPolicy(raw: unknown): GroupTriggerConfig {
+  if (raw === undefined || raw === null || raw === '') return {}
+  const value = typeof raw === 'string' ? (() => {
+    try { return JSON.parse(raw) as unknown } catch { return undefined }
+  })() : raw
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  const listKeys = new Set(['botNames', 'aliases', 'botAliases', 'keywords'])
+  const mapKeys = new Set(['groups', 'groupDefaults', 'users', 'userOverrides'])
+  const scalarKeys = new Set(['mentionRequired', 'proactiveEnabled', 'replyMode', 'probability', 'botName'])
+  const cleanRule = (candidate: unknown): Record<string, unknown> => {
+    if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) return {}
+    const source = candidate as Record<string, unknown>
+    const result: Record<string, unknown> = {}
+    for (const key of scalarKeys) {
+      const item = source[key]
+      if (key === 'mentionRequired' || key === 'proactiveEnabled') {
+        if (typeof item === 'boolean') result[key] = item
+      } else if (key === 'probability') {
+        if (typeof item === 'number' && Number.isFinite(item)) result[key] = item
+      } else if (key === 'replyMode') {
+        if (item === 'all' || item === 'related' || item === 'probability' || item === 'off') result[key] = item
+      } else if (typeof item === 'string') result[key] = item
+    }
+    for (const key of listKeys) {
+      const item = source[key]
+      if (Array.isArray(item)) result[key] = item.filter((entry): entry is string => typeof entry === 'string')
+    }
+    for (const key of mapKeys) {
+      const item = source[key]
+      if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+        const map: Record<string, unknown> = {}
+        for (const [id, rule] of Object.entries(item as Record<string, unknown>)) map[id] = cleanRule(rule)
+        result[key] = map
+      }
+    }
+    return result
+  }
+  return cleanRule(value) as GroupTriggerConfig
+}
 
 /** the deprecated config names kept for one release, mapped onto their
  * renamed fields. */

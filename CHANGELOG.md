@@ -2,6 +2,8 @@
 
 ## 本地开发增补（未单独发版）
 
+- 新增普通群消息触发策略 `groupTriggerPolicy`（JSON，默认 `{}`）：`mentionRequired` 控制是否必须 @，`proactiveEnabled` 控制没 @ 时是否主动接话，`replyMode=all|related|probability|off` 决定回不回无关消息（`related` 用 `botName/botNames/aliases/botAliases/keywords` 判定相关性，`probability` 用 `probability` 0–1 掷骰子；只写 `probability` 不写 `replyMode` 时自动按概率模式生效）。`groups` 按群号、`users` 按 QQ 号覆盖，群规则里的 `users` 还能再按人细分，所以「某个群里某个人单独设概率 / 必须 @」只是两层覆盖。默认值不改变既有行为：不配仍是原来的 `requireMention`（含「叫到名字」「接着她说」两种旧触发），配了也不会让既有群聊变成全部回复。`/命令` 不受该策略过滤，但仍受 `requireMention` 限制；坏 JSON 在后端降级为默认行为，不会让插件起不来。
+- 新增旁问通道 `/sideask <问题>`（别名 `/btw`）：把问题交给宿主的一次性 fork 旁问，主任务照常跑、不定时中断，回答作为独立 QQ 消息回到同一个管理员私聊。`sideAskEnabled` 默认关闭；`sideAskConcurrency`（1–8，默认 2）是跨所有聊天的并发上限，`sideAskOverflow=queue|reject|preempt` 决定满了是排队、直接拒绝还是取消最早的那条；`sideAskMaxChars`（1–8000）限制单条长度。只允许管理员私聊（私聊会话才有 parent），只取文字、不接管主任务、不写入主会话；宿主 fork provider 没有明确「继承父上下文」或没有显式禁工具能力时，插件宁可不注册该命令并打一条警告，也不靠提示词假装安全。
 - 新增「功能权限」独立子页：纵向展示全部能力、对应工具及说明，以管理员 / 私聊 / 群组三列复选框配置；概览增加直达入口，原始权限列表移入折叠高级设置。
 - 新增 `ownerDeny`，管理员私聊默认允许全部注册能力，仍受全局禁用、依赖与工具执行守卫约束。语音合成引擎依旧默认关闭；非管理员私聊与群组的默认许可不变。
 - 私聊列保留好友 / 陌生人旧差异的部分开启状态；解除一列的全局禁用时保持其它关系关闭。旧后端缺新增字段时禁用矩阵并提示完整重启，不影响其它旧字段保存。

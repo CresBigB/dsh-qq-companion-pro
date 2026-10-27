@@ -277,6 +277,118 @@ describe('inbound pipeline', () => {
     await h.connection.stop()
   })
 
+  it('filters ordinary unmentioned group messages with off before media or dispatch', async () => {
+    const h = await makeHarness({
+      requireMention: false,
+      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'off' },
+    })
+    h.sendPlainGroupTextAs('不应触发', 20003)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(h.captured.followups).toHaveLength(0)
+    expect(h.outbound.some(frame => JSON.stringify(frame.params).includes('不应触发'))).toBe(false)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('does not call get_msg when group policy already proves a drop', async () => {
+    const h = await makeHarness({
+      requireMention: false,
+      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'off' },
+    })
+    const calls: string[] = []
+    const realCall = h.connection.call.bind(h.connection)
+    h.connection.call = (async (action: string, params: Record<string, unknown>) => {
+      calls.push(action)
+      return await realCall(action, params)
+    }) as never
+    h.client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: 20003, group_id: 888, self_id: 10002,
+      message: [{ type: 'reply', data: { id: 555 } }, { type: 'text', data: { text: '不应触发' } }],
+      raw_message: '[CQ:reply,id=555]不应触发', sender: { user_id: 20003, nickname: '用户20003' },
+    }))
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(calls).not.toContain('get_msg')
+    expect(h.captured.followups).toHaveLength(0)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('allows group and user rules to override legacy requireMention for ordinary messages', async () => {
+    const h = await makeHarness({
+      requireMention: true,
+      groupTriggerPolicy: {
+        replyMode: 'off',
+        groups: { '888': { mentionRequired: false, proactiveEnabled: true, replyMode: 'all' } },
+        users: { '20004': { mentionRequired: false, proactiveEnabled: true, replyMode: 'all' } },
+      },
+    })
+    h.sendPlainGroupTextAs('群覆盖生效', 20003)
+    h.sendPlainGroupTextAs('用户覆盖生效', 20004)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    expect(h.captured.followups.map(f => f.text)).toEqual(expect.arrayContaining([
+      expect.stringContaining('群覆盖生效'),
+      expect.stringContaining('用户覆盖生效'),
+    ]))
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('keeps the default legacy gate and rejects a name-only match when mention is required', async () => {
+    const h = await makeHarness({
+      requireMention: true,
+      groupTriggerPolicy: { botName: '小鱼', proactiveEnabled: true, replyMode: 'all' },
+    })
+    h.sendPlainGroupTextAs('小鱼，你好', 20003)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(h.captured.followups).toHaveLength(0)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('keeps commands outside the ordinary-message policy filter', async () => {
+    const h = await makeCmdHarness({
+      requireMention: true,
+      groupTriggerPolicy: { replyMode: 'off' },
+    })
+    h.sendGroupTextAs('/id', 10001)
+    await vi.waitFor(() => expect(h.outbound.some(f => JSON.stringify(f.params).includes('chat    : group:888'))).toBe(true))
+    expect(h.captured.followups).toHaveLength(0)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('keeps legacy requireMention behavior and allows configured related group replies', async () => {
+    const h = await makeHarness({
+      requireMention: false,
+      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'related', keywords: ['项目'] },
+    })
+    h.sendPlainGroupTextAs('天气不错', 20003)
+    h.sendPlainGroupTextAs('项目进度如何', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    expect(h.captured.followups[0].text).toContain('项目进度如何')
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('keeps commands on their existing path when ordinary group filtering is off', async () => {
+    const h = await makeCmdHarness({
+      requireMention: false,
+      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'off' },
+    })
+    h.sendGroupTextAs('/id', 10001)
+    await vi.waitFor(() => expect(h.outbound.some(f => JSON.stringify(f.params).includes('chat    : group:888'))).toBe(true))
+    expect(h.captured.followups).toHaveLength(0)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
   it('rateLimitPerMinute 0 disables the inbound rate limit', async () => {
     const h = await makeCmdHarness({ rateLimitPerMinute: 0 })
     for (const text of ['一', '二', '三', '四', '五']) {

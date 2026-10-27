@@ -121,6 +121,11 @@ export interface CommandContext {
     /** /stop 的配套：有已授权且在跑的长任务时暂停它（保留目标与进度），
      * 返回附在 /stop 回执后的说明；没有可暂停的目标返回 undefined。 */
     pauseTaskGoal?: (chatId: ChatId) => string | undefined;
+    /** BTW-style side question submission; question text is never logged by the bridge. */
+    sideAsk?: (chatId: ChatId, question: string) => Promise<{
+        id: string;
+        status: string;
+    }>;
     /** The only config fields the commands read. */
     config: Pick<BridgeConfig, 'interimMessages' | 'maxImageBytes' | 'unknownCommand' | 'taskEveryRounds'>;
 }

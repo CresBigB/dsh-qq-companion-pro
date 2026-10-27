@@ -206,7 +206,7 @@ export function snapshotValueToDraft(field: OnebotField, value: unknown): unknow
   return value === undefined || value === null ? '' : String(value)
 }
 
-/** 快照 → 草稿（上页的 103 键全覆盖）。 */
+/** 快照 → 草稿（上页的 131 键全覆盖）。 */
 export function draftFromSnapshot(snapshot: SnapshotLike | null | undefined): Record<string, unknown> {
   const config = snapshot != null && snapshot.config != null ? snapshot.config : {}
   const draft: Record<string, unknown> = {}
@@ -238,6 +238,11 @@ export function valueEquals(a: unknown, b: unknown): boolean {
   return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b)
 }
 
+/** 旧宿主快照可能没有新配置键；缺席键既不可编辑也不可写回。 */
+export function configHasKey(config: Record<string, unknown> | null | undefined, key: string): boolean {
+  return config != null && Object.prototype.hasOwnProperty.call(config, key) && config[key] !== undefined
+}
+
 /**
  * 计算保存 patch（只含与生效值有差异的键）。
  * @param draft 表单草稿（snapshotValueToDraft 形态）
@@ -256,8 +261,8 @@ export function computePatch(
   const invalidKeys: string[] = []
   for (const field of ALL_FIELDS) {
     if (field.type === 'secret') continue // accessToken 走 secretDraft/clearSecret 专用通道
-    // 新UI可能遇到尚未重启的旧Remote；绝不把不支持的新增键夹带进其它设置保存。
-    if (field.key === 'ownerDeny' && !Array.isArray(config_.ownerDeny)) continue
+    // 新 UI 可能遇到尚未重启的旧 Remote；绝不把不支持的新增键夹带进其它设置保存。
+    if (!configHasKey(config_, field.key)) continue
     const next = coerceValue(field, draft[field.key])
     if (field.type === 'number' && Number.isNaN(next)) {
       invalidKeys.push(field.key)

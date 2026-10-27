@@ -10,7 +10,7 @@
  *   dependsOnText 是 §3 表格的静态投影；函数型元数据 dependsOn（F2a）与
  *   danger（F2b，§5.5 危险判定）直接写在字段上，由 validate.ts 的
  *   collectRisks 统一按「草稿 ≠ 生效值」把关；
- * - DEFAULTS 全量覆盖上页的 116 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
+ * - DEFAULTS 全量覆盖上页的 131 键，与宿主 SCHEMA_DEFAULTS 逐字一致；
  * - 不上页的 5 个键（imageMaxSize / maxImageBytes / maxInboundFileBytes /
  *   scheduledPrompts / sttReplacements）见宿主的 EXCLUDED_KEYS。
  * - 能力 id 清单由能力注册表（src/capabilities.ts 的 capabilityCatalogText）生成，
@@ -169,6 +169,7 @@ export const GROUPS: GroupMeta[] = [
       { key: 'groupPolicy', label: '群聊策略', type: 'enum', options: ['open', 'allowlist', 'disabled'], optionLabels: { open: '所有群', allowlist: '白名单', disabled: '不接群聊' }, hint: 'open = 所有群；allowlist = 仅群聊白名单；disabled = 拒绝所有群聊。', section: '群聊', danger: next => (next === 'open' ? 'risk.groupOpen' : null) },
       { key: 'groupAllowFrom', label: '群聊白名单', type: 'stringArray', hint: '每行一个群号，仅白名单策略生效。', section: '群聊', dependsOnText: '仅在群聊策略为白名单时生效', dependsOn: draft => draftText(draft, 'groupPolicy') === 'allowlist' },
       { key: 'requireMention', label: '群聊必须 @ 机器人', type: 'boolean', section: '群聊' },
+      { key: 'groupTriggerPolicy', label: '普通群消息触发策略', type: 'string', hint: 'JSON 文本，例如 {"replyMode":"related","keywords":["项目"],"groups":{"643561596":{"replyMode":"probability","probability":0.3}}}。可用字段：mentionRequired（必须 @）、proactiveEnabled（没 @ 也主动）、replyMode=all/related/probability/off、probability 0–1、botName/botNames/aliases/keywords；groups 按群号、users 按 QQ 号覆盖，群规则里的 users 可再按人细分。只写 probability 不写 replyMode 时按概率模式生效；默认 {} 等于原来的 requireMention 行为；叫机器人名字或接着她说仍算直接触发；/命令不受该策略过滤（仍受 requireMention 限制）；JSON 写错时由后端自动降级。', section: '群聊', placeholder: '{}' },
       { key: 'restrictedMemberPrefix', label: '非管理员消息加关系绸标', type: 'boolean', hint: '群里和非管理员私聊的消息前加一条关系绸标（如 [关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]），写明关系 / 语气 / 服从度 / 亲密 / 能否指挥。关掉后提示词里群友和主人没有区别。', section: '群聊', danger: next => (next === false ? 'risk.restrictedPrefixOff' : null) },
       { key: 'autoAcceptAdminRequests', label: '自动同意管理员的好友/拉群请求', type: 'boolean', hint: '别人的请求不同意，会私聊告诉管理员。', section: '自动处理请求' },
       { key: 'autoAllowInvitedGroups', label: '管理员拉进的群自动加白名单', type: 'boolean', hint: '管理员把机器人拉进的群自动加入群白名单，保存在 mediaDir/group-allowlist.json。', section: '自动处理请求' },
@@ -222,6 +223,10 @@ export const GROUPS: GroupMeta[] = [
       { key: 'taskEveryRounds', label: '长任务几轮回传一次', type: 'number', hint: '管理员私聊用 /task <目标> 创建长任务后，自动轮次每 N 轮回传一次当轮最终文字（1=逐轮都回传，默认；N≥2=每 N 轮）。中途轮次只更新进度、不发消息；预算最后一轮与暂停/恢复/阻塞/完成通知始终照发。插件不汇总、不总结，回传的是当轮真实文字。', section: '长任务', unit: 'count', min: 1 },
       { key: 'unknownCommand', label: '未知命令处理', type: 'enum', options: ['intercept', 'passthrough'], optionLabels: { intercept: '拦截', passthrough: '透传' }, hint: '未知斜杠命令：拦截 = 提示相近命令或 /help；透传 = 交给模型处理。', section: '命令与频控' },
       { key: 'rateLimitPerMinute', label: '每分钟消息频率上限', type: 'number', hint: '每 chat 每分钟普通消息条数上限；命令消息不计入；0 = 不限。', section: '命令与频控', unit: 'perMin', min: 0, zeroMeans: '不限' },
+      { key: 'sideAskEnabled', label: '开启旁问（/sideask）', type: 'boolean', hint: '管理员私聊中开启旁问；需要宿主 fork 支持，未提供时运行端不会注册旁问能力。默认关闭，不改变现有行为。', section: '旁问' },
+      { key: 'sideAskConcurrency', label: '旁问同时运行上限', type: 'number', hint: '跨所有 QQ 聊天的旁问并发上限（1–8）。', section: '旁问', unit: 'count', min: 1, max: 8, dependsOnText: '仅在旁问开启时生效', dependsOn: draft => draftBool(draft, 'sideAskEnabled') },
+      { key: 'sideAskOverflow', label: '旁问达到上限时', type: 'enum', options: ['queue', 'reject', 'preempt'], optionLabels: { queue: '排队', reject: '拒绝', preempt: '取消最早的一条' }, hint: '旁问达到并发上限时的处理方式。', section: '旁问', dependsOnText: '仅在旁问开启时生效', dependsOn: draft => draftBool(draft, 'sideAskEnabled') },
+      { key: 'sideAskMaxChars', label: '旁问问题最大字数', type: 'number', hint: '单条 /sideask 问题最大字符数（1–8000）。', section: '旁问', unit: 'char', min: 1, max: 8000, dependsOnText: '仅在旁问开启时生效', dependsOn: draft => draftBool(draft, 'sideAskEnabled') },
       { key: 'idleResetHours', label: '空闲多久换新会话（小时）', type: 'number', hint: '超过这么久没说话，下一条消息开新会话并附最近几句交接；0 = 关。', section: '换新会话', unit: 'h', min: 0, zeroMeans: '关闭' },
       { key: 'privateResetDays', label: '私聊几天换一次会话', type: 'number', hint: '按凌晨 4 点算天；0 = 关。', section: '换新会话', unit: 'day', min: 0, zeroMeans: '关闭' },
       { key: 'groupResetDays', label: '群聊几天换一次会话', type: 'number', hint: '按凌晨 4 点算天；0 = 关。', section: '换新会话', unit: 'day', min: 0, zeroMeans: '关闭' },
@@ -330,7 +335,7 @@ export const GROUPS: GroupMeta[] = [
   },
 ]
 
-/** 全部 116 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
+/** 全部 131 键扁平表（顺序 = 分组声明顺序，与 host ALL_KEYS 语义一致）。 */
 export const ALL_FIELDS: FieldMeta[] = []
 for (const group of GROUPS) {
   for (const field of group.fields) ALL_FIELDS.push(field)
@@ -356,6 +361,7 @@ export const DEFAULTS: Record<string, unknown> = {
   groupPolicy: 'open',
   groupAllowFrom: [],
   requireMention: true,
+  groupTriggerPolicy: '{}',
   restrictedMemberPrefix: true,
   autoAcceptAdminRequests: false,
   autoAllowInvitedGroups: false,
@@ -396,6 +402,10 @@ export const DEFAULTS: Record<string, unknown> = {
   taskEveryRounds: 1,
   unknownCommand: 'intercept',
   rateLimitPerMinute: 30,
+  sideAskEnabled: false,
+  sideAskConcurrency: 2,
+  sideAskOverflow: 'queue',
+  sideAskMaxChars: 8000,
   idleResetHours: 0,
   privateResetDays: 0,
   groupResetDays: 0,

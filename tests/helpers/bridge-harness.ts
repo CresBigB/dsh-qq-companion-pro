@@ -94,7 +94,7 @@ export function makeFakeAgents(
 }
 
 /** Full bridge + WS harness: inbound via real WebSocket, outbound captured. */
-export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; log?: (level: string, message: string) => void }) {
+export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; requireMention?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig; log?: (level: string, message: string) => void }) {
   const ctx = new Context()
   const sessionIds: string[] = []
   const captured = { followups: [] as Array<{ text: string; sessionId: string; id?: string; source?: unknown }>, steers: [] as Array<{ text: string; sessionId: string }>, channelTools: [] as string[], channelSections: [] as string[] }
@@ -115,7 +115,8 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
     workspaceRegistry: undefined as never,
     defaultModel: undefined,
     config: {
-      botQQ: '10002', ignoreSelf: opts?.ignoreSelf ?? false, requireMention: true,
+      botQQ: '10002', ignoreSelf: opts?.ignoreSelf ?? false, requireMention: opts?.requireMention ?? true,
+      ...(opts?.groupTriggerPolicy !== undefined ? { groupTriggerPolicy: opts.groupTriggerPolicy } : {}),
       interimMessages: opts?.interimMessages ?? true, sendErrorNotice: true, restrictedMemberPrefix: false,
       sensitivePatterns: [], mediaDir, maxImageBytes: opts?.maxImageBytes ?? 8 * 1024 * 1024,
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
@@ -158,7 +159,14 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
       sender: { user_id: 10001, nickname: '小明' },
     }))
   }
-  return { ctx, sessionIds, captured, sessions, mediaDir, connection, bridge, client, outbound, sendText }
+  const sendPlainGroupTextAs = (text: string, userId: number): void => {
+    client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: userId, group_id: 888, self_id: 10002,
+      message: [{ type: 'text', data: { text } }], raw_message: text,
+      sender: { user_id: userId, nickname: '用户' + userId },
+    }))
+  }
+  return { ctx, sessionIds, captured, sessions, mediaDir, connection, bridge, client, outbound, sendText, sendPlainGroupTextAs }
 }
 
 export function makeEvent(type: string, data: unknown): SessionEvent {
@@ -216,6 +224,8 @@ export async function makeCmdHarness(opts?: {
   interimRecallMs?: number
   interimRecall?: boolean
   rateLimitPerMinute?: number
+  requireMention?: boolean
+  groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig
   restrictedMemberPrefix?: boolean
   newMessagePolicy?: 'queue' | 'steer'
   /** auto-steer eligibility knob; absent = the bridge default 'admin'. */
@@ -363,7 +373,8 @@ export async function makeCmdHarness(opts?: {
     agentDefaultModel: (opts?.agentDefaultModel ?? undefined) as never,
     defaultModel: () => ({ provider: 'deepseek', model: 'deepseek-chat' }),
     config: {
-      botQQ: '10002', ignoreSelf: false, requireMention: true,
+      botQQ: '10002', ignoreSelf: false, requireMention: opts?.requireMention ?? true,
+      ...(opts?.groupTriggerPolicy !== undefined ? { groupTriggerPolicy: opts.groupTriggerPolicy } : {}),
       interimMessages: opts?.interimMessages ?? true,
       ...(opts?.unknownCommand !== undefined ? { unknownCommand: opts.unknownCommand } : {}),
       ...(opts?.interimRecallMs !== undefined ? { interimRecallMs: opts.interimRecallMs } : {}),
@@ -460,10 +471,17 @@ export async function makeCmdHarness(opts?: {
       sender: { user_id: userId, nickname: '用户' + userId },
     }))
   }
+  const sendPlainGroupTextAs = (text: string, userId: number): void => {
+    client.send(JSON.stringify({
+      post_type: 'message', message_type: 'group', user_id: userId, group_id: 888, self_id: 10002,
+      message: [{ type: 'text', data: { text } }], raw_message: text,
+      sender: { user_id: userId, nickname: '用户' + userId },
+    }))
+  }
   const chats = () => (bridge as unknown as {
     chats: Map<string, { agent: { session: { id: string } }, lastFollowup: string | undefined, busy: boolean }>
   }).chats
-  return { ctx, sessionIds, capturedMeta, captured, sessions, mediaDir, connection, bridge, client, outbound, sendText, sendTextAs, sendGroupTextAs, chats }
+  return { ctx, sessionIds, capturedMeta, captured, sessions, mediaDir, connection, bridge, client, outbound, sendText, sendTextAs, sendGroupTextAs, sendPlainGroupTextAs, chats }
 }
 
 /** Close the harness client and wait until the bridge sees the disconnect. */

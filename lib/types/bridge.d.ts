@@ -71,6 +71,10 @@ export declare class ChatBridge {
     private readonly selfGoalOps;
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
+    /** Optional BTW-style side-question scheduler. It is constructed only when
+     * explicitly enabled and backed by a verified host fork adapter. */
+    private readonly sideAsk;
+    private readonly sideAskFork;
     constructor(deps: BridgeDeps);
     /** Start listening: wire connection handlers and the session event feed. */
     start(): void;
@@ -253,6 +257,10 @@ export declare class ChatBridge {
      * text. Plan mode is host-owned now (/plan forwards to the host command),
      * so the agent's own plan-mode instruction section governs planning. */
     private prefixTurn;
+    /** Submit a side question to the isolated host fork. The question is passed
+     * only to the adapter; it is not logged, persisted, or included in the main
+     * session. Completion is delivered as a normal QQ message. */
+    private submitSideAsk;
     /**
      * Slash-command router. Commands are admin-only and are matched on the
      * first word; a leading @mention glued to the command (QQ group at + text)

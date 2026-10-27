@@ -87,7 +87,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   access: [
     'adminUsers', 'friendUsers', 'memberObedience', 'friendObedience', 'friendIntimacy',
     'dmPolicy', 'allowFrom', 'allowAllUsers',
-    'groupPolicy', 'groupAllowFrom', 'requireMention', 'restrictedMemberPrefix',
+    'groupPolicy', 'groupAllowFrom', 'requireMention', 'groupTriggerPolicy', 'restrictedMemberPrefix',
     'autoAcceptAdminRequests', 'autoAllowInvitedGroups',
   ],
   persona: ['ownerTitle', 'agentPreset', 'adminPreset', 'adminPermission', 'memberPermission', 'adminWorkspacePath', 'groupReasoningEffort'],
@@ -100,6 +100,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   conversation: [
     'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'taskEveryRounds',
     'unknownCommand', 'rateLimitPerMinute',
+    'sideAskEnabled', 'sideAskConcurrency', 'sideAskOverflow', 'sideAskMaxChars',
     'idleResetHours', 'privateResetDays', 'groupResetDays', 'sessionTitleTemplate',
     'privateSessionKeepDays', 'groupSessionKeepDays', 'chatIdleEvictDays',
     'protocolMode', 'protocolChats',

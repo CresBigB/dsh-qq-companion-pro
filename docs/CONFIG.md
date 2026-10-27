@@ -10,7 +10,12 @@
 | `accessToken` | string | `""` | OneBot access_token（reverse 校验 / forward 发送 Authorization: Bearer） |
 | `botQQ` | string | `""` | 机器人自身 QQ 号；留空则从 meta 事件自动学习 |
 | `requireMention` | boolean | `true` | 群聊是否仅在 @机器人（或回复其消息）时响应 |
+| `groupTriggerPolicy` | string | `"{}"` | 普通群消息触发策略 JSON；默认 {} 保持既有 requireMention 行为。可填 replyMode=all\|related\|probability\|off、probability=0..1、mentionRequired/proactiveEnabled、botName/botNames/aliases/botAliases/keywords，以及 groups/users 按群号/QQ号覆盖；坏 JSON 自动降级为默认行为 |
 | `unknownCommand` | "intercept" / "passthrough" | `"intercept"` | 未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为） |
+| `sideAskEnabled` | boolean | `false` | 是否启用管理员私聊 /sideask 旁问；默认关闭，不改变现有行为 |
+| `sideAskConcurrency` | number | `2` | 旁问同时运行上限（1–8；跨所有 QQ 聊天） |
+| `sideAskOverflow` | "queue" / "reject" / "preempt" | `"queue"` | 旁问达到并发上限时：queue 排队、reject 拒绝、preempt 取消最早运行的一条 |
+| `sideAskMaxChars` | number | `8000` | 单条 /sideask 问题最大字符数（1–8000） |
 | `newMessagePolicy` | "queue" / "steer" | `"queue"` | 任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用 |
 | `autoSteerPolicy` | "admin" / "all" | `"admin"` | steer 模式下自动插话的发送者资格：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变 |
 | `taskEveryRounds` | number | `1` | 长任务（/task <目标>）自动轮次的回传节奏：每 N 轮回传一次当轮最终文字（N=1 逐轮都回传，默认；N≥2 = 每 N 轮 + 预算最后一轮）；中途轮次不回传文字、只更新进度，预算最后一轮与暂停/恢复/阻塞/完成通知始终照发；插件不汇总、不总结，回传的是当轮真实文字 |

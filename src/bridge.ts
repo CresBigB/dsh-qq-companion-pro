@@ -12,7 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 
-import type { BridgeDeps } from './bridge-types.js'
+import type { BridgeDeps, SideAskForkPort } from './bridge-types.js'
 import { resolveCapabilities, summarizeCapabilities, groupWriteWarningLine, interactionWarningLine, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
 import type { ChatId, UserRole } from './chat.js'
@@ -28,6 +28,7 @@ import { exportDiagnostics, healthReport, type HealthDeps } from './health.js'
 import { InboundPipeline, normalizeOneBot11 } from './inbound.js'
 import { InterimTracker } from './interim.js'
 import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outbound.js'
+import { SideAskScheduler } from './side-ask.js'
 import { parseControlBlock, parseReplyPass, type ControlBlock, type ParseControlBlockResult } from './output-protocol.js'
 import { buildPlatformPrompt } from './prompt.js'
 import { FailureRefRegistry, failureRefSuffix, type FailureRefKind } from './ref.js'
@@ -140,6 +141,10 @@ export class ChatBridge {
 
   /** companion behavior (session renewal, pass marker, wake-up texts). */
   private readonly companion: CompanionHooks
+  /** Optional BTW-style side-question scheduler. It is constructed only when
+   * explicitly enabled and backed by a verified host fork adapter. */
+  private readonly sideAsk: SideAskScheduler | undefined
+  private readonly sideAskFork: SideAskForkPort | undefined
 
   constructor(deps: BridgeDeps) {
     this.deps = deps
@@ -172,6 +177,13 @@ export class ChatBridge {
       isAdminPrivate: chatId => this.isAdminPrivate(chatId),
       onSessionCreated: chat => this.applyDefaultPermission(chat),
     })
+    this.sideAskFork = deps.sideAskFork
+    this.sideAsk = deps.config.sideAskEnabled && deps.sideAskFork !== undefined
+      ? new SideAskScheduler({
+        concurrency: Math.max(1, Math.min(8, Math.floor(deps.config.sideAskConcurrency ?? 2))),
+        overflow: deps.config.sideAskOverflow ?? 'queue',
+      })
+      : undefined
     this.companion = new CompanionHooks({
       config: deps.config,
       ...(deps.activity !== undefined ? { activity: deps.activity } : {}),
@@ -757,6 +769,33 @@ export class ChatBridge {
     return out.trim()
   }
 
+  /** Submit a side question to the isolated host fork. The question is passed
+   * only to the adapter; it is not logged, persisted, or included in the main
+   * session. Completion is delivered as a normal QQ message. */
+  private async submitSideAsk(chatId: ChatId, question: string): Promise<{ id: string; status: string }> {
+    const scheduler = this.sideAsk
+    const fork = this.sideAskFork
+    const maxChars = Math.max(1, Math.min(8000, Math.floor(this.deps.config.sideAskMaxChars ?? 8000)))
+    if (scheduler === undefined || fork === undefined) throw new Error('side ask unavailable')
+    if (question.length > maxChars) throw new Error('side ask question too long')
+    const chat = this.chats.get(chatId)
+    if (chat === undefined) throw new Error('side ask requires an active private chat')
+    const handle = scheduler.submit(signal => fork.ask(chat.agent, question, signal))
+    if (handle.status === 'rejected') {
+      void handle.promise.catch(() => undefined)
+      throw new Error('side ask capacity is full')
+    }
+    void handle.promise.then(answer => {
+      const text = answer.trim()
+      if (text === '') return this.sendToChat(chatId, `✅ ${handle.id} 已结束，但模型没有返回文字。`)
+      return this.sendToChat(chatId, `💬 ${handle.id} 的旁问回答：\n${text}`)
+    }).catch(() => {
+      // Do not expose host errors or the original question to QQ/logs.
+      return this.sendToChat(chatId, `⚠️ ${handle.id} 旁问失败或已取消。`)
+    }).catch(() => undefined)
+    return { id: handle.id, status: handle.status }
+  }
+
   /**
    * Slash-command router. Commands are admin-only and are matched on the
    * first word; a leading @mention glued to the command (QQ group at + text)
@@ -855,6 +894,7 @@ export class ChatBridge {
       ...(goals !== undefined ? { goals } : {}),
       taskGoal: bridge.taskGoalPort,
       pauseTaskGoal: chatId => bridge.pauseTaskGoalForStop(chatId),
+      sideAsk: (chatId, question) => bridge.submitSideAsk(chatId, question),
       config: { interimMessages: bridge.deps.config.interimMessages, maxImageBytes: bridge.deps.config.maxImageBytes, unknownCommand: bridge.deps.config.unknownCommand, taskEveryRounds: bridge.deps.config.taskEveryRounds ?? 1 },
     }
   }

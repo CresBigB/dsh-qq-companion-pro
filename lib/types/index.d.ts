@@ -93,13 +93,39 @@ type Context = CordisContext & {
             };
         }>;
     };
+    subagents?: {
+        getProvider(name: string): {
+            inheritsParentContext?: boolean;
+        } | undefined;
+        start?(provider: string, options: {
+            parent: unknown;
+            label: string;
+            signal: AbortSignal;
+            prompt: readonly {
+                type: 'text';
+                text: string;
+            }[];
+            agentOptions?: {
+                maxTokens?: number;
+                disableTools?: boolean;
+            };
+        }): Promise<{
+            result: Promise<{
+                output?: readonly {
+                    type?: string;
+                    text?: string;
+                }[];
+            }>;
+            dispose(): Promise<void>;
+        }>;
+    };
 };
 export declare const name = "dsh-qq-companion-pro";
 export declare const inject: string[];
 /** Plugin configuration (validated by schemastery); see config.ts. */
 export type Config = import('./config.js').Config;
 export declare const Config: Z<Config>;
-export declare const defaultMediaDir: typeof import("./config.js").defaultMediaDir, dshHome: typeof import("./config.js").dshHome, resolveDeprecatedConfig: typeof import("./config.js").resolveDeprecatedConfig;
+export declare const defaultMediaDir: typeof import("./config.js").defaultMediaDir, dshHome: typeof import("./config.js").dshHome, resolveDeprecatedConfig: typeof import("./config.js").resolveDeprecatedConfig, parseGroupTriggerPolicy: typeof import("./config.js").parseGroupTriggerPolicy;
 /** Log a meta event; periodic heartbeat events are silenced to keep the log readable. */
 export declare function logMetaEvent(selfId: string, event: OneBotEvent, minLevel?: Config['logLevel']): void;
 /** 「accessToken 还没配」判定：schema 默认就是空串（config.ts 的

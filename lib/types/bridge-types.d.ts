@@ -10,6 +10,7 @@ import type { Session, SessionEvent, SessionId, SessionStore } from '@deepseek-a
 import type { AccessPolicyConfig } from './chat.js';
 import type { ChatActivity, GroupChatter, ScheduledPrompt, StickerLibrary } from './companion/index.js';
 import type { OneBotConnection } from './connection.js';
+import type { GroupTriggerConfig } from './group-trigger-policy.js';
 import type { GroupAccessLike } from './groups.js';
 import type { MediaStore } from './media.js';
 import type { SessionTitleLike } from './session-title.js';
@@ -22,10 +23,17 @@ export interface BridgeConfig {
     botQQ: string;
     ignoreSelf: boolean;
     requireMention: boolean;
+    /** Parsed ordinary group-message trigger policy; absent preserves legacy behavior. */
+    groupTriggerPolicy?: GroupTriggerConfig;
     /** Unknown slash-command handling: 'intercept' (default) consumes the
      * message with a closest-match suggestion or a hint; 'passthrough' restores
      * the old fall-through to the model. */
     unknownCommand?: 'intercept' | 'passthrough';
+    /** BTW-style side questions; absent/false keeps the feature disabled. */
+    sideAskEnabled?: boolean;
+    sideAskConcurrency?: number;
+    sideAskOverflow?: 'queue' | 'reject' | 'preempt';
+    sideAskMaxChars?: number;
     interimMessages: boolean;
     /** Per-interim auto-recall delay (ms) from each interim's send completion
      * while the turn is still running (QQ recall window ~2 min); absent → 90s.
@@ -256,6 +264,11 @@ export interface LlmCatalogPort {
     listProviders(): LlmProviderInfo[];
     listModels(provider: string): Promise<LlmModelInfo[]>;
 }
+/** Narrow host seam for one BTW-style fork. The adapter owns the host run and
+ * disposal; bridge code only sees a text result and never host subagent state. */
+export interface SideAskForkPort {
+    ask(parent: unknown, prompt: string, signal: AbortSignal): Promise<string>;
+}
 /** Session-event feed port: the narrowed event-bus surface the bridge
  * subscribes to, replacing the whole-plugin Context. index.ts satisfies it
  * with the host context itself (its event-bus `on` IS the implementation); the
@@ -379,6 +392,8 @@ export interface BridgeDeps {
     /** 宿主 goals 服务（T16 长任务）：live 查找，absent = 部署未启用
      * dsh-goal。只经公开服务方法读写，插件自己不落盘、不排轮次。 */
     goals?: (() => GoalsPortLike | undefined) | undefined;
+    /** Optional BTW/fork adapter; absent means /sideask reports unavailable. */
+    sideAskFork?: SideAskForkPort;
     config: BridgeConfig;
     policy: AccessPolicyConfig;
     /** health: the ALREADY-redacted plugin config snapshot (secrets

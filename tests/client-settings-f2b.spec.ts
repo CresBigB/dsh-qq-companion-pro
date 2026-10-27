@@ -91,6 +91,11 @@ const DEFAULTS = client.DEFAULTS as Record<string, unknown>
 const GROUPS = client.GROUPS as Array<{ id: string; title: string; fields: Array<{ key: string }> }>
 const ALL_FIELDS = client.ALL_FIELDS as Array<{ key: string; label: string; max?: number }>
 const draftFromSnapshot = client.draftFromSnapshot as (snapshot: { config: Record<string, unknown> }) => Record<string, unknown>
+const computePatch = client.computePatch as (
+  draft: Record<string, unknown>,
+  config: Record<string, unknown>,
+  opts?: { secretDraft?: string; clearSecret?: boolean },
+) => { patch: Record<string, unknown>; invalidKeys: string[] }
 const validateDraft = client.validateDraft as (draft: Record<string, unknown>, t?: (key: string) => string) => Record<string, string>
 const collectRisks = client.collectRisks as (
   draft: Record<string, unknown>,
@@ -593,6 +598,46 @@ describe('collectRisks — §5.5 每个触发条件', () => {
     values.groupPolicy = 'open'
     values.ignoreSelf = false
     expect(riskKeysOf(collectRisks(values, config))).toEqual(['risk.hostPort', 'risk.groupOpen', 'risk.ignoreSelfOff'])
+  })
+})
+
+describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () => {
+  const NEW_KEYS = ['groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskOverflow', 'sideAskMaxChars']
+
+  it('字段进入群聊 / 会话与任务页，旧快照控件禁用且无关保存不夹带缺席键', () => {
+    expect(GROUPS.find(group => group.id === 'access')?.fields.map(field => field.key)).toContain('groupTriggerPolicy')
+    expect(GROUPS.find(group => group.id === 'conversation')?.fields.map(field => field.key)).toEqual(expect.arrayContaining(['sideAskEnabled', 'sideAskConcurrency', 'sideAskOverflow', 'sideAskMaxChars']))
+
+    const oldConfig = Object.assign({}, SCHEMA_DEFAULTS)
+    for (const key of NEW_KEYS) delete oldConfig[key]
+    const oldDraft = defaultDraft(oldConfig)
+    oldDraft.groupTriggerPolicy = '{"replyMode":"all"}'
+    oldDraft.sideAskEnabled = true
+    oldDraft.sideAskConcurrency = '4'
+    oldDraft.sideAskOverflow = 'reject'
+    oldDraft.sideAskMaxChars = '1000'
+    const patch = computePatch(oldDraft, oldConfig).patch
+    for (const key of NEW_KEYS) expect(patch[key]).toBeUndefined()
+
+    const accessView = SettingsView(viewProps({ page: 'access', config: oldConfig, draft: oldDraft }))
+    expect(byId(accessView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(true)
+    const conversationView = SettingsView(viewProps({ page: 'conversation', config: oldConfig, draft: oldDraft }))
+    for (const key of NEW_KEYS.slice(1)) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(true)
+  })
+
+  it('新快照控件可编辑，非法 groupTriggerPolicy JSON 原样进入 patch 交给后端降级', () => {
+    const config = Object.assign({}, SCHEMA_DEFAULTS)
+    const draft = defaultDraft(config)
+    draft.groupTriggerPolicy = '{not-json'
+    draft.sideAskEnabled = true
+    const patch = computePatch(draft, config).patch
+    expect(patch.groupTriggerPolicy).toBe('{not-json')
+    expect(patch.sideAskEnabled).toBe(true)
+
+    const accessView = SettingsView(viewProps({ page: 'access', config, draft }))
+    expect(byId(accessView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(false)
+    const conversationView = SettingsView(viewProps({ page: 'conversation', config, draft }))
+    for (const key of NEW_KEYS.slice(1)) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(false)
   })
 })
 

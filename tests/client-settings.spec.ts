@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 116 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 131 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -438,14 +438,15 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
     expect(parsed.effect).toBe(REMOTE_EFFECT)
   })
 
-  it('旧Host只允许新增ownerDeny缺席，保持其它字段严格且不伪造空数组', () => {
+  it('旧Host可缺席 ownerDeny 与五个新增设置键，保持其它字段严格且不伪造空值', () => {
     const getSettings = descriptors[0] as { result: { schema: { parse(value: unknown): { config: Record<string, unknown> } } } }
     const config: Record<string, unknown> = { ...SCHEMA_DEFAULTS }
-    delete config.ownerDeny
+    const optionalKeys = ['ownerDeny', 'groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskOverflow', 'sideAskMaxChars']
+    for (const key of optionalKeys) delete config[key]
     const snapshot = { revision: 0, entryActive: true, config, secrets: [], groups: SETTINGS_GROUPS, effect: REMOTE_EFFECT }
     const parsed = getSettings.result.schema.parse(snapshot)
-    expect(parsed.config.ownerDeny).toBeUndefined()
-    expect(() => getSettings.result.schema.parse({ ...snapshot, config: { ...config, ownerDeny: 'unsupported' } })).toThrow()
+    for (const key of optionalKeys) expect(parsed.config[key]).toBeUndefined()
+    expect(() => getSettings.result.schema.parse({ ...snapshot, config: { ...config, groupTriggerPolicy: 123 } })).toThrow()
     delete config.friendDeny
     expect(() => getSettings.result.schema.parse(snapshot)).toThrow()
   })
@@ -482,7 +483,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(126)
+    expect(ALL_KEYS).toHaveLength(131)
   })
 
   it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 125 键（恢复默认值唯一来源）', () => {
@@ -565,13 +566,13 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     }
   })
 
-  it('数字字段带 §3.12 的区间：port 1–65535、taskEveryRounds ≥1，关系矩阵比例 0–1，其余 min 0 且不设上限；单位只取规范枚举', () => {
+  it('数字字段带 §3.12 的区间：port / 旁问边界、taskEveryRounds ≥1，关系矩阵比例 0–1，其余 min 0 且不设上限；单位只取规范枚举', () => {
     const UNITS = ['ms', 's', 'min', 'h', 'day', 'byte', 'px', 'char', 'count', 'perDay', 'perMin']
     const CONTROLS = ['path', 'time', 'time24']
     /** 0–1 比例键（关系矩阵 T10a）：上下界都在设置页钉住。 */
     const RATIO_KEYS = ['memberObedience', 'friendObedience', 'friendIntimacy']
     /** 下限 1 的键（与宿主 Config 一致：0 没有意义）。 */
-    const MIN_ONE_KEYS = ['taskEveryRounds']
+    const MIN_ONE_KEYS = ['taskEveryRounds', 'sideAskConcurrency', 'sideAskMaxChars']
     for (const field of allFields) {
       if (field.type === 'number') {
         if (field.key === 'port') {
@@ -582,7 +583,9 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
           expect(field.max).toBe(1)
         } else if (MIN_ONE_KEYS.includes(field.key)) {
           expect(field.min).toBe(1)
-          expect(field.max).toBeUndefined()
+          if (field.key === 'sideAskConcurrency') expect(field.max).toBe(8)
+          else if (field.key === 'sideAskMaxChars') expect(field.max).toBe(8000)
+          else expect(field.max).toBeUndefined()
         } else {
           expect(field.min).toBe(0)
           expect(field.max).toBeUndefined()
@@ -627,6 +630,9 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     expect(patchSchema.parse({ taskEveryRounds: 1 })).toEqual({ taskEveryRounds: 1 })
     expect(patchSchema.parse({ taskEveryRounds: 2 })).toEqual({ taskEveryRounds: 2 })
     expect(patchSchema.parse({ deferredTimeoutMs: 0 })).toEqual({ deferredTimeoutMs: 0 })
+    expect(patchSchema.parse({ sideAskConcurrency: 8, sideAskMaxChars: 8000 })).toEqual({ sideAskConcurrency: 8, sideAskMaxChars: 8000 })
+    expect(() => patchSchema.parse({ sideAskConcurrency: 0 })).toThrow()
+    expect(() => patchSchema.parse({ sideAskMaxChars: 8001 })).toThrow()
   })
 
   it('功能权限的9个高级键来自独立首组，能力文案只由注册表生成', () => {
@@ -1537,7 +1543,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（116 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（131 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

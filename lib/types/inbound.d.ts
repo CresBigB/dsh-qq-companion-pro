@@ -126,7 +126,7 @@ export interface InboundContext {
     /** Bridge log line callback. */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
     /** The only config fields the inbound pipeline reads. */
-    config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds' | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy'>;
+    config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'groupTriggerPolicy' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds' | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy'>;
 }
 /** Longest a voice message waits for its transcript before it is handed
  * over as a bare [语音]. */

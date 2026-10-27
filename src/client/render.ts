@@ -12,6 +12,7 @@ import type { ReactLike } from './react-runtime.js'
 import { zh } from './i18n.js'
 import {
   coerceValue,
+  configHasKey,
   format,
   formatDefaultValue,
   removeTagAt,
@@ -115,18 +116,19 @@ export function isFieldDirty(field: FieldMeta, options: RenderFieldsOptions): bo
     if (options.clearSecret === true) return true
     return String(draftOf(options, field) == null ? '' : draftOf(options, field)) !== ''
   }
-  if (options.config == null) return false
+  const config = options.config
+  if (config == null || !configHasKey(config, field.key)) return false
   const next = coerceValue(field, draftOf(options, field))
   if (field.type === 'number' && Number.isNaN(next)) {
     const raw = String(draftOf(options, field) == null ? '' : draftOf(options, field)).trim()
-    return raw !== String(options.config[field.key] == null ? '' : options.config[field.key])
+    return raw !== String(config[field.key] == null ? '' : config[field.key])
   }
-  return !valueEquals(next, options.config[field.key])
+  return !valueEquals(next, config[field.key])
 }
 
 /** 非默认：生效值 ≠ schema 默认值。 */
 export function isFieldNonDefault(field: FieldMeta, options: RenderFieldsOptions): boolean {
-  if (options.config == null || options.defaults == null) return false
+  if (options.config == null || !configHasKey(options.config, field.key) || options.defaults == null) return false
   return !valueEquals(options.config[field.key], options.defaults[field.key])
 }
 
@@ -139,7 +141,7 @@ export function isFieldInactive(field: FieldMeta, options: RenderFieldsOptions):
 
 /** 「恢复默认」按钮是否出现：生效值或草稿 ≠ 默认值。 */
 export function canResetField(field: FieldMeta, options: RenderFieldsOptions): boolean {
-  if (options.defaults == null || field.type === 'secret') return false
+  if (!configHasKey(options.config, field.key) || options.defaults == null || field.type === 'secret') return false
   const defaultValue = options.defaults[field.key]
   const next = coerceValue(field, draftOf(options, field))
   if (field.type === 'number' && Number.isNaN(next)) {
@@ -161,7 +163,7 @@ function richText(ReactImpl: ReactLike, text: string, query: string | undefined)
 /** 构造行内控件（不含单位 / 恢复默认按钮）。 */
 function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFieldsOptions, t: Translate, describedBy?: string, invalid?: boolean): ReactElement {
   const value = draftOf(options, field)
-  const disabled = options.disabled === true
+  const disabled = options.disabled === true || !configHasKey(options.config, field.key)
   const id = fieldControlId(field.key)
   const onChange = typeof options.onChange === 'function' ? options.onChange : () => {}
   const ariaInvalid = invalid === true ? 'true' : undefined

@@ -22,7 +22,7 @@ import type { SessionStore } from '@deepseek-ai/dsh-session'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type Z from '@deepseek-ai/schemastery'
 import type { OneBotEvent } from './connection.js'
-import type { BridgeDeps, WorkspaceRegistryLike } from './bridge.js'
+import type { BridgeDeps, SideAskForkPort, WorkspaceRegistryLike } from './bridge.js'
 import type { SessionTitleLike } from './session-title.js'
 import { join } from 'node:path'
 
@@ -90,6 +90,16 @@ type Context = CordisContext & {
   commands: {
     execute(agent: unknown, line: string, submittedAttachments: readonly unknown[], signal: AbortSignal): Promise<{ kind?: string; text?: string; result?: { kind?: string; text?: string } }>
   }
+  subagents?: {
+    getProvider(name: string): { inheritsParentContext?: boolean } | undefined
+    start?(provider: string, options: {
+      parent: unknown
+      label: string
+      signal: AbortSignal
+      prompt: readonly { type: 'text'; text: string }[]
+      agentOptions?: { maxTokens?: number; disableTools?: boolean }
+    }): Promise<{ result: Promise<{ output?: readonly { type?: string; text?: string }[] }>; dispose(): Promise<void> }>
+  }
 }
 
 export const name = 'dsh-qq-companion-pro'
@@ -98,7 +108,7 @@ export const inject = ['tools', 'systemPrompt', 'agents', 'sessions', 'agentDefa
 /** Plugin configuration (validated by schemastery); see config.ts. */
 export type Config = import('./config.js').Config
 export const Config: Z<Config> = configModule.Config
-export const { defaultMediaDir, dshHome, resolveDeprecatedConfig } = configModule
+export const { defaultMediaDir, dshHome, resolveDeprecatedConfig, parseGroupTriggerPolicy } = configModule
 const { resolvePolicy } = configModule
 
 /** Severity rank for the logLevel gate (debug < info < warn < error). */
@@ -149,6 +159,54 @@ export function mountWaitingForAccessToken(ctx: Context, config: Config): void {
   })
 }
 
+/** 宿主 subagents 服务的已声明形状（见上方 Context 里的可选成员）。
+ *  Cordis 的 `inject` 是「必需服务」语义、没有可选依赖，把 subagents 放进去
+ *  会让主插件在没有该服务的宿主上永远 pending，所以这里惰性读取。 */
+type SubagentsLike = NonNullable<Context['subagents']>
+
+/** 惰性读取一个宿主服务：`ctx.get` 不存在或服务未注册都返回 undefined。 */
+function optionalService<T>(ctx: Context, name: string): T | undefined {
+  const get = (ctx as unknown as { get?: (key: string) => unknown }).get
+  if (typeof get !== 'function') return undefined
+  const service = get.call(ctx, name)
+  return service === undefined || service === null ? undefined : service as T
+}
+
+/** Build the BTW-style fork seam from the optional host subagents service.
+ * The adapter refuses to start unless the fork provider explicitly advertises
+ * parent-context inheritance; it owns disposal and extracts text only. */
+function sideAskForkOf(ctx: Context): SideAskForkPort | undefined {
+  const subagents = optionalService<SubagentsLike>(ctx, 'subagents')
+  if (subagents === undefined || typeof subagents.getProvider !== 'function') return undefined
+  if (typeof subagents.start !== 'function') return undefined
+  const provider = subagents.getProvider('fork')
+  if (provider?.inheritsParentContext !== true) return undefined
+  // A prompt saying "不要调用工具" is not a capability boundary. This host
+  // API does not declare a disable-tools/tool-policy option for activation, so
+  // activation-only providers are intentionally rejected. The legacy start
+  // API is used only because its disableTools option is explicit below.
+  return {
+    ask: async (parent, prompt, signal) => {
+      const promptBlocks = [{ type: 'text' as const, text: '你是一次性的旁问专家，只基于继承的上下文回答问题；只输出文字，不调用工具，不继续主任务。\n\n' + prompt }]
+      const run = await subagents.start!('fork', {
+        parent,
+        label: 'QQ 旁问专家',
+        signal,
+        prompt: promptBlocks,
+        agentOptions: { maxTokens: 32_000, disableTools: true },
+      })
+      try {
+        const result = await run.result
+        const text = (result.output ?? []).filter(block => block.type === 'text').map(block => block.text ?? '').join('').trim()
+        if (text === '') throw new Error('side ask returned no text')
+        return text
+      } finally {
+        await run.dispose()
+      }
+    },
+  }
+}
+
 /** Mount the plugin. */
 export function apply(ctx: Context, config: Config): void {
   // honor the deprecated config names before any consumer reads them.
@@ -161,6 +219,7 @@ export function apply(ctx: Context, config: Config): void {
     return
   }
   const mediaDir = config.mediaDir !== '' ? config.mediaDir : defaultMediaDir()
+  const groupTriggerPolicy = parseGroupTriggerPolicy(config.groupTriggerPolicy)
   const policy = resolvePolicy(config)
   /** Console log line callback (level, message) — shared by the bridge deps,
    * the connection log port and the host-ready boot gate below. */
@@ -398,6 +457,11 @@ export function apply(ctx: Context, config: Config): void {
         return undefined
       }
     },
+    ...(config.sideAskEnabled ? (() => {
+      const sideAskFork = sideAskForkOf(ctx)
+      if (sideAskFork === undefined) log('warn', '旁问已开启，但宿主未提供安全的 fork provider；/sideask 不可用')
+      return sideAskFork === undefined ? {} : { sideAskFork }
+    })() : {}),
     defaultModel: () => {
       try {
         return ctx.agentDefaultModel.currentSelection()
@@ -409,6 +473,7 @@ export function apply(ctx: Context, config: Config): void {
     // dir and the keys it knows under another name are set here.
     config: {
       ...config,
+      groupTriggerPolicy,
       mediaDir,
       maxImageBytes: config.outboundImageMaxBytes,
       maxInboundFileBytes: config.inboundFileMaxBytes,

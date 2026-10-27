@@ -1,5 +1,6 @@
 import type Z from '@deepseek-ai/schemastery';
 import type { AccessPolicyConfig } from './chat.js';
+import type { GroupTriggerConfig } from './group-trigger-policy.js';
 import type { ScheduledPrompt } from './companion/index.js';
 /** Plugin configuration (validated by schemastery). */
 export interface Config {
@@ -8,8 +9,18 @@ export interface Config {
     accessToken: string;
     botQQ: string;
     requireMention: boolean;
+    /** JSON policy for ordinary group-message triggering; malformed JSON safely falls back. */
+    groupTriggerPolicy: string;
     /** Unknown slash-command handling: intercept（默认）=拦截并给建议；passthrough=透传给模型。 */
     unknownCommand: 'intercept' | 'passthrough';
+    /** BTW-style side questions; disabled by default for zero behavior change. */
+    sideAskEnabled: boolean;
+    /** Maximum concurrent side questions across all QQ chats. */
+    sideAskConcurrency: number;
+    /** Behavior when all side-question slots are occupied. */
+    sideAskOverflow: 'queue' | 'reject' | 'preempt';
+    /** Maximum question length accepted by /sideask. */
+    sideAskMaxChars: number;
     /** 任务运行中的新消息处理策略：queue=排队（默认）；steer=插话进当前任务。 */
     newMessagePolicy: 'queue' | 'steer';
     /** steer 模式下自动插话资格：admin=仅管理员（默认）；all=不限。 */
@@ -181,6 +192,8 @@ export declare function defaultMediaDir(): string;
 /** The dsh data home ($DSH_HOME or ~/.dsh); source of the .agent-presets dir. */
 export declare function dshHome(): string;
 export declare const Config: Z<Config>;
+/** Parse and defensively sanitize the optional JSON policy; bad values never block startup. */
+export declare function parseGroupTriggerPolicy(raw: unknown): GroupTriggerConfig;
 /** Map deprecated config names onto their renamed fields: a legacy value is
  * honored only while the new name still sits at its schema default (the new
  * name wins when both are configured), each legacy use warns once, and the

@@ -139,7 +139,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   botQQ: vString(0, 64),
   workspacePath: vString(0, 1024),
   attachWorkspaceMode: vEnum(['existing', 'auto', 'off']),
-  // access（14）
+  // access（15）
   adminUsers: vArray(vString(0, 64)),
   friendUsers: vArray(vString(0, 64)),
   memberObedience: vNumber(0, 1),
@@ -151,6 +151,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   groupPolicy: vEnum(['open', 'allowlist', 'disabled']),
   groupAllowFrom: vArray(vString(0, 64)),
   requireMention: vBoolean(),
+  groupTriggerPolicy: vOptional(vString(0, 8192)),
   restrictedMemberPrefix: vBoolean(),
   autoAcceptAdminRequests: vBoolean(),
   autoAllowInvitedGroups: vBoolean(),
@@ -178,13 +179,17 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   interimRecall: vBoolean(),
   interimRecallMs: vNumber(0),
   sendErrorNotice: vBoolean(),
-  // conversation（15）
+  // conversation（19）
   newMessagePolicy: vEnum(['queue', 'steer']),
   autoSteerPolicy: vEnum(['admin', 'all']),
   deferredTimeoutMs: vNumber(0),
   taskEveryRounds: vNumber(1),
   unknownCommand: vEnum(['intercept', 'passthrough']),
   rateLimitPerMinute: vNumber(0),
+  sideAskEnabled: vOptional(vBoolean()),
+  sideAskConcurrency: vOptional(vNumber(1, 8)),
+  sideAskOverflow: vOptional(vEnum(['queue', 'reject', 'preempt'])),
+  sideAskMaxChars: vOptional(vNumber(1, 8000)),
   idleResetHours: vNumber(0),
   privateResetDays: vNumber(0),
   groupResetDays: vNumber(0),
@@ -282,10 +287,10 @@ export const snapshotSchema: Schema<Record<string, unknown>> = vObject({
     media: vArray(vString(1, 64)),
     diagnostics: vArray(vString(1, 64)),
   }),
-  effect: vEnum(['restart']), // 116 键统一插件级热重启
+  effect: vEnum(['restart']), // 131 键统一插件级热重启
 })
 
-/** updateSettings 入参（任意 116 键子集；未出现的键 = 不修改）。 */
+/** updateSettings 入参（任意 131 键子集；未出现的键 = 不修改）。 */
 export const patchSchema: Schema<Record<string, unknown>> = vObject(
   Object.fromEntries(Object.entries(CONFIG_SHAPE).map(([key, schema]) => [key, vOptional(schema)])),
 )

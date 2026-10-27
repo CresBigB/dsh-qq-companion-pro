@@ -461,7 +461,7 @@ export function SettingsView(props: SettingsViewProps): ReactElement {
   const config = props.config == null ? {} : props.config
   const loading = props.loading === true
   const dirtyKeys = loading ? [] : changeKeys(draft, config, props.clearSecret)
-  // §5.4 实时校验：每次渲染都按草稿算一遍（纯函数，103 键的代价可以忽略）。
+  // §5.4 实时校验：每次渲染都按草稿算一遍（纯函数，131 键的代价可以忽略）。
   const invalid = loading ? {} : validateDraft(draft, t)
   const risks = loading ? [] : collectRisks(draft, config, { clearSecret: props.clearSecret })
   const riskKeys = riskFieldKeys(risks)

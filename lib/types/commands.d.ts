@@ -41,6 +41,14 @@ export declare const COMMANDS: CommandDefinition[];
  * behavior. Exported for the full-text snapshot gate in tests/commands.spec.ts. */
 export declare function helpText(): string;
 /**
+ * Whether the message would be routed to a registered command (name or
+ * alias). Unknown `/words` are deliberately false: they fall through
+ * according to `unknownCommand` and therefore count as ordinary text for the
+ * group reply policy. Exported so inbound can keep commands on their own path
+ * (an operator action) instead of filtering them as chat.
+ */
+export declare function isKnownCommand(text: string): boolean;
+/**
  * Slash-command router. Commands are admin-only (the Hermes member
  * slash-command block) and are matched on the first word; a leading
  * @mention glued to the command (QQ group at + text) is stripped first.
