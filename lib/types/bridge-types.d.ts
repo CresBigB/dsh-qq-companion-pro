@@ -127,6 +127,8 @@ export interface BridgeConfig {
     /** seconds of private silence before held lines are merged into one turn
      * (0 = dispatch every message immediately, the pre-existing behaviour). */
     privateQuietSeconds?: number;
+    /** answer a QQ poke aimed at the bot (a private greeting, an @ in groups). */
+    pokeReplyEnabled?: boolean;
     groupResetDays?: number;
     /** the daily scheduled prompts (for /task listing / run-now). */
     scheduledPrompts?: readonly ScheduledPrompt[];

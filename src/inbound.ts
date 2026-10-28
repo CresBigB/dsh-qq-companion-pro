@@ -66,6 +66,10 @@ export interface NormalizedInbound {
    * sanitized; the pipeline's identity whitelist sanitizes it before it
    * reaches the prefix, the boundary attribute or lastNickname. */
   nickname: string
+  /** Synthesized from a QQ poke (src/poke.ts) rather than a typed message.
+   * A poke carries no @ segment, but in a group it counts as one: the
+   * mention gate and the group policy both treat it as a direct trigger. */
+  poked?: boolean
 }
 
 /**
@@ -308,9 +312,13 @@ export class InboundPipeline {
     // Keep protocol-level triggers separate from conversational hints: only a
     // real OneBot @ is `mentioned`, while a reply to the bot is its own policy
     // input. Chatter name/follow-up markers are display/context signals only.
-    const mentioned = detectMention(inbound.segments, inbound.raw, this.ctx.selfId(), this.ctx.config.botQQ)
+    // A poke is the exception: it has no @ segment yet means "I am talking to
+    // you", so it is folded into `mentioned` here and nowhere else.
+    const poked = inbound.poked === true
+    const mentioned = poked
+      || detectMention(inbound.segments, inbound.raw, this.ctx.selfId(), this.ctx.config.botQQ)
     let replyToBot = false
-    let displayTrigger: boolean | string = mentioned
+    let displayTrigger: boolean | string = poked ? '[拍了拍你]' : mentioned
 
     // Her name in the text, or the person she just answered going on — unless
     // that message @-s someone else or replies to someone else's message (a

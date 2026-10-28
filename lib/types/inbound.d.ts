@@ -42,6 +42,10 @@ export interface NormalizedInbound {
      * sanitized; the pipeline's identity whitelist sanitizes it before it
      * reaches the prefix, the boundary attribute or lastNickname. */
     nickname: string;
+    /** Synthesized from a QQ poke (src/poke.ts) rather than a typed message.
+     * A poke carries no @ segment, but in a group it counts as one: the
+     * mention gate and the group policy both treat it as a direct trigger. */
+    poked?: boolean;
 }
 /**
  * Reduce one raw OneBot 11 event to the neutral inbound shape, or null when

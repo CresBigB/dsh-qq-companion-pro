@@ -26,6 +26,7 @@ import { DEFAULT_DEFERRED_TIMEOUT_MS, DeferredDelivery } from './deferred.js'
 import { describeError, errorStack } from './errors.js'
 import { exportDiagnostics, healthReport, type HealthDeps } from './health.js'
 import { InboundPipeline, normalizeOneBot11 } from './inbound.js'
+import { parsePokeNotice, pokeMessageEvent } from './poke.js'
 import { InterimTracker } from './interim.js'
 import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outbound.js'
 import { SideAskScheduler } from './side-ask.js'
@@ -689,7 +690,7 @@ export class ChatBridge {
    * pipeline decision point can attribute its event to this message's
    * traceId; tracing off = no scope.
    */
-  async handleInbound(event: OneBotEvent): Promise<void> {
+  async handleInbound(event: OneBotEvent, options?: { poked?: boolean }): Promise<void> {
     const scope = this.beginInboundTrace(event)
     try {
       await runWithTrace(scope, async () => {
@@ -704,12 +705,32 @@ export class ChatBridge {
           scope?.emit('normalize', { ok: false, reason: TRACE_REASONS.inboundNotChat })
           return
         }
+        if (options?.poked === true) inbound.poked = true
         await this.inbound.processInbound(inbound)
       })
     } catch (error) {
       scope?.emit('dispatch', { ok: false, reason: '入站处理失败: ' + describeError(error) })
       this.deps.log('error', 'inbound handling failed: ' + describeError(error) + errorStack(error))
     }
+  }
+
+  /**
+   * A QQ poke (拍一拍) aimed at her becomes one ordinary inbound message —
+   * same gates, same busy handling, same permissions as a typed line. In a
+   * group it counts as an @ (see `poked` in inbound.ts). Pokes aimed at
+   * somebody else, or poked when the feature is off, are ignored silently:
+   * a notice is not a place to send apologies into a group.
+   */
+  async handlePoke(event: OneBotEvent): Promise<void> {
+    if (this.deps.config.pokeReplyEnabled !== true) return
+    const notice = parsePokeNotice(event)
+    if (notice === null) return
+    // 连接还没握手时 selfId 是空的；配置里的 botQQ 同样是她自己的号。
+    const selfId = String(this.deps.connection.selfId || this.deps.config.botQQ || '')
+    if (selfId === '' || notice.targetId !== selfId) return
+    // Poking yourself is a gesture between the user and tencent, not a message.
+    if (notice.userId === notice.targetId) return
+    await this.handleInbound(pokeMessageEvent(notice), { poked: true })
   }
 
   /** mint the inbound traceId + scope and record the first (收到消息)

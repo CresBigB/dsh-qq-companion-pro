@@ -101,18 +101,18 @@ function parameterNames(fn: Function): string[] {
   return inner === '' ? [] : inner.split(',').map((part) => part.trim())
 }
 
-describe('设置页覆盖清单 — 141 键自检（后端新增键忘了上页会在这里失败）', () => {
+describe('设置页覆盖清单 — 142 键自检（后端新增键忘了上页会在这里失败）', () => {
   const schemaKeys = Object.keys((Config as unknown as { dict: Record<string, unknown> }).dict)
 
   it('排除列表与上页键不重叠：ALL_KEYS ∩ EXCLUDED_KEYS = ∅', () => {
     for (const key of EXCLUDED_KEYS) expect(ALL_KEYS).not.toContain(key)
   })
 
-  it('Config.dict 的键 − 排除列表 = ALL_KEYS（157 − 16 = 141）', () => {
+  it('Config.dict 的键 − 排除列表 = ALL_KEYS（158 − 16 = 142）', () => {
     const onPage = schemaKeys.filter((key) => !EXCLUDED_KEYS.includes(key))
     expect([...onPage].sort()).toEqual([...ALL_KEYS].sort())
-    expect(schemaKeys).toHaveLength(157)
-    expect(ALL_KEYS).toHaveLength(141)
+    expect(schemaKeys).toHaveLength(158)
+    expect(ALL_KEYS).toHaveLength(142)
     expect(schemaKeys.filter(key => EXCLUDED_KEYS.includes(key))).toHaveLength(16)
   })
 
@@ -733,11 +733,11 @@ describe('onebotSettings remote — groupAutoQuote 白名单扩展（group 子�
 })
 
 describe('onebotSettings remote — taskEveryRounds 下限 1（validatePatch 与宿主 Config 一致）', () => {
-  it('默认 1、落在 conversation 组第 4 位', () => {
+  it('默认 1、落在 conversation 组第 5 位', () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(SCHEMA_DEFAULTS.taskEveryRounds).toBe(1)
     expect(snapshot.config.taskEveryRounds).toBe(1)
-    expect(SETTINGS_GROUPS.conversation.indexOf('taskEveryRounds')).toBe(3)
+    expect(SETTINGS_GROUPS.conversation.indexOf('taskEveryRounds')).toBe(4)
   })
 
   it('0 与负数整单拒写 bad-request 且 edit 零调用；1 / 2 正常写入并递增 revision', async () => {

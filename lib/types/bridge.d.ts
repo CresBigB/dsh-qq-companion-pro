@@ -255,7 +255,17 @@ export declare class ChatBridge {
      * pipeline decision point can attribute its event to this message's
      * traceId; tracing off = no scope.
      */
-    handleInbound(event: OneBotEvent): Promise<void>;
+    handleInbound(event: OneBotEvent, options?: {
+        poked?: boolean;
+    }): Promise<void>;
+    /**
+     * A QQ poke (拍一拍) aimed at her becomes one ordinary inbound message —
+     * same gates, same busy handling, same permissions as a typed line. In a
+     * group it counts as an @ (see `poked` in inbound.ts). Pokes aimed at
+     * somebody else, or poked when the feature is off, are ignored silently:
+     * a notice is not a place to send apologies into a group.
+     */
+    handlePoke(event: OneBotEvent): Promise<void>;
     /** mint the inbound traceId + scope and record the first (收到消息)
      * event; undefined when tracing is off. */
     private beginInboundTrace;

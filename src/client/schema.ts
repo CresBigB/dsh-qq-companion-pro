@@ -193,6 +193,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   idleResetHours: vNumber(0),
   privateResetDays: vNumber(0),
   privateQuietSeconds: vOptional(vNumber(0, 30)),
+  pokeReplyEnabled: vOptional(vBoolean()),
   groupResetDays: vNumber(0),
   sessionTitleTemplate: vString(0, 1024),
   privateSessionKeepDays: vNumber(0),

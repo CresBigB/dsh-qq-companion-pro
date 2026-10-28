@@ -106,6 +106,7 @@
 | `stickerDailyMax` | number | `20` | 每天最多新存多少张（控制她看图打标签的花费；合并到已有表情包不算） |
 | `privateResetDays` | number | `0` | 私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `privateQuietSeconds` | number | `0` | 私聊里等发送方安静这么多秒，再把他连着发的几条并成一次交给她（0=关闭，发一条就派发一次；上限 30 秒） |
+| `pokeReplyEnabled` | boolean | `true` | 有人拍她一下时要不要理会：私聊里当招呼，群里当被 @（拍的是别人则一律不理） |
 | `groupResetDays` | number | `0` | 群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `privateSessionKeepDays` | number | `0` | 私聊的旧会话（已经不用的）超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
 | `groupSessionKeepDays` | number | `0` | 群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |

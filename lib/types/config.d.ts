@@ -135,6 +135,8 @@ export interface Config {
     privateResetDays: number;
     /** seconds of private silence before the held lines are merged (0 = off). */
     privateQuietSeconds: number;
+    /** 有人拍她一下时要不要理会：私聊里是打招呼，群里等同被 @。 */
+    pokeReplyEnabled: boolean;
     groupResetDays: number;
     privateMemoryMaxBytes: number;
     memoryNoteDenyWords: string[];

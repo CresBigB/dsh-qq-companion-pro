@@ -150,6 +150,8 @@ export interface Config {
   privateResetDays: number
   /** seconds of private silence before the held lines are merged (0 = off). */
   privateQuietSeconds: number
+  /** 有人拍她一下时要不要理会：私聊里是打招呼，群里等同被 @。 */
+  pokeReplyEnabled: boolean
   groupResetDays: number
   privateMemoryMaxBytes: number
   memoryNoteDenyWords: string[]
@@ -480,6 +482,8 @@ export const Config: Z<Config> = z.object({
     .description('私聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭）'),
   privateQuietSeconds: z.number().min(0).max(30).default(0)
     .description('私聊里等发送方安静这么多秒，再把他连着发的几条并成一次交给她（0=关闭，发一条就派发一次；上限 30 秒）'),
+  pokeReplyEnabled: z.boolean().default(true)
+    .description('有人拍她一下时要不要理会：私聊里当招呼，群里当被 @（拍的是别人则一律不理）'),
   groupResetDays: z.number().default(0)
     .description('群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭）'),
   privateSessionKeepDays: z.number().default(0)

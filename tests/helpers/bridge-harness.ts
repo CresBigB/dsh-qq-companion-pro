@@ -225,6 +225,8 @@ export async function makeCmdHarness(opts?: {
   interimRecall?: boolean
   rateLimitPerMinute?: number
   requireMention?: boolean
+  /** 拍一拍开关；缺省 = 开着（与生产默认一致）。 */
+  pokeReplyEnabled?: boolean
   groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig
   restrictedMemberPrefix?: boolean
   newMessagePolicy?: 'queue' | 'steer'
@@ -392,6 +394,7 @@ export async function makeCmdHarness(opts?: {
     defaultModel: () => ({ provider: 'deepseek', model: 'deepseek-chat' }),
     config: {
       botQQ: '10002', ignoreSelf: false, requireMention: opts?.requireMention ?? true,
+      pokeReplyEnabled: opts?.pokeReplyEnabled ?? true,
       ...(opts?.groupTriggerPolicy !== undefined ? { groupTriggerPolicy: opts.groupTriggerPolicy } : {}),
       interimMessages: opts?.interimMessages ?? true,
       ...(opts?.unknownCommand !== undefined ? { unknownCommand: opts.unknownCommand } : {}),
