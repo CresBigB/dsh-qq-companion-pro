@@ -71,6 +71,31 @@ export function vArray<T>(item: Schema<T>): Schema<T[]> {
   }
 }
 
+/** 定时任务（对象数组）：形状与 host 的 src/scheduled-prompts.ts 一致。 */
+export function vScheduleList(): Schema<Array<Record<string, unknown>>> {
+  return {
+    parse(value) {
+      if (!Array.isArray(value)) throw new TypeError('expected array')
+      return value.map((entry) => {
+        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+          throw new TypeError('expected scheduled prompt object')
+        }
+        const record = entry as Record<string, unknown>
+        const out: Record<string, unknown> = {}
+        for (const key of ['id', 'time', 'chatId', 'prompt'] as const) {
+          if (typeof record[key] !== 'string') throw new TypeError('expected string at ' + key)
+          out[key] = record[key]
+        }
+        for (const key of ['includeTodayLog', 'includeGroupLogs'] as const) {
+          if (record[key] !== undefined && typeof record[key] !== 'boolean') throw new TypeError('expected boolean at ' + key)
+          out[key] = record[key] === true
+        }
+        return out
+      })
+    },
+  }
+}
+
 /** 可选字段：缺席（undefined/null）时保持缺席，不参与 parse。 */
 export function vOptional<T>(inner: Schema<T>): Schema<T | undefined> {
   return {
@@ -179,11 +204,12 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   interimRecall: vBoolean(),
   interimRecallMs: vNumber(0),
   sendErrorNotice: vBoolean(),
-  // conversation（19）
+  // conversation（20）
   newMessagePolicy: vEnum(['queue', 'steer']),
   autoSteerPolicy: vEnum(['admin', 'all']),
   deferredTimeoutMs: vNumber(0),
   taskEveryRounds: vNumber(1),
+  scheduledPrompts: vScheduleList(),
   unknownCommand: vEnum(['intercept', 'passthrough']),
   rateLimitPerMinute: vNumber(0),
   sideAskEnabled: vOptional(vBoolean()),

@@ -2,6 +2,7 @@
  *  全部模块级可测，不依赖 hooks 或副作用。 */
 import { ALL_FIELDS, DEFAULTS, type OnebotField } from './fields.js'
 import { MATRIX_KEYS } from '../capability-matrix.js'
+import { scheduledPromptEntriesOf } from '../scheduled-prompts.js'
 
 /** computePatch 的附加选项。 */
 export interface ComputePatchOptions {
@@ -184,6 +185,10 @@ export function unitText(field: OnebotField, raw: unknown): string {
 /** 默认值的人类可读形态（「恢复默认值」按钮的 aria-label / title）。 */
 export function formatDefaultValue(field: OnebotField, value: unknown): string {
   if (field.type === 'boolean') return value === true ? '开' : '关'
+  if (field.type === 'scheduleList') {
+    const list = scheduledPromptEntriesOf(value)
+    return list.length === 0 ? '空' : list.map(entry => entry.id + ' ' + entry.time).join('、')
+  }
   if (field.type === 'stringArray') {
     const list = tagsOf(value)
     return list.length === 0 ? '空' : list.join('、')
@@ -196,6 +201,7 @@ export function formatDefaultValue(field: OnebotField, value: unknown): string {
  *  accessToken 恒 ''，明文绝不进入草稿——host 快照已脱敏）。 */
 export function snapshotValueToDraft(field: OnebotField, value: unknown): unknown {
   if (field.type === 'secret') return '' // 脱敏回显：密码框恒空
+  if (field.type === 'scheduleList') return scheduledPromptEntriesOf(value)
   if (field.type === 'stringArray') {
     // 权限旧规则含未来id、重复项或空白时，未触碰的配置必须原样往返。
     if (MATRIX_KEYS.some(key => key === field.key) && Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string')
@@ -226,6 +232,22 @@ export function coerceValue(field: OnebotField, raw: unknown): unknown {
     return Number.isFinite(n) ? n : NaN
   }
   if (field.type === 'boolean') return raw === true
+  // 结构型列表：草稿可能含「刚添加还没填完」的行，必须原样进 patch，
+  // 由 validateDraft 拦住保存；这里用宽松规范化会把用户的半成品行悄悄丢掉。
+  if (field.type === 'scheduleList') {
+    if (!Array.isArray(raw)) return []
+    return raw.map((item) => {
+      const record = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {}
+      return {
+        id: String(record.id == null ? '' : record.id).trim(),
+        time: String(record.time == null ? '' : record.time).trim(),
+        chatId: String(record.chatId == null ? '' : record.chatId).trim(),
+        prompt: String(record.prompt == null ? '' : record.prompt).trim(),
+        includeTodayLog: record.includeTodayLog === true,
+        includeGroupLogs: record.includeGroupLogs === true,
+      }
+    })
+  }
   if (field.type === 'stringArray') {
     if (MATRIX_KEYS.some(key => key === field.key) && Array.isArray(raw)) return raw.filter((entry): entry is string => typeof entry === 'string')
     return tagsOf(raw)

@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 142 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 11 组 143 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -483,10 +483,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(142)
+    expect(ALL_KEYS).toHaveLength(143)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 142 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 143 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -499,7 +499,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
       if (field.type === 'enum') {
         expect(spec.type).toBe('union')
         expect(field.options).toEqual((spec.list ?? []).map((item) => String(item.value)))
-      } else if (field.type === 'stringArray') {
+      } else if (field.type === 'stringArray' || field.type === 'scheduleList') {
         expect(spec.type).toBe('array')
       } else if (field.type === 'secret') {
         expect(spec.type).toBe('string')
@@ -519,7 +519,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
         expect(field.options ?? []).toContain(fallback)
         expect(Object.keys(field.optionLabels ?? {}).sort()).toEqual([...(field.options ?? [])].sort())
         for (const label of Object.values(field.optionLabels ?? {})) expect(label.trim()).not.toBe('')
-      } else if (field.type === 'stringArray') expect(Array.isArray(fallback)).toBe(true)
+      } else if (field.type === 'stringArray' || field.type === 'scheduleList') expect(Array.isArray(fallback)).toBe(true)
       else expect(typeof fallback).toBe('string')
     }
     // dmPolicy 的 open 选项文案按 §3.2 改写（旧文案「开放」误导：open 实际只放管理员）。
@@ -788,6 +788,11 @@ describe('客户端 bundle — 字段行渲染（§4.1–§4.9）', () => {
         expect(input, `${field.key} 缺标签输入框`).toHaveLength(1)
         expect(input[0].props.id).toBe(id)
         // 标签列表行用 .qqc-row--stack（控件在说明下方）
+        expect(hasClass(row, 'qqc-row--stack')).toBe(true)
+      } else if (field.type === 'scheduleList') {
+        // 结构型列表：容器 + 每行若干输入 + 添加按钮；行内控件在说明下方。
+        expect(byClass(row, 'qqc-sched'), `${field.key} 缺定时任务列表`).toHaveLength(1)
+        expect(byClass(row, 'qqc-sched-add'), `${field.key} 缺添加按钮`).toHaveLength(1)
         expect(hasClass(row, 'qqc-row--stack')).toBe(true)
       } else if (field.type === 'secret') {
         const password = elements.filter(element => element.type === 'input' && element.props.type === 'password')
@@ -1550,7 +1555,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（142 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（143 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

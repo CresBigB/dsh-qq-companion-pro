@@ -22,6 +22,7 @@ import {
   valueEquals,
 } from './logic.js'
 import { highlightSegments, type FieldMatch } from './search.js'
+import { emptyScheduledPrompt, scheduledPromptEntriesOf, type ScheduledPromptEntry } from '../scheduled-prompts.js'
 import type { RiskEntry } from './validate.js'
 
 /** createElement 的薄封装（与产物里的 h(ReactImpl, tag, props, ...children) 同形）。 */
@@ -200,6 +201,70 @@ function controlOf(ReactImpl: ReactLike, field: FieldMeta, options: RenderFields
     }))
   }
 
+  if (field.type === 'scheduleList') {
+    const entries = scheduledPromptEntriesOf(value)
+    const commit = (next: ScheduledPromptEntry[]): void => { onChange(field, next) }
+    const updateAt = (index: number, patch: Partial<ScheduledPromptEntry>): void => {
+      commit(entries.map((entry, at) => (at === index ? Object.assign({}, entry, patch) : entry)))
+    }
+    const textInput = (index: number, key: 'id' | 'time' | 'chatId', className: string, placeholder: string, label: string): ReactElement =>
+      h(ReactImpl, 'input', {
+        className: className,
+        type: 'text',
+        id: id + '-' + String(index) + '-' + key,
+        value: entries[index][key],
+        disabled: disabled,
+        placeholder: placeholder,
+        'aria-label': label,
+        spellCheck: false,
+        onChange: (event: { target: { value: string } }) => { updateAt(index, { [key]: event.target.value }) },
+      })
+    const flagBox = (index: number, key: 'includeTodayLog' | 'includeGroupLogs', label: string): ReactElement =>
+      h(ReactImpl, 'label', { className: 'qqc-sched-flag' },
+        h(ReactImpl, 'input', {
+          type: 'checkbox',
+          checked: entries[index][key] === true,
+          disabled: disabled,
+          onChange: (event: { target: { checked: boolean } }) => { updateAt(index, { [key]: event.target.checked === true }) },
+        }),
+        h(ReactImpl, 'span', null, label))
+    return h(ReactImpl, 'div', { className: 'qqc-sched', id: id },
+      entries.length === 0
+        ? h(ReactImpl, 'p', { className: 'qqc-sched-empty' }, t('schedule.empty'))
+        : null,
+      entries.map((entry, index) => h(ReactImpl, 'div', { className: 'qqc-sched-row', key: entry.id + '#' + String(index) },
+        h(ReactImpl, 'div', { className: 'qqc-sched-head' },
+          textInput(index, 'time', 'qqc-sched-time', 'HH:MM', t('schedule.time')),
+          textInput(index, 'chatId', 'qqc-sched-target', 'private:123456', t('schedule.target')),
+          textInput(index, 'id', 'qqc-sched-id', 'p1', t('schedule.id')),
+          h(ReactImpl, 'button', {
+            className: 'qqc-sched-remove',
+            type: 'button',
+            disabled: disabled,
+            'aria-label': format(t('schedule.remove'), { id: entry.id }),
+            onClick: () => { commit(entries.filter((_item, at) => at !== index)) },
+          }, '×')),
+        h(ReactImpl, 'textarea', {
+          className: 'qqc-sched-prompt',
+          id: id + '-' + String(index) + '-prompt',
+          value: entry.prompt,
+          disabled: disabled,
+          rows: 2,
+          placeholder: t('schedule.prompt'),
+          'aria-label': t('schedule.prompt'),
+          onChange: (event: { target: { value: string } }) => { updateAt(index, { prompt: event.target.value }) },
+        }),
+        h(ReactImpl, 'div', { className: 'qqc-sched-flags' },
+          flagBox(index, 'includeTodayLog', t('schedule.todayLog')),
+          flagBox(index, 'includeGroupLogs', t('schedule.groupLogs'))))),
+      h(ReactImpl, 'button', {
+        className: 'qqc-sched-add',
+        type: 'button',
+        disabled: disabled,
+        onClick: () => { commit([...entries, emptyScheduledPrompt(entries)]) },
+      }, t('schedule.add')))
+  }
+
   if (field.type === 'stringArray') {
     const tags = tagsOf(value)
     const buffer = options.tagInputs != null && options.tagInputs[field.key] != null ? options.tagInputs[field.key] : ''
@@ -317,7 +382,7 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
   const willClear = field.type === 'secret' && options.clearSecret === true
   const risk = Array.isArray(options.riskKeys) && options.riskKeys.indexOf(field.key) >= 0
   const error = options.invalid == null ? undefined : options.invalid[field.key]
-  const stack = field.type === 'stringArray'
+  const stack = field.type === 'stringArray' || field.type === 'scheduleList'
 
   const badges: Array<ReactElement | null> = []
   if (dirty) badges.push(h(ReactImpl, 'span', { className: 'qqc-badge', 'data-tone': 'brand', key: 'badge-dirty' }, t('badge.dirty')))
@@ -370,6 +435,12 @@ export function renderFieldRow(ReactImpl: ReactLike, field: FieldMeta, opts?: Re
       h(ReactImpl, 'div', { className: 'qqc-switch-line' },
         control,
         h(ReactImpl, 'span', { className: 'qqc-switch-text' }, on ? t('switch.on') : t('switch.off')),
+        resetButton),
+      errorNode)
+  } else if (field.type === 'scheduleList') {
+    controlNode = h(ReactImpl, 'div', { className: 'qqc-control' },
+      h(ReactImpl, 'div', { className: 'qqc-control-line' },
+        h(ReactImpl, 'div', { style: { flex: '1 1 auto', minWidth: 0 } }, control),
         resetButton),
       errorNode)
   } else if (field.type === 'stringArray') {

@@ -55,6 +55,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { WorkspaceRegistryLike } from './bridge.js'
 import { Config } from './config.js'
 import { STATUS_SERVICE } from './status.js'
+import { validateScheduledPrompts } from './scheduled-prompts.js'
 
 /** patch 中插件主条目的行 id（沿用原版的 dsh-onebot，已有配置不用改）。 */
 export const ENTRY_ID = 'dsh-onebot'
@@ -64,8 +65,8 @@ export const NAMESPACE = 'onebotSettings'
 export const REMOTE_EFFECT = 'restart'
 
 /** 不上设置页的键（前端设计规范 §3.11）：已废弃的旧名别名（四个旧尺寸名 +
- *  proactiveChatId + 主动聊天拆车道后的一组旧 proactive* 键）+ 两个 `kindOf`
- *  不支持的对象型键（scheduledPrompts 对象数组 / sttReplacements 字典）。
+ *  proactiveChatId + 主动聊天拆车道后的一组旧 proactive* 键）+ 一个 `kindOf`
+ *  不支持的对象型键（sttReplacements 字典）。
  *  契约测试用它守住「Config.dict − 本表 = ALL_KEYS」——后端新增键忘了上页会
  *  在这条测试上失败。 */
 export const EXCLUDED_KEYS: readonly string[] = [
@@ -83,7 +84,6 @@ export const EXCLUDED_KEYS: readonly string[] = [
   'proactiveMinGapMinutes',
   'proactiveSkipIfActiveMinutes',
   'proactiveMaxUnanswered',
-  'scheduledPrompts',
   'sttReplacements',
 ]
 
@@ -131,6 +131,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   ],
   conversation: [
     'newMessagePolicy', 'autoSteerPolicy', 'deferredTimeoutMs', 'pokeReplyEnabled', 'taskEveryRounds',
+    'scheduledPrompts',
     'unknownCommand', 'rateLimitPerMinute',
     'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars',
     'idleResetHours', 'sessionTitleTemplate',
@@ -151,10 +152,12 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
 /** 设置页能读写的全部键。 */
 export const ALL_KEYS: readonly string[] = Object.values(SETTINGS_GROUPS).flat()
 
-type KeyKind = { kind: 'enum'; values: readonly string[] } | { kind: 'number' | 'boolean' | 'string' | 'string[]' }
+type KeyKind = { kind: 'enum'; values: readonly string[] } | { kind: 'number' | 'boolean' | 'string' | 'string[]' | 'scheduled[]' }
 
 /** 从配置定义里读出一个键的类型（schemastery 的 dict 元数据）。 */
 function kindOf(key: string): KeyKind {
+  // 对象数组：dict 元数据只说是 array，元素类型要靠键名特判（目前只有定时任务）。
+  if (key === 'scheduledPrompts') return { kind: 'scheduled[]' }
   const schema = (Config as unknown as { dict: Record<string, { type: string; list?: Array<{ type: string; value?: unknown }>; inner?: { type: string } }> }).dict[key]
   if (schema === undefined) throw new Error('settings-remote: 配置定义里没有 ' + key)
   if (schema.type === 'union') return { kind: 'enum', values: (schema.list ?? []).map(item => String(item.value)) }
@@ -434,6 +437,12 @@ export function validatePatch(patch: unknown): Record<string, unknown> {
     } else if (spec.kind === 'string') {
       if (typeof value === 'string') clean[key] = value
       else issues.push(`${key} 必须是字符串`)
+    } else if (spec.kind === 'scheduled[]') {
+      // 定时任务是对象数组：逐条校验、规范化后写回（规则与设置页共用
+      // src/scheduled-prompts.ts），任何一条不合格都整单拒绝，不静默丢弃。
+      const checked = validateScheduledPrompts(value)
+      if (checked.issues.length === 0) clean[key] = checked.entries
+      else issues.push(...checked.issues.map(issue => `${key} ${issue}`))
     } else if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
       clean[key] = value
     } else {

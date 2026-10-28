@@ -505,7 +505,8 @@ describe('会话与任务页的「定时任务」只读卡片（§3.8）', () =>
     const view = SettingsView(viewProps({ page: 'conversation', status: demoStatus() }))
     const card = byRole(view, 'proactive-scheduled')[0]
     expect(card).toBeDefined()
-    expect(textOf(card)).toContain('scheduledPrompts') // 提示仍指向 cordis.patch.yml
+    // T25 起定时任务可在页面上直接编辑，卡片只负责显示今天的执行情况。
+    expect(textOf(card)).toContain('可以直接增删')
     expect(textOf(card)).toContain('diary · 23:00')
     expect(textOf(card)).toContain('今天待执行')
   })
@@ -514,7 +515,7 @@ describe('会话与任务页的「定时任务」只读卡片（§3.8）', () =>
     const view = SettingsView(viewProps({ page: 'conversation', status: null }))
     const card = byRole(view, 'proactive-scheduled')[0]
     expect(card).toBeDefined()
-    expect(textOf(card)).toContain('scheduledPrompts')
+    expect(textOf(card)).toContain('可以直接增删')
     expect(textOf(byClass(card, 'qqc-empty')[0])).toBe('没有定时任务')
   })
 })

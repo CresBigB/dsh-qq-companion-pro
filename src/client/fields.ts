@@ -21,7 +21,7 @@
 import { capabilityCatalogText, defaultOffNoteText } from '../capabilities.js'
 
 /** 字段类型：enum（下拉）/ number / boolean / string / stringArray（标签列表）/ secret（密钥型）。 */
-export type FieldType = 'enum' | 'number' | 'boolean' | 'string' | 'stringArray' | 'secret'
+export type FieldType = 'enum' | 'number' | 'boolean' | 'string' | 'stringArray' | 'secret' | 'scheduleList'
 
 /** 数字单位（§3.12，控制行尾单位与换算展示）。 */
 export type FieldUnit = 'ms' | 's' | 'min' | 'h' | 'day' | 'byte' | 'px' | 'char' | 'count' | 'perDay' | 'perMin'
@@ -273,6 +273,18 @@ export const GROUPS: GroupMeta[] = [
       { key: 'deferredTimeoutMs', label: '等待模型回复超时（毫秒）', type: 'number', hint: '回合超过该时长无任何模型输出时提示超时并登记补发跟踪，任务完成后自动补发最终文字（超时补发）；发送失败最多重试 3 次，结果不确定时停止自动重试；/stop 终止该聊天的补发跟踪。0=关闭。', section: '忙的时候', unit: 'ms', min: 0, zeroMeans: '关闭' },
       { key: 'pokeReplyEnabled', label: '回应拍一拍', type: 'boolean', hint: '有人拍她一下时，把这一下当成一次「没写字的招呼」：私聊里当招呼，群里等同于被 @（会绕过「必须 @」的限制）。拍的是别人、或她自己拍自己，一律不理。', section: '拍一拍' },
       { key: 'taskEveryRounds', label: '长任务几轮回传一次', type: 'number', hint: '管理员私聊用 /task <目标> 创建长任务后，自动轮次每 N 轮回传一次当轮最终文字（1=逐轮都回传，默认；N≥2=每 N 轮）。中途轮次只更新进度、不发消息；预算最后一轮与暂停/恢复/阻塞/完成通知始终照发。插件不汇总、不总结，回传的是当轮真实文字。', section: '长任务', unit: 'count', min: 1 },
+  {
+    key: 'scheduledPrompts',
+    label: '每天定时投递的任务',
+    type: 'scheduleList',
+    hint: '每天到点把这段内容投给指定会话（写日记、每日提醒等）。'
+      + '短名字（id）用于 /task <id> 手动触发一次，也是「今天是否已执行」的记录键；'
+      + '时间按本机时区、写成 24 小时制的 HH:MM；'
+      + '目标会话写成 private:<QQ号> 或 group:<群号>（不带前缀的旧写法会在保存时被拒，'
+      + '因为分不清是私聊还是群）。两条任务可以同一时间投不同会话。'
+      + '投递走的是正常回合，所以仍然受关系能力、群白名单和「她正忙」的策略约束。',
+    section: '定时任务',
+  },
       { key: 'unknownCommand', label: '未知命令处理', type: 'enum', options: ['intercept', 'passthrough'], optionLabels: { intercept: '拦截', passthrough: '透传' }, hint: '未知斜杠命令：拦截 = 提示相近命令或 /help；透传 = 交给模型处理。', section: '命令与频控' },
       { key: 'rateLimitPerMinute', label: '每分钟消息频率上限', type: 'number', hint: '每 chat 每分钟普通消息条数上限；命令消息不计入；0 = 不限。', section: '命令与频控', unit: 'perMin', min: 0, zeroMeans: '不限' },
       { key: 'sideAskEnabled', label: '任务运行中自动旁问', type: 'boolean', hint: '开启后，当前聊天正在跑任务时又发来的纯文字消息不再排队或插话，而是交给一个独立的旁问子代理（宿主 subagent，非 fork 副本）立刻回答；回答作为另一条消息发回，主任务完全不受影响，也不会复制会话历史。需要宿主提供 subagents（spawn）服务，未提供时运行端只记一条告警并保持原行为。旁问子级沿用当前 preset，因此提示词要求它只作答。带图片/文件/引用/转发的消息仍按排队处理。默认关闭。', section: '旁问' },
@@ -411,6 +423,7 @@ export const DEFAULTS: Record<string, unknown> = {
   autoSteerPolicy: 'admin',
   deferredTimeoutMs: 600000,
   taskEveryRounds: 1,
+  scheduledPrompts: [],
   unknownCommand: 'intercept',
   rateLimitPerMinute: 30,
   sideAskEnabled: false,
@@ -519,6 +532,6 @@ export const CARD_NOTES: Record<string, CardNote[]> = {
     { section: '语音转写', mode: 'foot', text: '纠错表（sttReplacements）请在 cordis.patch.yml 里编辑' },
   ],
   conversation: [
-    { section: '定时任务', mode: 'card', text: '定时任务在 cordis.patch.yml 的 scheduledPrompts 里编辑；下面是当前生效的列表。' },
+    { section: '定时任务', mode: 'card', text: '上面那张表就是当前生效的定时任务，可以直接增删；这张卡片显示今天的执行情况（哪几条已经投过）。' },
   ],
 }

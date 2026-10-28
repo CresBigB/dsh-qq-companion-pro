@@ -12,6 +12,7 @@
  */
 import { ALL_FIELDS, draftNumber, type FieldMeta } from './fields.js'
 import { MATRIX_KEYS } from '../capability-matrix.js'
+import { validateScheduledPrompts } from '../scheduled-prompts.js'
 import { zh } from './i18n.js'
 import { coerceValue, format, tagsOf, valueEquals } from './logic.js'
 
@@ -116,6 +117,9 @@ export function validateDraft(draft: Record<string, unknown> | null | undefined,
   applyOrderRule(values, 'privateProactiveMinPerDay', 'privateProactiveMaxPerDay', errors, translate, 'validate.proactiveMinMax')
   applyOrderRule(values, 'groupProactiveMinPerDay', 'groupProactiveMaxPerDay', errors, translate, 'validate.proactiveMinMax')
   applyOrderRule(values, 'typingDelayMinMs', 'typingDelayMaxMs', errors, translate, 'validate.typingDelay')
+  // 结构型列表：定时任务的每一行各自校验（host 侧同一套规则，这里先拦住再保存）。
+  const scheduleIssues = validateScheduledPrompts(values.scheduledPrompts).issues
+  if (scheduleIssues.length > 0) errors.scheduledPrompts = scheduleIssues[0]
   return errors
 }
 

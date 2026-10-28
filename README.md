@@ -37,7 +37,7 @@
 | 分开的工作目录 | 管理员私聊、每个群各用自己的工作目录，配合 dsh 自动读取的 `AGENTS.md`，实现“私密记忆只有私聊读得到、群记忆只有本群读得到” |
 | `qq_memory_note` | 群里唯一能写记忆的工具：只能往本群记忆追加一句，有字数、次数、文件大小上限，拒绝像“改规则 / 认身份”的内容 |
 | 陪伴功能说明 | 按配置自动写给她：认人、群里什么时候会收到消息、记忆文件和上限、主动聊天、表情包规则；人设只写性格 |
-| 每日定时任务 | 每天 HH:MM 往指定会话投递一个任务（比如写日记），可附当天聊天节选，也可附各群当天节选 |
+| 每日定时任务 | 每天 HH:MM 往指定会话投递一个任务（比如写日记），可附当天聊天节选，也可附各群当天节选；这张表在设置页「会话与任务」页里直接增删（时间、目标会话、内容、两个附带开关都在页面上），改完保存即生效 |
 | 旧会话自动清理 | 换下来的私聊 / 群聊旧会话超过设定天数没用就删掉（`privateSessionKeepDays` / `groupSessionKeepDays`），正在用的永远不删 |
 | 主动聊天 | 私聊与群聊各自一套开关与节奏：每天在时段内随机叫醒几次，由模型决定要不要主动说话；回复 `[不发]` 就什么都不发；刚聊过就跳过，连续没回就当天停止。每个聊天各有自己的时间表与计数；群里的回合固定是群友身份，不会拿到改文件的权限 |
 | 定期 / 空闲换新会话 | 私聊、群聊分别每 N 天换一次新会话，或空闲 N 小时后换；新会话附上最后几句“交接” |
@@ -126,12 +126,12 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     pokeReplyEnabled: true                 # 有人拍她一下时当成招呼（群里等同被 @）
     groupResetDays: 2
     idleResetHours: 168
-    scheduledPrompts:
-      - id: diary
-        time: '01:30'
-        chatId: 'private:你的QQ号'
-        includeTodayLog: true
-        includeGroupLogs: true
+    scheduledPrompts:                       # 也可以完全在设置页「会话与任务」里编辑
+      - id: diary                          # 短名字：/task diary 立刻执行一次；也是「今天执行过没」的键
+        time: '01:30'                       # 本地时间 HH:MM（24 小时制）
+        chatId: 'private:你的QQ号'           # private:<QQ号> 或 group:<群号>
+        includeTodayLog: true               # 附上这个会话当天的聊天节选
+        includeGroupLogs: true              # 附上各群当天她参与的聊天（每群最多 80 句）
         prompt: 现在是写日记的时间……
     privateProactiveEnabled: true
     privateProactiveTargets: ['你的QQ号']
@@ -164,7 +164,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `privateResetDays` / `groupResetDays` | `0` | 会话跨过这么多个凌晨 4 点后换新会话 |
 | `privateQuietSeconds` | `0` | 私聊里等发送方安静这么多秒（0–30），再把他连着发的几条并成一次交给她；只作用于私聊纯文字，命令/媒体/引用/转发会先把攒着的文字发出去 |
 | `pokeReplyEnabled` | `true` | 有人拍她一下时是否理会：私聊里当招呼、群里等同被 @；拍的是别人或她自己拍自己时一律不理 |
-| `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句） |
+| `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句）。设置页里的「每天定时投递的任务」就是这张表，可以直接增删；页面上和 host 用同一套校验（时间要 HH:MM、目标要带 `private:`/`group:` 前缀、内容不能空、`id` 不能重复），不合格的行会拦在保存之前 |
 | `privateProactiveEnabled` | `false` | 开启私聊主动聊天（与群聊各自独立开关） |
 | `privateProactiveTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |
 | `privateProactiveWindowStart` / `privateProactiveWindowEnd` | `09:00` / `22:00` | 私聊时段（不跨午夜） |
