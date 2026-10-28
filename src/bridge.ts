@@ -142,9 +142,15 @@ export class ChatBridge {
 
   /** companion behavior (session renewal, pass marker, wake-up texts). */
   private readonly companion: CompanionHooks
-  /** Optional BTW-style side-question scheduler. It is constructed only when
-   * explicitly enabled and backed by a host subagent adapter. */
-  private readonly sideAsk: SideAskScheduler | undefined
+  /**
+   * Optional BTW-style side-question lanes, **one per chat**.
+   *
+   * The limit is per chat on purpose: a busy group must not eat the side-lane
+   * slots of the admin's private chat. Lanes are created lazily so an idle
+   * deployment keeps none; idle lanes are pruned when another chat opens one.
+   * Only constructed when explicitly enabled and backed by a host adapter.
+   */
+  private readonly sideAsks = new Map<ChatId, SideAskScheduler>()
   private readonly sideAskAgent: SideAskAgentPort | undefined
 
   constructor(deps: BridgeDeps) {
@@ -179,14 +185,6 @@ export class ChatBridge {
       onSessionCreated: chat => this.applyDefaultPermission(chat),
     })
     this.sideAskAgent = deps.sideAskAgent
-    this.sideAsk = deps.config.sideAskEnabled && deps.sideAskAgent !== undefined
-      ? new SideAskScheduler({
-        concurrency: Math.max(1, Math.min(8, Math.floor(deps.config.sideAskConcurrency ?? 2))),
-        // 旁问是自动触发的旁路：并发满时不能占用当前回合该走的路，
-        // 一律立刻退回既有的排队/插话策略，因此固定 reject 而不是排队。
-        overflow: 'reject',
-      })
-      : undefined
     this.companion = new CompanionHooks({
       config: deps.config,
       ...(deps.activity !== undefined ? { activity: deps.activity } : {}),
@@ -804,6 +802,33 @@ export class ChatBridge {
     return out.trim()
   }
 
+  /** 每个聊天各自的上限（1–8，默认 2）。 */
+  private sideAskCapacity(): number {
+    return Math.max(1, Math.min(8, Math.floor(this.deps.config.sideAskConcurrency ?? 2)))
+  }
+
+  /**
+   * 取该聊天的旁问车道，不存在就建一条。
+   *
+   * 车道是**每聊天一份**：一个热闹的群不该吃掉管理员私聊的旁问名额。旁问是
+   * 自动触发的旁路，占满时不能占用当前回合该走的路，因此固定 reject 而不是
+   * 排队——调用方会退回既有的排队/插话策略。
+   */
+  private sideAskOf(chatId: ChatId): SideAskScheduler | undefined {
+    if (this.sideAskAgent === undefined) return undefined
+    if (this.deps.config.sideAskEnabled !== true) return undefined
+    const existing = this.sideAsks.get(chatId)
+    if (existing !== undefined) return existing
+    // 只在真的要用新车道时清一次：跑着或有排队的车道绝不动。
+    for (const [otherChatId, lane] of this.sideAsks) {
+      const { running, queued } = lane.snapshot()
+      if (running === 0 && queued === 0) this.sideAsks.delete(otherChatId)
+    }
+    const created = new SideAskScheduler({ concurrency: this.sideAskCapacity(), overflow: 'reject' })
+    this.sideAsks.set(chatId, created)
+    return created
+  }
+
   /** Hand a message that arrived while the chat's turn is still running to the
    * host subagent adapter (BTW-style side lane: the main task keeps running and
    * the answer arrives as its own QQ message). The question text only travels to
@@ -814,7 +839,7 @@ export class ChatBridge {
    * caller fall back to the normal queue/steer policy.
    */
   private trySideAsk(chat: ChatAgent, chatId: ChatId, text: string): 'taken' | 'full' | 'off' {
-    const scheduler = this.sideAsk
+    const scheduler = this.sideAskOf(chatId)
     const agent = this.sideAskAgent
     if (scheduler === undefined || agent === undefined) return 'off'
     const maxChars = Math.max(1, Math.min(8000, Math.floor(this.deps.config.sideAskMaxChars ?? 8000)))

@@ -284,6 +284,8 @@ export async function makeCmdHarness(opts?: {
   stickers?: unknown
   /** 公开记忆文件（absent = 不注册 qq_memory_note；能力矩阵测试用）。 */
   publicMemoryFile?: string
+  /** 管理员名单（absent = ['10001']；多聊天旁问并发测试要用两个管理员私聊）。 */
+  adminUsers?: string[]
   /** 全局关闭的能力 id（absent = 全部开启；能力矩阵测试用）。 */
   capabilitiesDeny?: string[]
   /** 只对好友 / 群聊 / 陌生人关掉的能力 id（T11 r1；absent = 不额外关）。 */
@@ -452,7 +454,7 @@ export async function makeCmdHarness(opts?: {
     ...(opts?.sendCounter !== undefined ? { sendCounter: opts.sendCounter } : {}),
     policy: {
       dmPolicy: 'open', groupPolicy: opts?.groupPolicy ?? 'open', allowFrom: [], groupAllowFrom: opts?.groupAllowFrom ?? [],
-      adminUsers: ['10001'], allowAllUsers: opts?.allowAllUsers ?? false, requireMention: true,
+      adminUsers: opts?.adminUsers ?? ['10001'], allowAllUsers: opts?.allowAllUsers ?? false, requireMention: true,
     },
     log: (level: string, message: string) => opts?.log?.(level, message),
   })

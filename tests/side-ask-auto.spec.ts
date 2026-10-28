@@ -236,3 +236,45 @@ describe('自动旁问 — 资格与消息形态限制', () => {
     await h.connection.stop()
   }, 60_000)
 })
+
+describe('自动旁问 — 并发按聊天各算各的', () => {
+  it('一个聊天占满自己的名额，不挡住另一个聊天的旁问', async () => {
+    const releases: Array<(text: string) => void> = []
+    const h = await makeCmdHarness({
+      // 两个都是管理员，于是两个私聊都有资格走侧道（资格判定沿用 autoSteerPolicy）。
+      adminUsers: ['10001', '10002'],
+      sideAsk: {
+        // 每个聊天只允许一条：这样才能验证「各算各的」而不是「总共一条」。
+        concurrency: 1,
+        ask: () => new Promise<string>(resolve => { releases.push(resolve) }),
+      },
+    })
+
+    h.sendText('启动任务')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    setRunning(h, 'private:10001')
+
+    h.sendTextAs('第二个聊天的启动任务', 10002)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
+    setRunning(h, 'private:10002')
+
+    // 聊天一用掉自己唯一的名额。
+    h.sendText('聊天一的旁问')
+    await vi.waitFor(() => expect(h.captured.sideAsks).toHaveLength(1))
+
+    // 聊天一再挤一条：退回排队（自己的名额满了）。
+    h.sendText('聊天一挤不进去')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
+    expect(h.captured.sideAsks).toHaveLength(1)
+
+    // 聊天二完全不受影响：它还有自己的那一条。
+    h.sendTextAs('聊天二的旁问', 10002)
+    await vi.waitFor(() => expect(h.captured.sideAsks).toHaveLength(2))
+    expect(h.captured.followups).toHaveLength(3)
+
+    for (const release of releases) release('各自的回答')
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  }, 60_000)
+})

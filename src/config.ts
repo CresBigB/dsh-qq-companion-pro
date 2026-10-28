@@ -290,7 +290,7 @@ export const Config: Z<Config> = z.object({
   sideAskEnabled: z.boolean().default(false)
     .description('任务运行中的新消息是否自动交给独立旁问回答（BTW 式侧道，无指令、主任务不被打断，回答作为另一条消息发回）；默认关闭，不改变现有行为'),
   sideAskConcurrency: z.number().min(1).max(8).default(2)
-    .description('旁问同时运行上限（1–8；跨所有 QQ 聊天）；占满时新消息退回排队/插话策略'),
+    .description('每个 QQ 聊天各自的旁问同时运行上限（1–8）；同一个聊天占满时新消息退回排队/插话，不同聊天互不占用'),
   sideAskMaxChars: z.number().min(1).max(8000).default(8000)
     .description('单条消息能进入旁问的最大字符数（1–8000）；超出的按普通排队处理'),
   sideAskContextChars: z.number().min(0).max(20000).default(4000)

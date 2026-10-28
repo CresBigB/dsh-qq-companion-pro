@@ -71,9 +71,15 @@ export declare class ChatBridge {
     private readonly selfGoalOps;
     /** companion behavior (session renewal, pass marker, wake-up texts). */
     private readonly companion;
-    /** Optional BTW-style side-question scheduler. It is constructed only when
-     * explicitly enabled and backed by a host subagent adapter. */
-    private readonly sideAsk;
+    /**
+     * Optional BTW-style side-question lanes, **one per chat**.
+     *
+     * The limit is per chat on purpose: a busy group must not eat the side-lane
+     * slots of the admin's private chat. Lanes are created lazily so an idle
+     * deployment keeps none; idle lanes are pruned when another chat opens one.
+     * Only constructed when explicitly enabled and backed by a host adapter.
+     */
+    private readonly sideAsks;
     private readonly sideAskAgent;
     constructor(deps: BridgeDeps);
     /** Start listening: wire connection handlers and the session event feed. */
@@ -277,6 +283,16 @@ export declare class ChatBridge {
      * text. Plan mode is host-owned now (/plan forwards to the host command),
      * so the agent's own plan-mode instruction section governs planning. */
     private prefixTurn;
+    /** 每个聊天各自的上限（1–8，默认 2）。 */
+    private sideAskCapacity;
+    /**
+     * 取该聊天的旁问车道，不存在就建一条。
+     *
+     * 车道是**每聊天一份**：一个热闹的群不该吃掉管理员私聊的旁问名额。旁问是
+     * 自动触发的旁路，占满时不能占用当前回合该走的路，因此固定 reject 而不是
+     * 排队——调用方会退回既有的排队/插话策略。
+     */
+    private sideAskOf;
     /** Hand a message that arrived while the chat's turn is still running to the
      * host subagent adapter (BTW-style side lane: the main task keeps running and
      * the answer arrives as its own QQ message). The question text only travels to

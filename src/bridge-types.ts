@@ -33,6 +33,7 @@ export interface BridgeConfig {
   unknownCommand?: 'intercept' | 'passthrough'
   /** 任务运行中新消息自动走独立旁问（BTW 式侧道）；absent/false 保持关闭。 */
   sideAskEnabled?: boolean
+  /** 每个聊天各自的旁问并发上限（1–8）；缺省 2。 */
   sideAskConcurrency?: number
   sideAskMaxChars?: number
   interimMessages: boolean
