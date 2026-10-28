@@ -10,7 +10,7 @@
 | `accessToken` | string | `""` | OneBot access_token（reverse 校验 / forward 发送 Authorization: Bearer） |
 | `botQQ` | string | `""` | 机器人自身 QQ 号；留空则从 meta 事件自动学习 |
 | `requireMention` | boolean | `true` | 群聊是否仅在 @机器人（或回复其消息）时响应 |
-| `groupTriggerPolicy` | string | `"{}"` | 普通群消息触发策略 JSON；默认 {} 保持既有 requireMention 行为。可填 replyMode=all\|related\|probability\|off、probability=0..1、mentionRequired/proactiveEnabled、botName/botNames/aliases/botAliases/keywords，以及 groups/users 按群号/QQ号覆盖；坏 JSON 自动降级为默认行为 |
+| `groupTriggerPolicy` | string | `"{}"` | 普通群消息触发策略 JSON；默认 {} 保持既有 requireMention 行为。可填 replyMode=all\|related\|probability\|off、probability=0..1、mentionRequired/replyWithoutMention、botName/botNames/aliases/botAliases/keywords，以及 groups/users 按群号/QQ号覆盖；旧字段名 proactiveEnabled 仍可用但会提示改名；坏 JSON 自动降级为默认行为 |
 | `unknownCommand` | "intercept" / "passthrough" | `"intercept"` | 未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为） |
 | `sideAskEnabled` | boolean | `false` | 任务运行中的新消息是否自动交给独立旁问回答（BTW 式侧道，无指令、主任务不被打断，回答作为另一条消息发回）；默认关闭，不改变现有行为 |
 | `sideAskConcurrency` | number | `2` | 旁问同时运行上限（1–8；跨所有 QQ 聊天）；占满时新消息退回排队/插话策略 |

@@ -662,7 +662,7 @@ describe('onebotSettings remote — 独立功能矩阵', () => {
 
 describe('onebotSettings remote — 表情包 4 键（media 子页「表情包库」卡片，用户待办 4）', () => {
   /** 规范 §1.2 的 11 个子页顺序（overview 不含配置键、不进 SETTINGS_GROUPS）。 */
-  const GROUP_ORDER = ['capabilities', 'connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+  const GROUP_ORDER = ['capabilities', 'connection', 'private', 'group', 'access', 'persona', 'messaging', 'conversation', 'memory', 'media', 'diagnostics']
 
   it('十一个分组按规范顺序排列；表情包 4 键是 media 组前四位，stickerDir 默认空、单张上限默认 4MB', () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
@@ -705,7 +705,7 @@ describe('onebotSettings remote — groupAutoQuote 白名单扩展（group 子�
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.groupAutoQuote).toBe('off')
     const group = [...SETTINGS_GROUPS.group]
-    expect(group[3]).toBe('groupAutoQuote') // 「怎么叫她」3 键之后
+    expect(group[9]).toBe('groupAutoQuote') // 「谁能用群/回复方式/怎么叫她」9 键之后
     expect(snapshot.groups.group).toEqual(group)
     expect(snapshot.config.groupAutoQuote).toBe('off')
     expect(snapshot.effect).toBe('restart') // 与全部 125 键同粒度：热重启生效

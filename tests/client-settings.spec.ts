@@ -471,9 +471,9 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
 
 describe('客户端 bundle — 分组、键集、默认值与 host 一致', () => {
   /** 规范 §1.2 的子页顺序（不含 overview：它不承载配置键，F3 才加）。 */
-  const GROUP_ORDER = ['capabilities', 'connection', 'access', 'persona', 'messaging', 'conversation', 'group', 'memory', 'proactive', 'media', 'diagnostics']
+  const GROUP_ORDER = ['capabilities', 'connection', 'private', 'group', 'access', 'persona', 'messaging', 'conversation', 'memory', 'media', 'diagnostics']
 
-  it('分组 id 顺序 = 规范 §1.2 的 10 个子页（显式钉住导航顺序）', () => {
+  it('分组 id 顺序 = 规范 §1.2 的子页（显式钉住导航顺序）', () => {
     expect(groups.map((group) => group.id)).toEqual(GROUP_ORDER)
     expect(Object.keys(SETTINGS_GROUPS)).toEqual(GROUP_ORDER)
   })
@@ -530,7 +530,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
   })
 
   it('每组有 §1.2 的中文名称与一句话说明；每个字段有卡片名和中文标签', () => {
-    expect(groups.map((group) => group.title)).toEqual(['功能权限', '连接', '谁能找她', '她', '说话方式', '会话与任务', '群聊', '记忆', '主动聊天', '媒体与语音', '诊断'])
+    expect(groups.map((group) => group.title)).toEqual(['功能权限', '连接', '私聊', '群聊', '谁能找她', '她', '说话方式', '会话与任务', '记忆', '媒体与语音', '诊断'])
     for (const group of groups) {
       expect(group.desc.length).toBeGreaterThan(8)
       for (const field of group.fields) {
@@ -1689,8 +1689,8 @@ describe('卡片上的固定说明（§3.8 定时任务 / §3.9 纠错表）', (
     expect(byClass(card, 'qqc-card-foot')).toHaveLength(1)
   })
 
-  it('定时任务是一张只读卡片（F3 之前给去 cordis.patch.yml 编辑的提示）', () => {
-    const tree = renderGroup(stubReact, groupOf('proactive'), {
+  it('定时任务是一张只读卡片（在「会话与任务」页，F3 之前给去 cordis.patch.yml 编辑的提示）', () => {
+    const tree = renderGroup(stubReact, groupOf('conversation'), {
       draft: draft({ config: SCHEMA_DEFAULTS }),
       config: SCHEMA_DEFAULTS,
       defaults: client.DEFAULTS,

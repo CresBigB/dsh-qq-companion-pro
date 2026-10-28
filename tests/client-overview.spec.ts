@@ -500,9 +500,9 @@ describe('页头连接胶囊用真实状态（§2）', () => {
   })
 })
 
-describe('主动聊天页的「定时任务」只读卡片（§3.8）', () => {
+describe('会话与任务页的「定时任务」只读卡片（§3.8）', () => {
   it('有快照时显示真实列表（id · 时间 · 目标会话 · 今天是否已执行）', () => {
-    const view = SettingsView(viewProps({ page: 'proactive', status: demoStatus() }))
+    const view = SettingsView(viewProps({ page: 'conversation', status: demoStatus() }))
     const card = byRole(view, 'proactive-scheduled')[0]
     expect(card).toBeDefined()
     expect(textOf(card)).toContain('scheduledPrompts') // 提示仍指向 cordis.patch.yml
@@ -511,7 +511,7 @@ describe('主动聊天页的「定时任务」只读卡片（§3.8）', () => {
   })
 
   it('没有快照时退回空态说明，卡片仍然在', () => {
-    const view = SettingsView(viewProps({ page: 'proactive', status: null }))
+    const view = SettingsView(viewProps({ page: 'conversation', status: null }))
     const card = byRole(view, 'proactive-scheduled')[0]
     expect(card).toBeDefined()
     expect(textOf(card)).toContain('scheduledPrompts')

@@ -610,9 +610,10 @@ describe('collectRisks — §5.5 每个触发条件', () => {
 
 describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () => {
   const NEW_KEYS = ['groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars', 'privateQuietSeconds']
+  const conversationKeys = ['sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars']
 
   it('字段进入群聊 / 会话与任务页，旧快照控件禁用且无关保存不夹带缺席键', () => {
-    expect(GROUPS.find(group => group.id === 'access')?.fields.map(field => field.key)).toContain('groupTriggerPolicy')
+    expect(GROUPS.find(group => group.id === 'group')?.fields.map(field => field.key)).toContain('groupTriggerPolicy')
     expect(GROUPS.find(group => group.id === 'conversation')?.fields.map(field => field.key)).toEqual(expect.arrayContaining(['sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars']))
 
     const oldConfig = Object.assign({}, SCHEMA_DEFAULTS)
@@ -626,10 +627,13 @@ describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () =>
     const patch = computePatch(oldDraft, oldConfig).patch
     for (const key of NEW_KEYS) expect(patch[key]).toBeUndefined()
 
-    const accessView = SettingsView(viewProps({ page: 'access', config: oldConfig, draft: oldDraft }))
-    expect(byId(accessView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(true)
+    const groupView = SettingsView(viewProps({ page: 'group', config: oldConfig, draft: oldDraft }))
+    expect(byId(groupView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(true)
     const conversationView = SettingsView(viewProps({ page: 'conversation', config: oldConfig, draft: oldDraft }))
-    for (const key of NEW_KEYS.slice(1)) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(true)
+    for (const key of conversationKeys) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(true)
+    // 私聊静默窗口在「私聊」页
+    const privateView = SettingsView(viewProps({ page: 'private', config: oldConfig, draft: oldDraft }))
+    expect(byId(privateView, 'qqc-f-privateQuietSeconds').props.disabled).toBe(true)
   })
 
   it('新快照控件可编辑，非法 groupTriggerPolicy JSON 原样进入 patch 交给后端降级', () => {
@@ -641,21 +645,26 @@ describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () =>
     expect(patch.groupTriggerPolicy).toBe('{not-json')
     expect(patch.sideAskEnabled).toBe(true)
 
-    const accessView = SettingsView(viewProps({ page: 'access', config, draft }))
-    expect(byId(accessView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(false)
+    const groupView = SettingsView(viewProps({ page: 'group', config, draft }))
+    expect(byId(groupView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(false)
     const conversationView = SettingsView(viewProps({ page: 'conversation', config, draft }))
-    for (const key of NEW_KEYS.slice(1)) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(false)
+    for (const key of conversationKeys) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(false)
+    const privateView = SettingsView(viewProps({ page: 'private', config, draft }))
+    expect(byId(privateView, 'qqc-f-privateQuietSeconds').props.disabled).toBe(false)
   })
 
   it('主动聊天两条车道：旧快照里缺席的 18 个键只读、不夹带；新快照可编辑', () => {
-    const laneKeys = [
+    const privateKeys = [
       'privateProactiveEnabled', 'privateProactiveTargets', 'privateProactiveWindowStart', 'privateProactiveWindowEnd',
       'privateProactiveMinPerDay', 'privateProactiveMaxPerDay', 'privateProactiveMinGapMinutes',
       'privateProactiveSkipIfActiveMinutes', 'privateProactiveMaxUnanswered',
+    ]
+    const groupKeys = [
       'groupProactiveEnabled', 'groupProactiveTargets', 'groupProactiveWindowStart', 'groupProactiveWindowEnd',
       'groupProactiveMinPerDay', 'groupProactiveMaxPerDay', 'groupProactiveMinGapMinutes',
       'groupProactiveSkipIfActiveMinutes', 'groupProactiveMaxUnanswered',
     ]
+    const laneKeys = [...privateKeys, ...groupKeys]
     const oldConfig = Object.assign({}, SCHEMA_DEFAULTS)
     for (const key of laneKeys) delete oldConfig[key]
     for (const key of ['proactiveEnabled', 'proactiveWindowStart', 'proactiveMinPerDay']) delete oldConfig[key]
@@ -666,13 +675,18 @@ describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () =>
     const patch = computePatch(oldDraft, oldConfig).patch
     for (const key of laneKeys) expect(patch[key]).toBeUndefined()
 
-    const oldView = SettingsView(viewProps({ page: 'proactive', config: oldConfig, draft: oldDraft }))
-    for (const key of laneKeys) expect(byId(oldView, 'qqc-f-' + key).props.disabled).toBe(true)
+    // 私聊车道在「私聊」页、群聊车道在「群聊」页
+    const oldPrivate = SettingsView(viewProps({ page: 'private', config: oldConfig, draft: oldDraft }))
+    for (const key of privateKeys) expect(byId(oldPrivate, 'qqc-f-' + key).props.disabled).toBe(true)
+    const oldGroup = SettingsView(viewProps({ page: 'group', config: oldConfig, draft: oldDraft }))
+    for (const key of groupKeys) expect(byId(oldGroup, 'qqc-f-' + key).props.disabled).toBe(true)
 
     const config = Object.assign({}, SCHEMA_DEFAULTS)
     const draft = defaultDraft(config)
-    const view = SettingsView(viewProps({ page: 'proactive', config, draft }))
-    for (const key of laneKeys) expect(byId(view, 'qqc-f-' + key).props.disabled).toBe(false)
+    const privateView = SettingsView(viewProps({ page: 'private', config, draft }))
+    for (const key of privateKeys) expect(byId(privateView, 'qqc-f-' + key).props.disabled).toBe(false)
+    const groupView = SettingsView(viewProps({ page: 'group', config, draft }))
+    for (const key of groupKeys) expect(byId(groupView, 'qqc-f-' + key).props.disabled).toBe(false)
   })
 })
 
@@ -782,10 +796,10 @@ describe('视图 — 危险确认对话框（§4.12 / §5.5）', () => {
     const config = Object.assign({}, SCHEMA_DEFAULTS, { dmPolicy: 'open', allowAllUsers: false })
     const values = defaultDraft(config)
     values.allowAllUsers = true
-    const view = SettingsView(viewProps({ draft: values, config: config, page: 'access' }))
+    const view = SettingsView(viewProps({ draft: values, config: config, page: 'private' }))
     expect(textOf(rowOf(view, 'allowAllUsers'))).toContain('有风险')
     // 没触发的行没有徽标
-    expect(textOf(rowOf(view, 'requireMention'))).not.toContain('有风险')
+    expect(textOf(rowOf(view, 'privateResetDays'))).not.toContain('有风险')
   })
 
   it('结构：覆盖层在根节点内、role=dialog + aria-modal + aria-labelledby + 风险列表 + 两个按钮', () => {
@@ -867,7 +881,7 @@ describe('视图 — 冲突流程（§5.6）', () => {
     const rows = byClass(list, 'qqc-list-row')
     const texts = rows.map(row => textOf(row))
     expect(texts).toContain('连接 · 机器人 QQ 号2564812526')
-    expect(texts.some(text => text.includes('谁能找她 · 允许所有用户'))).toBe(true)
+    expect(texts.some(text => text.includes('私聊 · 允许所有用户'))).toBe(true)
     // 密钥行只显示「已修改」，不回显值
     const secretRow = rows.filter(row => row.props['data-key'] === 'accessToken')[0]
     expect(textOf(secretRow)).toContain('访问令牌')
@@ -962,7 +976,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
   it('有危险项：先弹对话框，确认后才调 updateSettings', async () => {
     const harness = mountPanel()
     await harness.settle()
-    gotoPage(harness, 'access')
+    gotoPage(harness, 'private')
     byId(harness.tree, 'qqc-f-allowAllUsers').props.onClick()
     harness.flush()
     expect(textOf(rowOf(harness.tree, 'allowAllUsers'))).toContain('有风险')
@@ -983,7 +997,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
   it('对话框取消：不提交，草稿保留', async () => {
     const harness = mountPanel()
     await harness.settle()
-    gotoPage(harness, 'access')
+    gotoPage(harness, 'private')
     byId(harness.tree, 'qqc-f-allowAllUsers').props.onClick()
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
@@ -1213,7 +1227,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
   it('对话框不往 document.body 挂节点：document.body 从未被读取', async () => {
     const harness = mountPanel()
     await harness.settle()
-    gotoPage(harness, 'access')
+    gotoPage(harness, 'private')
     byId(harness.tree, 'qqc-f-allowAllUsers').props.onClick()
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()

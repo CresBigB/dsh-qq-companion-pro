@@ -280,7 +280,7 @@ describe('inbound pipeline', () => {
   it('filters ordinary unmentioned group messages with off before media or dispatch', async () => {
     const h = await makeHarness({
       requireMention: false,
-      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'off' },
+      groupTriggerPolicy: { replyWithoutMention: true, replyMode: 'off' },
     })
     h.sendPlainGroupTextAs('不应触发', 20003)
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -294,7 +294,7 @@ describe('inbound pipeline', () => {
   it('does not call get_msg when group policy already proves a drop', async () => {
     const h = await makeHarness({
       requireMention: false,
-      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'off' },
+      groupTriggerPolicy: { replyWithoutMention: true, replyMode: 'off' },
     })
     const calls: string[] = []
     const realCall = h.connection.call.bind(h.connection)
@@ -320,8 +320,8 @@ describe('inbound pipeline', () => {
       requireMention: true,
       groupTriggerPolicy: {
         replyMode: 'off',
-        groups: { '888': { mentionRequired: false, proactiveEnabled: true, replyMode: 'all' } },
-        users: { '20004': { mentionRequired: false, proactiveEnabled: true, replyMode: 'all' } },
+        groups: { '888': { mentionRequired: false, replyWithoutMention: true, replyMode: 'all' } },
+        users: { '20004': { mentionRequired: false, replyWithoutMention: true, replyMode: 'all' } },
       },
     })
     h.sendPlainGroupTextAs('群覆盖生效', 20003)
@@ -339,7 +339,7 @@ describe('inbound pipeline', () => {
   it('keeps the default legacy gate and rejects a name-only match when mention is required', async () => {
     const h = await makeHarness({
       requireMention: true,
-      groupTriggerPolicy: { botName: '小鱼', proactiveEnabled: true, replyMode: 'all' },
+      groupTriggerPolicy: { botName: '小鱼', replyWithoutMention: true, replyMode: 'all' },
     })
     h.sendPlainGroupTextAs('小鱼，你好', 20003)
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -365,7 +365,7 @@ describe('inbound pipeline', () => {
   it('keeps legacy requireMention behavior and allows configured related group replies', async () => {
     const h = await makeHarness({
       requireMention: false,
-      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'related', keywords: ['项目'] },
+      groupTriggerPolicy: { replyWithoutMention: true, replyMode: 'related', keywords: ['项目'] },
     })
     h.sendPlainGroupTextAs('天气不错', 20003)
     h.sendPlainGroupTextAs('项目进度如何', 20003)
@@ -379,7 +379,7 @@ describe('inbound pipeline', () => {
   it('keeps commands on their existing path when ordinary group filtering is off', async () => {
     const h = await makeCmdHarness({
       requireMention: false,
-      groupTriggerPolicy: { proactiveEnabled: true, replyMode: 'off' },
+      groupTriggerPolicy: { replyWithoutMention: true, replyMode: 'off' },
     })
     h.sendGroupTextAs('/id', 10001)
     await vi.waitFor(() => expect(h.outbound.some(f => JSON.stringify(f.params).includes('chat    : group:888'))).toBe(true))

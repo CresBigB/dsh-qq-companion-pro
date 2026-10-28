@@ -431,7 +431,7 @@ function fieldOptions(props: SettingsViewProps, extra: Partial<RenderFieldsOptio
     onTagRemove: props.onTagRemove,
     onTagBackspace: props.onTagBackspace,
     renderExtraRow: props.renderExtraRow,
-    // §3.8：主动聊天页的「定时任务」只读卡片——F3 起用 getStatus() 的真实列表
+    // §3.8：会话与任务页的「定时任务」只读卡片——F3 起用 getStatus() 的真实列表
     // （快照缺席时退回空态说明），提示文案仍指向 cordis.patch.yml 的 scheduledPrompts。
     renderCardNote: (note: CardNote) => {
       if (note.mode !== 'card' || note.section !== '定时任务') return null

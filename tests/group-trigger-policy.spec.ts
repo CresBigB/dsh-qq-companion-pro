@@ -12,9 +12,9 @@ const message = (overrides: Partial<GroupTriggerMessage> = {}): GroupTriggerMess
   groupId: '群1', userId: '用户1', text: '普通聊天', ...overrides,
 })
 
-const proactive: GroupTriggerConfig = {
+const unprompted: GroupTriggerConfig = {
   mentionRequired: false,
-  proactiveEnabled: true,
+  replyWithoutMention: true,
   replyMode: 'all',
 }
 
@@ -49,7 +49,7 @@ describe('group trigger policy', () => {
 
   it('requires a real mention or bot reply when mentionRequired is enabled', () => {
     const config: GroupTriggerConfig = {
-      ...proactive,
+      ...unprompted,
       mentionRequired: true,
       botName: '小鱼',
       keywords: ['插件'],
@@ -64,7 +64,7 @@ describe('group trigger policy', () => {
   })
 
   it('supports mentionRequired and replyToBot without mutating inputs', () => {
-    const config: GroupTriggerConfig = { ...proactive, mentionRequired: true }
+    const config: GroupTriggerConfig = { ...unprompted, mentionRequired: true }
     const input = message({ replyToBot: true })
     const before = structuredClone({ config, input })
     expect(shouldReply(config, input)).toBe(true)
@@ -75,7 +75,7 @@ describe('group trigger policy', () => {
   it('related mode matches bot names, aliases, and keywords', () => {
     const config: GroupTriggerConfig = {
       mentionRequired: false,
-      proactiveEnabled: true,
+      replyWithoutMention: true,
       replyMode: 'related',
       botName: '小鱼',
       aliases: ['鱼鱼'],
@@ -87,13 +87,23 @@ describe('group trigger policy', () => {
     expect(shouldReply(config, message({ text: '天气不错' }))).toBe(false)
   })
 
-  it('off always wins and proactive all replies to an unmentioned message', () => {
-    expect(shouldReply({ ...proactive, replyMode: 'off' }, message())).toBe(false)
-    expect(shouldReply(proactive, message())).toBe(true)
+  it('off always wins and unprompted all replies to an unmentioned message', () => {
+    expect(shouldReply({ ...unprompted, replyMode: 'off' }, message())).toBe(false)
+    expect(shouldReply(unprompted, message())).toBe(true)
+  })
+
+  it('still honors the legacy JSON field name proactiveEnabled', () => {
+    const legacy: GroupTriggerConfig = { mentionRequired: false, proactiveEnabled: true, replyMode: 'all' }
+    expect(shouldReply(legacy, message())).toBe(true)
+    // The new name wins when both are present.
+    expect(shouldReply({ ...legacy, replyWithoutMention: false }, message())).toBe(false)
+    expect(parseGroupTriggerPolicy('{"proactiveEnabled":true}')).toMatchObject({ proactiveEnabled: true })
+    expect(parseGroupTriggerPolicy('{"replyWithoutMention":true}')).toMatchObject({ replyWithoutMention: true })
+    expect(parseGroupTriggerPolicy({ replyWithoutMention: 'yes' })).toEqual({})
   })
 
   it('probability is injectable, clamped, and boundary-safe', () => {
-    const base = { ...proactive, replyMode: 'probability' as const }
+    const base = { ...unprompted, replyMode: 'probability' as const }
     expect(shouldReply({ ...base, probability: 0 }, message(), () => 0)).toBe(false)
     expect(shouldReply({ ...base, probability: 1 }, message(), () => 1)).toBe(true)
     expect(shouldReply({ ...base, probability: 0.5 }, message(), () => 0.49)).toBe(true)
@@ -103,7 +113,7 @@ describe('group trigger policy', () => {
   })
 
   it('a bare probability selects probability mode instead of being ignored', () => {
-    const bare = { mentionRequired: false, proactiveEnabled: true } // no replyMode: the 'all' default would ignore it
+    const bare = { mentionRequired: false, replyWithoutMention: true } // no replyMode: the 'all' default would ignore it
     expect(evaluateGroupTrigger({ ...bare, probability: 0 }, message(), () => 0)).toEqual({ shouldReply: false, reason: 'probability', related: false })
     expect(evaluateGroupTrigger({ ...bare, probability: 1 }, message(), () => 1).shouldReply).toBe(true)
     // An explicit mode still wins over the implied one.
@@ -112,7 +122,7 @@ describe('group trigger policy', () => {
 
   it('supports the object invocation form and gives a useful evaluation reason', () => {
     const result = evaluateGroupTrigger({
-      config: { ...proactive, replyMode: 'related', keywords: ['猫'] },
+      config: { ...unprompted, replyMode: 'related', keywords: ['猫'] },
       message: message({ text: '猫猫' }),
     })
     expect(result).toEqual({ shouldReply: true, reason: 'related', related: true })

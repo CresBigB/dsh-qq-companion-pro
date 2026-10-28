@@ -282,7 +282,7 @@ export const Config: Z<Config> = z.object({
   requireMention: z.boolean().default(true)
     .description('群聊是否仅在 @机器人（或回复其消息）时响应'),
   groupTriggerPolicy: z.string().default('{}')
-    .description('普通群消息触发策略 JSON；默认 {} 保持既有 requireMention 行为。可填 replyMode=all|related|probability|off、probability=0..1、mentionRequired/proactiveEnabled、botName/botNames/aliases/botAliases/keywords，以及 groups/users 按群号/QQ号覆盖；坏 JSON 自动降级为默认行为'),
+    .description('普通群消息触发策略 JSON；默认 {} 保持既有 requireMention 行为。可填 replyMode=all|related|probability|off、probability=0..1、mentionRequired/replyWithoutMention、botName/botNames/aliases/botAliases/keywords，以及 groups/users 按群号/QQ号覆盖；旧字段名 proactiveEnabled 仍可用但会提示改名；坏 JSON 自动降级为默认行为'),
   unknownCommand: z.union([z.const('intercept'), z.const('passthrough')]).default('intercept')
     .description('未知斜杠命令处理：intercept（默认）=拦截并提示相近命令或 /help；passthrough=透传给模型（旧行为）'),
   sideAskEnabled: z.boolean().default(false)
@@ -604,14 +604,15 @@ export function parseGroupTriggerPolicy(raw: unknown): GroupTriggerConfig {
 
   const listKeys = new Set(['botNames', 'aliases', 'botAliases', 'keywords'])
   const mapKeys = new Set(['groups', 'groupDefaults', 'users', 'userOverrides'])
-  const scalarKeys = new Set(['mentionRequired', 'proactiveEnabled', 'replyMode', 'probability', 'botName'])
+  const booleanKeys = new Set(['mentionRequired', 'replyWithoutMention', 'proactiveEnabled'])
+  const scalarKeys = new Set([...booleanKeys, 'replyMode', 'probability', 'botName'])
   const cleanRule = (candidate: unknown): Record<string, unknown> => {
     if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) return {}
     const source = candidate as Record<string, unknown>
     const result: Record<string, unknown> = {}
     for (const key of scalarKeys) {
       const item = source[key]
-      if (key === 'mentionRequired' || key === 'proactiveEnabled') {
+      if (booleanKeys.has(key)) {
         if (typeof item === 'boolean') result[key] = item
       } else if (key === 'probability') {
         if (typeof item === 'number' && Number.isFinite(item)) result[key] = item
@@ -619,6 +620,7 @@ export function parseGroupTriggerPolicy(raw: unknown): GroupTriggerConfig {
         if (item === 'all' || item === 'related' || item === 'probability' || item === 'off') result[key] = item
       } else if (typeof item === 'string') result[key] = item
     }
+    if ('proactiveEnabled' in result) warnLegacyTriggerField()
     for (const key of listKeys) {
       const item = source[key]
       if (Array.isArray(item)) result[key] = item.filter((entry): entry is string => typeof entry === 'string')
@@ -634,6 +636,17 @@ export function parseGroupTriggerPolicy(raw: unknown): GroupTriggerConfig {
     return result
   }
   return cleanRule(value) as GroupTriggerConfig
+}
+
+let warnedLegacyTriggerField = false
+
+/** The JSON trigger policy used to carry `proactiveEnabled`, which read the same
+ * as the proactive-chat switch. It is now `replyWithoutMention`; the old name
+ * still works, but says so once so it can be cleaned up. */
+function warnLegacyTriggerField(): void {
+  if (warnedLegacyTriggerField) return
+  warnedLegacyTriggerField = true
+  console.warn('[qq-companion] groupTriggerPolicy "proactiveEnabled" is deprecated; rename it to "replyWithoutMention"')
 }
 
 /** the deprecated config names kept for one release, mapped onto their

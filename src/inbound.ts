@@ -338,7 +338,7 @@ export class InboundPipeline {
       groupTriggerConfig = {
         ...configured,
         mentionRequired: configured.mentionRequired ?? this.ctx.config.requireMention,
-        proactiveEnabled: configured.proactiveEnabled ?? !this.ctx.config.requireMention,
+        replyWithoutMention: configured.replyWithoutMention ?? configured.proactiveEnabled ?? !this.ctx.config.requireMention,
       }
       const withoutReply = evaluateGroupTrigger({
         config: groupTriggerConfig,

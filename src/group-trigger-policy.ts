@@ -24,6 +24,11 @@ export interface GroupTriggerMessage {
 
 export interface GroupTriggerRule {
   mentionRequired?: boolean
+  /** Allow replying to a group message that neither mentions her nor relates to
+   * her. Replaces the old `proactiveEnabled` name inside the JSON policy, which
+   * collided with the proactive-chat master switch. */
+  replyWithoutMention?: boolean
+  /** @deprecated legacy name of `replyWithoutMention`; still honored. */
   proactiveEnabled?: boolean
   replyMode?: GroupReplyMode
   /** Reply probability for replyMode=probability; values are safely clamped. */
@@ -53,7 +58,7 @@ export interface GroupTriggerConfig extends GroupTriggerRule {
 export type GroupTriggerReason =
   | 'off'
   | 'mention-required'
-  | 'proactive-disabled'
+  | 'unprompted-disabled'
   | 'unrelated'
   | 'all'
   | 'related'
@@ -73,9 +78,9 @@ interface EvaluationInput {
 
 type EvaluateArgs = EvaluationInput | GroupTriggerConfig
 
-const DEFAULTS: Required<Pick<GroupTriggerRule, 'mentionRequired' | 'proactiveEnabled' | 'replyMode' | 'probability'>> = {
+const DEFAULTS: Required<Pick<GroupTriggerRule, 'mentionRequired' | 'replyWithoutMention' | 'replyMode' | 'probability'>> = {
   mentionRequired: true,
-  proactiveEnabled: false,
+  replyWithoutMention: false,
   replyMode: 'all',
   probability: 1,
 }
@@ -144,7 +149,7 @@ export function evaluateGroupTrigger(first: EvaluateArgs, second?: GroupTriggerM
   const { config, message, random } = unpack(first, second, third)
   const rule = resolve(config, message)
   const mentionRequired = rule.mentionRequired ?? DEFAULTS.mentionRequired
-  const proactiveEnabled = rule.proactiveEnabled ?? DEFAULTS.proactiveEnabled
+  const allowUnprompted = rule.replyWithoutMention ?? rule.proactiveEnabled ?? DEFAULTS.replyWithoutMention
   // An explicit probability with no explicit mode means probability mode: a bare
   // `probability` would otherwise be silently ignored by the 'all' default.
   const mode = rule.replyMode ?? (rule.probability !== undefined ? 'probability' : DEFAULTS.replyMode)
@@ -154,7 +159,7 @@ export function evaluateGroupTrigger(first: EvaluateArgs, second?: GroupTriggerM
   if (mentionRequired && !directlyTriggered(message)) {
     return { shouldReply: false, reason: 'mention-required', related }
   }
-  if (!proactiveEnabled && !related) return { shouldReply: false, reason: 'proactive-disabled', related }
+  if (!allowUnprompted && !related) return { shouldReply: false, reason: 'unprompted-disabled', related }
   if (mode === 'all') return { shouldReply: true, reason: 'all', related }
   if (mode === 'related') return related
     ? { shouldReply: true, reason: 'related', related }

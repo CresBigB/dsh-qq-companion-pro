@@ -21,6 +21,11 @@ export interface GroupTriggerMessage {
 }
 export interface GroupTriggerRule {
     mentionRequired?: boolean;
+    /** Allow replying to a group message that neither mentions her nor relates to
+     * her. Replaces the old `proactiveEnabled` name inside the JSON policy, which
+     * collided with the proactive-chat master switch. */
+    replyWithoutMention?: boolean;
+    /** @deprecated legacy name of `replyWithoutMention`; still honored. */
     proactiveEnabled?: boolean;
     replyMode?: GroupReplyMode;
     /** Reply probability for replyMode=probability; values are safely clamped. */
@@ -45,7 +50,7 @@ export interface GroupTriggerConfig extends GroupTriggerRule {
     users?: Readonly<Record<string, GroupTriggerRule>>;
     userOverrides?: Readonly<Record<string, GroupTriggerRule>>;
 }
-export type GroupTriggerReason = 'off' | 'mention-required' | 'proactive-disabled' | 'unrelated' | 'all' | 'related' | 'probability';
+export type GroupTriggerReason = 'off' | 'mention-required' | 'unprompted-disabled' | 'unrelated' | 'all' | 'related' | 'probability';
 export interface GroupTriggerEvaluation {
     shouldReply: boolean;
     reason: GroupTriggerReason;
