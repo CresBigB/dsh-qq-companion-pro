@@ -108,11 +108,13 @@ export function validateDraft(draft: Record<string, unknown> | null | undefined,
     const message = validateField(field, values, translate)
     if (message != null) errors[field.key] = message
   }
-  // 跨字段 1/2：两个时间窗（proactive、groupPeek）。
-  applyWindowRule(values, 'proactiveWindowStart', 'proactiveWindowEnd', errors, translate)
+  // 跨字段 1/2：各时间窗（私聊主动、群聊主动、groupPeek）。
+  applyWindowRule(values, 'privateProactiveWindowStart', 'privateProactiveWindowEnd', errors, translate)
+  applyWindowRule(values, 'groupProactiveWindowStart', 'groupProactiveWindowEnd', errors, translate)
   applyWindowRule(values, 'groupPeekWindowStart', 'groupPeekWindowEnd', errors, translate)
   // 跨字段 3/4：次数区间与打字节奏区间（最少 / 最短 ≤ 最多 / 最长）。
-  applyOrderRule(values, 'proactiveMinPerDay', 'proactiveMaxPerDay', errors, translate, 'validate.proactiveMinMax')
+  applyOrderRule(values, 'privateProactiveMinPerDay', 'privateProactiveMaxPerDay', errors, translate, 'validate.proactiveMinMax')
+  applyOrderRule(values, 'groupProactiveMinPerDay', 'groupProactiveMaxPerDay', errors, translate, 'validate.proactiveMinMax')
   applyOrderRule(values, 'typingDelayMinMs', 'typingDelayMaxMs', errors, translate, 'validate.typingDelay')
   return errors
 }

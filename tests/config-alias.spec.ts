@@ -1,9 +1,10 @@
 /**
  * Deprecated config alias tests: the renamed fields
  * inboundImageMaxPx / outboundImageMaxBytes / inboundFileMaxBytes keep their
- * old names as deprecated schemastery aliases for one release. Three paths:
+ * old names as deprecated schemastery aliases for one release, and the old
+ * single-lane proactive keys fold into the private/group lanes. Paths covered:
  * legacy only (fallback + warn), new only (no warn), both (new wins + warn),
- * plus the neither-set default path and legacy-key type validation.
+ * the neither-set default path and legacy-key type validation.
  * @module dsh-qq-companion/tests/config-alias
  */
 import { describe, expect, it, vi } from 'vitest'
@@ -95,22 +96,22 @@ describe('deprecated config aliases', () => {
 })
 
 describe('deprecated proactiveChatId (removed from the settings page)', () => {
-  it('folds a legacy private target into proactivePrivateTargets and drops the old key', () => {
+  it('folds a legacy private target into privateProactiveTargets and drops the old key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const config = resolveDeprecatedConfig(Config({ proactiveChatId: 'private:123450001' }))
-    expect(config.proactivePrivateTargets).toEqual(['123450001'])
-    expect(config.proactiveGroupTargets).toEqual([])
+    expect(config.privateProactiveTargets).toEqual(['123450001'])
+    expect(config.groupProactiveTargets).toEqual([])
     expect('proactiveChatId' in config).toBe(false)
     expect(warn).toHaveBeenCalledTimes(1)
     expect(String(warn.mock.calls[0]?.[0])).toContain('"proactiveChatId"')
     warn.mockRestore()
   })
 
-  it('sends a legacy group target to the group list', () => {
+  it('sends a legacy group target to the group lane', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const config = resolveDeprecatedConfig(Config({ proactiveChatId: 'group:888000001' }))
-    expect(config.proactivePrivateTargets).toEqual([])
-    expect(config.proactiveGroupTargets).toEqual(['888000001'])
+    expect(config.privateProactiveTargets).toEqual([])
+    expect(config.groupProactiveTargets).toEqual(['888000001'])
     warn.mockRestore()
   })
 
@@ -118,25 +119,96 @@ describe('deprecated proactiveChatId (removed from the settings page)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const config = resolveDeprecatedConfig(Config({
       proactiveChatId: 'private:123450001',
-      proactivePrivateTargets: ['123450001', '123450002'],
+      privateProactiveTargets: ['123450001', '123450002'],
     }))
-    expect(config.proactivePrivateTargets).toEqual(['123450001', '123450002'])
+    expect(config.privateProactiveTargets).toEqual(['123450001', '123450002'])
     warn.mockRestore()
   })
 
-  it('stays silent when the legacy key is absent or blank', () => {
+  it('stays silent when no legacy proactive key is present', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const absent = resolveDeprecatedConfig(Config({}))
-    expect(absent.proactivePrivateTargets).toEqual([])
-    expect(absent.proactiveGroupTargets).toEqual([])
-    const blank = resolveDeprecatedConfig(Config({ proactiveChatId: '   ' }))
-    expect(blank.proactivePrivateTargets).toEqual([])
-    expect(blank.proactiveGroupTargets).toEqual([])
+    expect(absent.privateProactiveTargets).toEqual([])
+    expect(absent.groupProactiveTargets).toEqual([])
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 
   it('still type-validates the legacy value at the schema layer', () => {
     expect(() => Config({ proactiveChatId: 5 })).toThrow()
+  })
+})
+
+describe('deprecated single-lane proactive keys (split into private/group lanes)', () => {
+  const silence = (): ReturnType<typeof vi.spyOn> => vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+  it('turns the old master switch into both lanes being on', () => {
+    const warn = silence()
+    const config = resolveDeprecatedConfig(Config({ proactiveEnabled: true }))
+    expect(config.privateProactiveEnabled).toBe(true)
+    expect(config.groupProactiveEnabled).toBe(true)
+    expect('proactiveEnabled' in config).toBe(false)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('"proactiveEnabled"')
+    warn.mockRestore()
+  })
+
+  it('folds window, skip and unanswered into both lanes, but pace only into the private lane', () => {
+    const warn = silence()
+    const config = resolveDeprecatedConfig(Config({
+      proactiveWindowStart: '08:30',
+      proactiveWindowEnd: '23:30',
+      proactiveSkipIfActiveMinutes: 45,
+      proactiveMaxUnanswered: 3,
+      proactiveMinPerDay: 2,
+      proactiveMaxPerDay: 9,
+      proactiveMinGapMinutes: 60,
+    }))
+    expect(config.privateProactiveWindowStart).toBe('08:30')
+    expect(config.groupProactiveWindowStart).toBe('08:30')
+    expect(config.privateProactiveWindowEnd).toBe('23:30')
+    expect(config.groupProactiveWindowEnd).toBe('23:30')
+    expect(config.privateProactiveSkipIfActiveMinutes).toBe(45)
+    expect(config.groupProactiveSkipIfActiveMinutes).toBe(45)
+    expect(config.privateProactiveMaxUnanswered).toBe(3)
+    expect(config.groupProactiveMaxUnanswered).toBe(3)
+    expect(config.privateProactiveMinPerDay).toBe(2)
+    expect(config.privateProactiveMaxPerDay).toBe(9)
+    expect(config.privateProactiveMinGapMinutes).toBe(60)
+    // 群车道保留自己更保守的默认节奏。
+    expect(config.groupProactiveMinPerDay).toBe(1)
+    expect(config.groupProactiveMaxPerDay).toBe(2)
+    expect(config.groupProactiveMinGapMinutes).toBe(120)
+    for (const key of ['proactiveWindowStart', 'proactiveMinPerDay', 'proactiveMaxPerDay']) {
+      expect(key in config).toBe(false)
+    }
+    warn.mockRestore()
+  })
+
+  it('moves the old target lists into their lanes and strips prefixes', () => {
+    const warn = silence()
+    const config = resolveDeprecatedConfig(Config({
+      proactivePrivateTargets: ['123450001', '123450002'],
+      proactiveGroupTargets: ['group:888000001'],
+    }))
+    expect(config.privateProactiveTargets).toEqual(['123450001', '123450002'])
+    expect(config.groupProactiveTargets).toEqual(['888000001'])
+    expect('proactivePrivateTargets' in config).toBe(false)
+    expect('proactiveGroupTargets' in config).toBe(false)
+    warn.mockRestore()
+  })
+
+  it('lets an explicitly configured lane win over the legacy value', () => {
+    const warn = silence()
+    const config = resolveDeprecatedConfig(Config({
+      proactiveWindowStart: '08:00',
+      privateProactiveWindowStart: '10:00',
+      privateProactiveMinPerDay: 3,
+      proactiveMinPerDay: 7,
+    }))
+    expect(config.privateProactiveWindowStart).toBe('10:00')
+    expect(config.groupProactiveWindowStart).toBe('08:00')
+    expect(config.privateProactiveMinPerDay).toBe(3)
+    warn.mockRestore()
   })
 })

@@ -9,8 +9,13 @@ const good: SelfCheckInput = {
   memberPermission: 'read-only',
   workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '', publicMemoryFile: '',
   scheduledPrompts: [{ id: 'diary', time: '01:30', chatId: 'private:123450001', prompt: '写日记' }],
-  proactiveEnabled: true, proactivePrivateTargets: ['123450001'], proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00',
-  proactiveMinPerDay: 4, proactiveMaxPerDay: 6, splitLines: true, splitMaxMessages: 6,
+  privateProactiveEnabled: true, privateProactiveTargets: ['123450001'],
+  privateProactiveWindowStart: '09:00', privateProactiveWindowEnd: '22:00',
+  privateProactiveMinPerDay: 4, privateProactiveMaxPerDay: 6,
+  groupProactiveEnabled: true, groupProactiveTargets: ['888000001'],
+  groupProactiveWindowStart: '09:00', groupProactiveWindowEnd: '22:00',
+  groupProactiveMinPerDay: 1, groupProactiveMaxPerDay: 2,
+  splitLines: true, splitMaxMessages: 6,
 }
 
 describe('selfCheck', () => {
@@ -40,15 +45,22 @@ describe('selfCheck', () => {
       ...good,
       accessToken: '', adminUsers: [], groupAllowFrom: [], adminWorkspacePath: '/no/such/dir',
       scheduledPrompts: [{ id: 'a', time: '1:30', chatId: 'qq:1', prompt: ' ' }, { id: 'a', time: '01:30', chatId: 'private:123450001', prompt: 'x' }],
-      proactiveWindowStart: '22:00', proactiveWindowEnd: '09:00', proactiveMinPerDay: 7, splitMaxMessages: 1,
+      privateProactiveWindowStart: '22:00', privateProactiveWindowEnd: '09:00', privateProactiveMinPerDay: 7, splitMaxMessages: 1,
     }).join('\n')
-    for (const needle of ['accessToken 为空', 'adminUsers 为空', 'groupAllowFrom 为空', 'adminWorkspacePath 目录不存在', '不是 HH:MM', '格式不对', 'prompt 为空', 'id「a」重复', '开始不早于结束', 'proactiveMinPerDay 大于', 'splitMaxMessages ≤ 1', '不是管理员的私聊'.slice(0, 0)]) {
+    for (const needle of ['accessToken 为空', 'adminUsers 为空', 'groupAllowFrom 为空', 'adminWorkspacePath 目录不存在', '不是 HH:MM', '格式不对', 'prompt 为空', 'id「a」重复', '私聊主动聊天时段开始不早于结束', '私聊主动聊天：每天最少次数大于最多次数', 'splitMaxMessages ≤ 1', '不是管理员的私聊'.slice(0, 0)]) {
       expect(problems).toContain(needle)
     }
   })
 
   it('warns when proactive chat targets a non-admin', () => {
-    expect(selfCheck({ ...good, proactivePrivateTargets: ['999999'] }).join()).toContain('不是管理员：她会主动去找一个非管理员')
+    expect(selfCheck({ ...good, privateProactiveTargets: ['999999'] }).join()).toContain('不是管理员：她会主动去找一个非管理员')
+  })
+
+  it('warns when both the group lane and the peek group are on', () => {
+    const both = selfCheck({ ...good, groupPeekEnabled: true }).join('\n')
+    expect(both).toContain('群聊主动聊天和「热闹时看一眼」同时开着')
+    const onlyGroup = selfCheck({ ...good, groupProactiveEnabled: false, groupPeekEnabled: true }).join('\n')
+    expect(onlyGroup).not.toContain('同时开着')
   })
 
   it('output protocol: a greylist without the switch, and malformed chat ids', () => {

@@ -932,9 +932,11 @@ describe('未知能力 id 在启动自检里告警', () => {
     host: '127.0.0.1', accessToken: 't', botQQ: '', adminUsers: ['2824149798'],
     dmPolicy: 'open', groupPolicy: 'open', allowFrom: [], groupAllowFrom: [], allowAllUsers: false,
     memberPermission: 'read-only', workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '',
-    publicMemoryFile: '', scheduledPrompts: [], proactiveEnabled: false,
-    proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00', proactiveMinPerDay: 0,
-    proactiveMaxPerDay: 0, splitLines: false, splitMaxMessages: 6,
+    publicMemoryFile: '', scheduledPrompts: [], privateProactiveEnabled: false,
+    privateProactiveWindowStart: '09:00', privateProactiveWindowEnd: '22:00', privateProactiveMinPerDay: 0,
+    privateProactiveMaxPerDay: 0, groupProactiveEnabled: false, groupProactiveWindowStart: '09:00',
+    groupProactiveWindowEnd: '22:00', groupProactiveMinPerDay: 0, groupProactiveMaxPerDay: 0,
+    splitLines: false, splitMaxMessages: 6,
   }
 
   it('未知 id → 一条中文告警，列出可用 id；合法配置不产生这条告警', () => {

@@ -427,12 +427,12 @@ describe('validateDraft — §5.4 每条规则', () => {
 
   it('time：必须是 HH:MM（09:30 可以，9:00 / 24:00 不行）', () => {
     const values = defaultDraft()
-    values.proactiveWindowStart = '9:00'
-    expect(validateDraft(values).proactiveWindowStart).toBe('请用 HH:MM 格式，例如 09:30')
-    values.proactiveWindowStart = '09:30'
-    expect(validateDraft(values).proactiveWindowStart).toBeUndefined()
-    values.proactiveWindowStart = '24:00'
-    expect(validateDraft(values).proactiveWindowStart).toBe('请用 HH:MM 格式，例如 09:30')
+    values.privateProactiveWindowStart = '9:00'
+    expect(validateDraft(values).privateProactiveWindowStart).toBe('请用 HH:MM 格式，例如 09:30')
+    values.privateProactiveWindowStart = '09:30'
+    expect(validateDraft(values).privateProactiveWindowStart).toBeUndefined()
+    values.privateProactiveWindowStart = '24:00'
+    expect(validateDraft(values).privateProactiveWindowStart).toBe('请用 HH:MM 格式，例如 09:30')
   })
 
   it('time24：额外允许 24:00', () => {
@@ -443,13 +443,17 @@ describe('validateDraft — §5.4 每条规则', () => {
     expect(validateDraft(values).groupPeekWindowEnd).toBe('请用 HH:MM 格式，可以写 24:00')
   })
 
-  it('跨字段 · 时间窗：结束不晚于开始 → 错误标在结束字段上（proactive 与 groupPeek 两对）', () => {
+  it('跨字段 · 时间窗：结束不晚于开始 → 错误标在结束字段上（私聊/群聊主动与 groupPeek 三对）', () => {
     const proactiveValues = defaultDraft()
-    proactiveValues.proactiveWindowStart = '22:00'
-    proactiveValues.proactiveWindowEnd = '09:00'
+    proactiveValues.privateProactiveWindowStart = '22:00'
+    proactiveValues.privateProactiveWindowEnd = '09:00'
+    proactiveValues.groupProactiveWindowStart = '22:00'
+    proactiveValues.groupProactiveWindowEnd = '09:00'
     const proactiveErrors = validateDraft(proactiveValues)
-    expect(proactiveErrors.proactiveWindowEnd).toBe('结束时间要晚于开始时间')
-    expect(proactiveErrors.proactiveWindowStart).toBeUndefined()
+    expect(proactiveErrors.privateProactiveWindowEnd).toBe('结束时间要晚于开始时间')
+    expect(proactiveErrors.groupProactiveWindowEnd).toBe('结束时间要晚于开始时间')
+    expect(proactiveErrors.privateProactiveWindowStart).toBeUndefined()
+    expect(proactiveErrors.groupProactiveWindowStart).toBeUndefined()
 
     const peekValues = defaultDraft()
     peekValues.groupPeekWindowStart = '09:00'
@@ -458,12 +462,15 @@ describe('validateDraft — §5.4 每条规则', () => {
     expect(peekErrors.groupPeekWindowEnd).toBe('结束时间要晚于开始时间')
   })
 
-  it('跨字段 · proactiveMinPerDay > proactiveMaxPerDay → 「最少次数不能多于最多次数」', () => {
+  it('跨字段 · 私聊/群聊主动聊天的最少次数 > 最多次数 → 「最少次数不能多于最多次数」', () => {
     const values = defaultDraft()
-    values.proactiveMinPerDay = '8'
-    values.proactiveMaxPerDay = '6'
+    values.privateProactiveMinPerDay = '8'
+    values.privateProactiveMaxPerDay = '6'
+    values.groupProactiveMinPerDay = '5'
+    values.groupProactiveMaxPerDay = '2'
     const errors = validateDraft(values)
-    expect(errors.proactiveMaxPerDay).toBe('最少次数不能多于最多次数')
+    expect(errors.privateProactiveMaxPerDay).toBe('最少次数不能多于最多次数')
+    expect(errors.groupProactiveMaxPerDay).toBe('最少次数不能多于最多次数')
   })
 
   it('跨字段 · typingDelayMinMs > typingDelayMaxMs → 「最短不能长于最长」', () => {
@@ -476,11 +483,11 @@ describe('validateDraft — §5.4 每条规则', () => {
 
   it('单项规则已经报错时不再叠加跨字段错误（避免一句话说两遍）', () => {
     const values = defaultDraft()
-    values.proactiveWindowStart = 'oops'
-    values.proactiveWindowEnd = '08:00'
+    values.privateProactiveWindowStart = 'oops'
+    values.privateProactiveWindowEnd = '08:00'
     const errors = validateDraft(values)
-    expect(errors.proactiveWindowStart).toBe('请用 HH:MM 格式，例如 09:30')
-    expect(errors.proactiveWindowEnd).toBeUndefined()
+    expect(errors.privateProactiveWindowStart).toBe('请用 HH:MM 格式，例如 09:30')
+    expect(errors.privateProactiveWindowEnd).toBeUndefined()
   })
 
   it('文案走词条：传入 t 时用宿主的翻译（en 也能出结果）', () => {
@@ -638,6 +645,34 @@ describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () =>
     expect(byId(accessView, 'qqc-f-groupTriggerPolicy').props.disabled).toBe(false)
     const conversationView = SettingsView(viewProps({ page: 'conversation', config, draft }))
     for (const key of NEW_KEYS.slice(1)) expect(byId(conversationView, 'qqc-f-' + key).props.disabled).toBe(false)
+  })
+
+  it('主动聊天两条车道：旧快照里缺席的 18 个键只读、不夹带；新快照可编辑', () => {
+    const laneKeys = [
+      'privateProactiveEnabled', 'privateProactiveTargets', 'privateProactiveWindowStart', 'privateProactiveWindowEnd',
+      'privateProactiveMinPerDay', 'privateProactiveMaxPerDay', 'privateProactiveMinGapMinutes',
+      'privateProactiveSkipIfActiveMinutes', 'privateProactiveMaxUnanswered',
+      'groupProactiveEnabled', 'groupProactiveTargets', 'groupProactiveWindowStart', 'groupProactiveWindowEnd',
+      'groupProactiveMinPerDay', 'groupProactiveMaxPerDay', 'groupProactiveMinGapMinutes',
+      'groupProactiveSkipIfActiveMinutes', 'groupProactiveMaxUnanswered',
+    ]
+    const oldConfig = Object.assign({}, SCHEMA_DEFAULTS)
+    for (const key of laneKeys) delete oldConfig[key]
+    for (const key of ['proactiveEnabled', 'proactiveWindowStart', 'proactiveMinPerDay']) delete oldConfig[key]
+    const oldDraft = defaultDraft(oldConfig)
+    oldDraft.privateProactiveEnabled = true
+    oldDraft.privateProactiveWindowStart = '08:00'
+    oldDraft.groupProactiveTargets = ['888000001']
+    const patch = computePatch(oldDraft, oldConfig).patch
+    for (const key of laneKeys) expect(patch[key]).toBeUndefined()
+
+    const oldView = SettingsView(viewProps({ page: 'proactive', config: oldConfig, draft: oldDraft }))
+    for (const key of laneKeys) expect(byId(oldView, 'qqc-f-' + key).props.disabled).toBe(true)
+
+    const config = Object.assign({}, SCHEMA_DEFAULTS)
+    const draft = defaultDraft(config)
+    const view = SettingsView(viewProps({ page: 'proactive', config, draft }))
+    for (const key of laneKeys) expect(byId(view, 'qqc-f-' + key).props.disabled).toBe(false)
   })
 })
 

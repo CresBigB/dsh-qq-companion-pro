@@ -39,7 +39,7 @@
 | 陪伴功能说明 | 按配置自动写给她：认人、群里什么时候会收到消息、记忆文件和上限、主动聊天、表情包规则；人设只写性格 |
 | 每日定时任务 | 每天 HH:MM 往指定会话投递一个任务（比如写日记），可附当天聊天节选，也可附各群当天节选 |
 | 旧会话自动清理 | 换下来的私聊 / 群聊旧会话超过设定天数没用就删掉（`privateSessionKeepDays` / `groupSessionKeepDays`），正在用的永远不删 |
-| 主动聊天 | 每天在时段内随机叫醒几次，由模型决定要不要主动找管理员；回复 `[不发]` 就什么都不发；对方刚聊过就跳过，连续没回就当天停止。可以同时配多个私聊和多个群（`proactivePrivateTargets` / `proactiveGroupTargets`），每个聊天各有自己的时间表与计数；群里的回合固定是群友身份，不会拿到改文件的权限 |
+| 主动聊天 | 私聊与群聊各自一套开关与节奏：每天在时段内随机叫醒几次，由模型决定要不要主动说话；回复 `[不发]` 就什么都不发；刚聊过就跳过，连续没回就当天停止。每个聊天各有自己的时间表与计数；群里的回合固定是群友身份，不会拿到改文件的权限 |
 | 定期 / 空闲换新会话 | 私聊、群聊分别每 N 天换一次新会话，或空闲 N 小时后换；新会话附上最后几句“交接” |
 | `/task` 定时任务 | 仅管理员私聊：列出定时任务和今天剩余的主动聊天时间；`/task <id>`、`/task checkin` 立刻执行 |
 | 长任务（自动接力） | 管理员私聊发 `/task 写一份 3000 字的报告`，她会开一个带预算的长任务，之后宿主自己一轮轮驱动她接着做，不用人再催：它在宿主的 goals 里跑，**只有宿主把目标标成完成/暂停/阻塞才算结束**——她自己说“做完了”不等于结束。`-r N`（1～200）显式给预算，不传就用宿主的默认预算（多少轮以创建回执里宿主给的数为准）；`/task status` 看进度、`/task stop` 暂停（进度保留）、`/task resume` 继续；新会话 / 换工作目录 / 重开会话都会撤销授权，不会偷偷换地方接着做 |
@@ -131,13 +131,16 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
         includeTodayLog: true
         includeGroupLogs: true
         prompt: 现在是写日记的时间……
-    proactiveEnabled: true
-    proactivePrivateTargets: ['你的QQ号']
-    proactiveGroupTargets: ['群号']
-    proactiveWindowStart: '09:00'
-    proactiveWindowEnd: '22:00'
-    proactiveMinPerDay: 4
-    proactiveMaxPerDay: 6
+    privateProactiveEnabled: true
+    privateProactiveTargets: ['你的QQ号']
+    privateProactiveWindowStart: '09:00'
+    privateProactiveWindowEnd: '22:00'
+    privateProactiveMinPerDay: 4
+    privateProactiveMaxPerDay: 6
+    groupProactiveEnabled: true
+    groupProactiveTargets: ['群号']
+    groupProactiveMinPerDay: 1
+    groupProactiveMaxPerDay: 2
 ```
 
 | 键 | 默认 | 说明 |
@@ -159,14 +162,21 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `privateResetDays` / `groupResetDays` | `0` | 会话跨过这么多个凌晨 4 点后换新会话 |
 | `privateQuietSeconds` | `0` | 私聊里等发送方安静这么多秒（0–30），再把他连着发的几条并成一次交给她；只作用于私聊纯文字，命令/媒体/引用/转发会先把攒着的文字发出去 |
 | `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句） |
-| `proactiveEnabled` | `false` | 主动聊天 |
-| `proactivePrivateTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |
-| `proactiveGroupTargets` | `[]` | 要主动说话的群：每行一个群号；群里按群友身份说话（不能改文件），不在白名单或正忙时跳过 |
-| `proactiveWindowStart` / `proactiveWindowEnd` | `09:00` / `22:00` | 时段（不跨午夜） |
-| `proactiveMinPerDay` / `proactiveMaxPerDay` | `4` / `6` | 每天叫醒次数 |
-| `proactiveMinGapMinutes` | `90` | 两次之间至少隔多久 |
-| `proactiveSkipIfActiveMinutes` | `30` | 对方这么多分钟内说过话就跳过 |
-| `proactiveMaxUnanswered` | `2` | 主动消息这么多条没回就当天停止 |
+| `privateProactiveEnabled` | `false` | 开启私聊主动聊天（与群聊各自独立开关） |
+| `privateProactiveTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |
+| `privateProactiveWindowStart` / `privateProactiveWindowEnd` | `09:00` / `22:00` | 私聊时段（不跨午夜） |
+| `privateProactiveMinPerDay` / `privateProactiveMaxPerDay` | `4` / `6` | 私聊每天叫醒次数 |
+| `privateProactiveMinGapMinutes` | `90` | 私聊两次之间至少隔多久 |
+| `privateProactiveSkipIfActiveMinutes` | `30` | 私聊里对方这么多分钟内说过话就跳过 |
+| `privateProactiveMaxUnanswered` | `2` | 私聊主动消息这么多条没回就当天停止 |
+| `groupProactiveEnabled` | `false` | 开启群聊主动聊天：群里冷清时她自己说一句 |
+| `groupProactiveTargets` | `[]` | 要主动说话的群：每行一个群号；群里按群友身份说话（不能改文件），不在白名单或正忙时跳过 |
+| `groupProactiveWindowStart` / `groupProactiveWindowEnd` | `09:00` / `22:00` | 群聊时段（不跨午夜） |
+| `groupProactiveMinPerDay` / `groupProactiveMaxPerDay` | `1` / `2` | 每个群每天叫醒次数（默认比私聊保守） |
+| `groupProactiveMinGapMinutes` | `120` | 同一个群两次之间至少隔多久 |
+| `groupProactiveSkipIfActiveMinutes` | `30` | 群里这么多分钟内有人说过话就跳过 |
+| `groupProactiveMaxUnanswered` | `1` | 群里主动说了几句没人接就当天停止该群 |
+| `proactiveEnabled` / `proactivePrivateTargets` / `proactiveGroupTargets` / `proactiveWindowStart` … | 已废弃 | 旧的单套主动聊天配置：仍会被读取并按车道并入上面的新键（窗口/跳过/未答上限两条车道都并，次数与间隔只并进私聊车道），同时打一条警告；请改用新键 |
 
 全部配置项（连接、权限、媒体、语音转写、文字图卡片、诊断……）的类型、默认值和说明见 [docs/CONFIG.md](docs/CONFIG.md)。
 

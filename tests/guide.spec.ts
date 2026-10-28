@@ -14,7 +14,8 @@ const config: CompanionGuideConfig = {
   groupMemoryDir: '/m/groups', groupMemoryMaxBytes: 10240,
   privateResetDays: 5, groupResetDays: 1, idleResetHours: 168,
   groupContextLines: 15, groupNameTriggers: ['大肥鱼', '肥鱼'], groupFollowupSeconds: 180, groupPeekEnabled: true,
-  proactiveEnabled: true, proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00', proactiveMaxUnanswered: 2,
+  privateProactiveEnabled: true, privateProactiveWindowStart: '09:00', privateProactiveWindowEnd: '22:00', privateProactiveMaxUnanswered: 2,
+  groupProactiveEnabled: true, groupProactiveWindowStart: '10:00', groupProactiveWindowEnd: '21:00', groupProactiveMaxUnanswered: 1,
   stickerDir: '/m/stickers', diaryTime: '01:30',
 }
 
@@ -57,8 +58,31 @@ describe('buildCompanionGuide', () => {
     expect(g).toContain('群聊每天')
     expect(g).not.toContain('/m/private')
     expect(g).not.toContain('diary')
-    expect(g).not.toContain('主动聊天的机会')
     expect(g).not.toContain('qq_sticker_delete')
+  })
+
+  it('the two proactive lanes land in their own audience only', () => {
+    const owner = buildCompanionGuide(config, 'owner')
+    expect(owner).toContain('### 主动找主人')
+    expect(owner).toContain('09:00–22:00')
+    expect(owner).not.toContain('在群里主动说一句')
+    expect(owner).not.toContain('10:00–21:00')
+
+    const group = buildCompanionGuide(config, 'group')
+    expect(group).toContain('### 在群里主动说一句')
+    expect(group).toContain('10:00–21:00')
+    expect(group).toContain('这条不是群成员发的')
+    expect(group).toContain('普通群成员，不能改文件')
+    expect(group).not.toContain('### 主动找主人')
+    expect(group).not.toContain('09:00–22:00')
+  })
+
+  it('a switched-off lane says nothing at all', () => {
+    const owner = buildCompanionGuide({ ...config, privateProactiveEnabled: false }, 'owner')
+    expect(owner).not.toContain('主动聊天的机会')
+    const group = buildCompanionGuide({ ...config, groupProactiveEnabled: false }, 'group')
+    expect(group).not.toContain('主动聊天的机会')
+    expect(group).not.toContain('在群里主动说一句')
   })
 
   it('switched-off features are not mentioned', () => {

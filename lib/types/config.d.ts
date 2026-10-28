@@ -140,20 +140,50 @@ export interface Config {
     memoryNoteDenyWords: string[];
     privateSessionKeepDays: number;
     groupSessionKeepDays: number;
-    proactiveEnabled: boolean;
-    /** @deprecated 已并入 proactivePrivateTargets / proactiveGroupTargets；只为读旧配置保留。 */
+    /** 私聊车道的主动聊天：她自己决定要不要每天主动找管理员几次。 */
+    privateProactiveEnabled: boolean;
+    /** 私聊车道要照顾的私聊（QQ 号，不带 private: 前缀）。 */
+    privateProactiveTargets: string[];
+    privateProactiveWindowStart: string;
+    privateProactiveWindowEnd: string;
+    privateProactiveMinPerDay: number;
+    privateProactiveMaxPerDay: number;
+    privateProactiveMinGapMinutes: number;
+    privateProactiveSkipIfActiveMinutes: number;
+    privateProactiveMaxUnanswered: number;
+    /** 群聊车道的主动聊天：冷清时她自己在群里说一句（群友身份）。 */
+    groupProactiveEnabled: boolean;
+    /** 群聊车道要照顾的群（群号，不带 group: 前缀）。 */
+    groupProactiveTargets: string[];
+    groupProactiveWindowStart: string;
+    groupProactiveWindowEnd: string;
+    groupProactiveMinPerDay: number;
+    groupProactiveMaxPerDay: number;
+    groupProactiveMinGapMinutes: number;
+    groupProactiveSkipIfActiveMinutes: number;
+    groupProactiveMaxUnanswered: number;
+    /** @deprecated 已拆成 privateProactive* / groupProactive* 两套；只为读旧配置保留。 */
+    proactiveEnabled?: boolean;
+    /** @deprecated 已并入 privateProactiveTargets / groupProactiveTargets；只为读旧配置保留。 */
     proactiveChatId?: string;
-    /** 主动聊天要照顾的私聊（QQ 号，不带 private: 前缀）。 */
-    proactivePrivateTargets: string[];
-    /** 主动聊天要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
-    proactiveGroupTargets: string[];
-    proactiveWindowStart: string;
-    proactiveWindowEnd: string;
-    proactiveMinPerDay: number;
-    proactiveMaxPerDay: number;
-    proactiveMinGapMinutes: number;
-    proactiveSkipIfActiveMinutes: number;
-    proactiveMaxUnanswered: number;
+    /** @deprecated 旧名：并入 privateProactiveTargets。 */
+    proactivePrivateTargets?: string[];
+    /** @deprecated 旧名：并入 groupProactiveTargets。 */
+    proactiveGroupTargets?: string[];
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveWindowStart?: string;
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveWindowEnd?: string;
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveMinPerDay?: number;
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveMaxPerDay?: number;
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveMinGapMinutes?: number;
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveSkipIfActiveMinutes?: number;
+    /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+    proactiveMaxUnanswered?: number;
     workspacePath: string;
     /** QQ 会话怎么归入 DSH 工作区：existing 只归入已存在的（另为 workspacePath 建一个）；
      *  auto 连群/私聊各自的工作目录也建；off 完全不碰工作区。 */

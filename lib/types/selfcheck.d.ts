@@ -20,11 +20,18 @@ export interface SelfCheckInput {
         chatId: string;
         prompt: string;
     }>;
-    proactiveEnabled: boolean;
-    proactiveWindowStart: string;
-    proactiveWindowEnd: string;
-    proactiveMinPerDay: number;
-    proactiveMaxPerDay: number;
+    /** 「热闹时看一眼」开关，用来提示与群聊主动聊天同时开启会偏吵。 */
+    groupPeekEnabled?: boolean;
+    privateProactiveEnabled: boolean;
+    privateProactiveWindowStart: string;
+    privateProactiveWindowEnd: string;
+    privateProactiveMinPerDay: number;
+    privateProactiveMaxPerDay: number;
+    groupProactiveEnabled: boolean;
+    groupProactiveWindowStart: string;
+    groupProactiveWindowEnd: string;
+    groupProactiveMinPerDay: number;
+    groupProactiveMaxPerDay: number;
     splitLines: boolean;
     splitMaxMessages: number;
     humanTypingPace?: boolean;
@@ -60,9 +67,9 @@ export interface SelfCheckInput {
     sideAskEnabled?: boolean;
     /** 挂载时是否拿到了旁问适配器（sideAskAgentOf 的结果非空）。 */
     sideAskAvailable?: boolean;
-    /** 主动聊天额外目标（裸 QQ 号 / 群号，不带 private:/group: 前缀）。 */
-    proactivePrivateTargets?: readonly string[];
-    proactiveGroupTargets?: readonly string[];
+    /** 主动聊天两条车道的目标（裸 QQ 号 / 群号，不带 private:/group: 前缀）。 */
+    privateProactiveTargets?: readonly string[];
+    groupProactiveTargets?: readonly string[];
 }
 /** All problems found (empty = all good). */
 export declare function selfCheck(c: SelfCheckInput): string[];

@@ -24,10 +24,14 @@ export interface CompanionGuideConfig {
     groupNameTriggers: readonly string[];
     groupFollowupSeconds: number;
     groupPeekEnabled: boolean;
-    proactiveEnabled: boolean;
-    proactiveWindowStart: string;
-    proactiveWindowEnd: string;
-    proactiveMaxUnanswered: number;
+    privateProactiveEnabled: boolean;
+    privateProactiveWindowStart: string;
+    privateProactiveWindowEnd: string;
+    privateProactiveMaxUnanswered: number;
+    groupProactiveEnabled: boolean;
+    groupProactiveWindowStart: string;
+    groupProactiveWindowEnd: string;
+    groupProactiveMaxUnanswered: number;
     stickerDir: string;
     /** HH:MM of the nightly diary prompt ('' = none). */
     diaryTime: string;

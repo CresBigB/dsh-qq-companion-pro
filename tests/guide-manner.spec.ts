@@ -21,7 +21,8 @@ const config: CompanionGuideConfig = {
   groupMemoryDir: '/m/groups', groupMemoryMaxBytes: 10240,
   privateResetDays: 5, groupResetDays: 1, idleResetHours: 168,
   groupContextLines: 15, groupNameTriggers: ['大肥鱼', '肥鱼'], groupFollowupSeconds: 180, groupPeekEnabled: true,
-  proactiveEnabled: true, proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00', proactiveMaxUnanswered: 2,
+  privateProactiveEnabled: true, privateProactiveWindowStart: '09:00', privateProactiveWindowEnd: '22:00', privateProactiveMaxUnanswered: 2,
+  groupProactiveEnabled: false, groupProactiveWindowStart: '09:00', groupProactiveWindowEnd: '22:00', groupProactiveMaxUnanswered: 1,
   stickerDir: '/m/stickers', diaryTime: '01:30',
 }
 

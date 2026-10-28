@@ -155,20 +155,50 @@ export interface Config {
   memoryNoteDenyWords: string[]
   privateSessionKeepDays: number
   groupSessionKeepDays: number
-  proactiveEnabled: boolean
-  /** @deprecated 已并入 proactivePrivateTargets / proactiveGroupTargets；只为读旧配置保留。 */
+  /** 私聊车道的主动聊天：她自己决定要不要每天主动找管理员几次。 */
+  privateProactiveEnabled: boolean
+  /** 私聊车道要照顾的私聊（QQ 号，不带 private: 前缀）。 */
+  privateProactiveTargets: string[]
+  privateProactiveWindowStart: string
+  privateProactiveWindowEnd: string
+  privateProactiveMinPerDay: number
+  privateProactiveMaxPerDay: number
+  privateProactiveMinGapMinutes: number
+  privateProactiveSkipIfActiveMinutes: number
+  privateProactiveMaxUnanswered: number
+  /** 群聊车道的主动聊天：冷清时她自己在群里说一句（群友身份）。 */
+  groupProactiveEnabled: boolean
+  /** 群聊车道要照顾的群（群号，不带 group: 前缀）。 */
+  groupProactiveTargets: string[]
+  groupProactiveWindowStart: string
+  groupProactiveWindowEnd: string
+  groupProactiveMinPerDay: number
+  groupProactiveMaxPerDay: number
+  groupProactiveMinGapMinutes: number
+  groupProactiveSkipIfActiveMinutes: number
+  groupProactiveMaxUnanswered: number
+  /** @deprecated 已拆成 privateProactive* / groupProactive* 两套；只为读旧配置保留。 */
+  proactiveEnabled?: boolean
+  /** @deprecated 已并入 privateProactiveTargets / groupProactiveTargets；只为读旧配置保留。 */
   proactiveChatId?: string
-  /** 主动聊天要照顾的私聊（QQ 号，不带 private: 前缀）。 */
-  proactivePrivateTargets: string[]
-  /** 主动聊天要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
-  proactiveGroupTargets: string[]
-  proactiveWindowStart: string
-  proactiveWindowEnd: string
-  proactiveMinPerDay: number
-  proactiveMaxPerDay: number
-  proactiveMinGapMinutes: number
-  proactiveSkipIfActiveMinutes: number
-  proactiveMaxUnanswered: number
+  /** @deprecated 旧名：并入 privateProactiveTargets。 */
+  proactivePrivateTargets?: string[]
+  /** @deprecated 旧名：并入 groupProactiveTargets。 */
+  proactiveGroupTargets?: string[]
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveWindowStart?: string
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveWindowEnd?: string
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveMinPerDay?: number
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveMaxPerDay?: number
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveMinGapMinutes?: number
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveSkipIfActiveMinutes?: number
+  /** @deprecated 旧名：并入两条车道的窗口/频率。 */
+  proactiveMaxUnanswered?: number
   workspacePath: string
   /** QQ 会话怎么归入 DSH 工作区：existing 只归入已存在的（另为 workspacePath 建一个）；
    *  auto 连群/私聊各自的工作目录也建；off 完全不碰工作区。 */
@@ -456,28 +486,64 @@ export const Config: Z<Config> = z.object({
     .description('私聊的旧会话（已经不用的）超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删'),
   groupSessionKeepDays: z.number().default(0)
     .description('群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删'),
-  proactiveEnabled: z.boolean().default(false)
-    .description('每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员'),
+  privateProactiveEnabled: z.boolean().default(false)
+    .description('私聊车道：每天在时段内随机叫醒机器人几次，让她决定要不要主动找管理员'),
+  privateProactiveTargets: z.array(z.string()).default([])
+    .description('私聊车道主动找的 QQ 号（每行一个，不用写 private:）；每个聊天各自一套随机计划与「几条没回就停」计数'),
+  privateProactiveWindowStart: z.string().default('09:00')
+    .description('私聊车道时段开始（本地 HH:MM）'),
+  privateProactiveWindowEnd: z.string().default('22:00')
+    .description('私聊车道时段结束（本地 HH:MM）'),
+  privateProactiveMinPerDay: z.number().default(4)
+    .description('私聊车道每天最少叫醒几次'),
+  privateProactiveMaxPerDay: z.number().default(6)
+    .description('私聊车道每天最多叫醒几次'),
+  privateProactiveMinGapMinutes: z.number().default(90)
+    .description('私聊车道两次叫醒至少间隔多少分钟'),
+  privateProactiveSkipIfActiveMinutes: z.number().default(30)
+    .description('私聊车道：对方这么多分钟内说过话就跳过这次'),
+  privateProactiveMaxUnanswered: z.number().default(2)
+    .description('私聊车道主动发的消息有这么多条没回，当天就不再叫醒'),
+  groupProactiveEnabled: z.boolean().default(false)
+    .description('群聊车道：群里冷清时隔一段时间让她主动说一句（群友身份，不能改文件）'),
+  groupProactiveTargets: z.array(z.string()).default([])
+    .description('群聊车道要主动说话的群号（每行一个，不用写 group:）；群不在白名单里或这个群正在忙就跳过这次'),
+  groupProactiveWindowStart: z.string().default('09:00')
+    .description('群聊车道时段开始（本地 HH:MM）'),
+  groupProactiveWindowEnd: z.string().default('22:00')
+    .description('群聊车道时段结束（本地 HH:MM）'),
+  groupProactiveMinPerDay: z.number().default(1)
+    .description('群聊车道每个群每天最少叫醒几次'),
+  groupProactiveMaxPerDay: z.number().default(2)
+    .description('群聊车道每个群每天最多叫醒几次'),
+  groupProactiveMinGapMinutes: z.number().default(120)
+    .description('群聊车道两次叫醒至少间隔多少分钟'),
+  groupProactiveSkipIfActiveMinutes: z.number().default(30)
+    .description('群聊车道：这个群这么多分钟内有人说过话就跳过这次（刚聊过就不插话）'),
+  groupProactiveMaxUnanswered: z.number().default(1)
+    .description('群聊车道主动发的消息有这么多条没回，这个群当天就不再叫醒'),
+  proactiveEnabled: z.boolean().deprecated()
+    .description('[deprecated] 旧的主动聊天总开关：本版仍会把 true 并进两条车道，之后可以删掉这一行'),
   proactiveChatId: z.string().deprecated()
     .description('[deprecated] 旧的单个主动聊天目标（如 private:<管理员QQ>）：本版仍会把它的值并进下面两项，之后可以删掉这一行'),
-  proactivePrivateTargets: z.array(z.string()).default([])
-    .description('主动找的私聊 QQ 号（每行一个，不用写 private:）；每个聊天各自一套随机计划与「几条没回就停」计数'),
-  proactiveGroupTargets: z.array(z.string()).default([])
-    .description('主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次'),
-  proactiveWindowStart: z.string().default('09:00')
-    .description('主动聊天时段开始（本地 HH:MM）'),
-  proactiveWindowEnd: z.string().default('22:00')
-    .description('主动聊天时段结束（本地 HH:MM）'),
-  proactiveMinPerDay: z.number().default(4)
-    .description('每天最少叫醒几次'),
-  proactiveMaxPerDay: z.number().default(6)
-    .description('每天最多叫醒几次'),
-  proactiveMinGapMinutes: z.number().default(90)
-    .description('两次叫醒至少间隔多少分钟'),
-  proactiveSkipIfActiveMinutes: z.number().default(30)
-    .description('对方这么多分钟内说过话就跳过这次'),
-  proactiveMaxUnanswered: z.number().default(2)
-    .description('主动发的消息有这么多条没回，当天就不再叫醒'),
+  proactivePrivateTargets: z.array(z.string()).deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveTargets）：本版兼容读取，新配置请用新名'),
+  proactiveGroupTargets: z.array(z.string()).deprecated()
+    .description('[deprecated] 旧名别名（现 groupProactiveTargets）：本版兼容读取，新配置请用新名'),
+  proactiveWindowStart: z.string().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveWindowStart / groupProactiveWindowStart）'),
+  proactiveWindowEnd: z.string().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveWindowEnd / groupProactiveWindowEnd）'),
+  proactiveMinPerDay: z.number().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveMinPerDay / groupProactiveMinPerDay）'),
+  proactiveMaxPerDay: z.number().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveMaxPerDay / groupProactiveMaxPerDay）'),
+  proactiveMinGapMinutes: z.number().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveMinGapMinutes / groupProactiveMinGapMinutes）'),
+  proactiveSkipIfActiveMinutes: z.number().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveSkipIfActiveMinutes / groupProactiveSkipIfActiveMinutes）'),
+  proactiveMaxUnanswered: z.number().deprecated()
+    .description('[deprecated] 旧名别名（现 privateProactiveMaxUnanswered / groupProactiveMaxUnanswered）'),
   workspacePath: z.string().default('')
     .description('QQ 会话的默认工作区目录（写入会话 cwd，并自动归入该工作区，不存在则创建）；管理员私聊优先用 adminWorkspacePath，开了群记忆（groupMemoryDir）的群聊用 <群记忆目录>/<群号>，这两类会话不受本项影响；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区），单聊 /workspace 覆盖优先且已持久化到会话映射文件，重启/恢复失败均不丢失'),
   attachWorkspaceMode: z.union([z.const('existing'), z.const('auto'), z.const('off')]).default('existing')
@@ -591,23 +657,105 @@ export function resolveDeprecatedConfig(config: Config): Config {
     delete resolved[oldName]
     if (resolved[newName] === defaultValue) resolved[newName] = legacy
   }
-  // 旧的单个主动聊天目标：并进新的两个列表（群目标进群列表，其余按私聊），
-  // 然后丢掉旧键——它已经不在设置页上，也不该再出现在生效配置里。
-  const legacyTarget = resolved.proactiveChatId
-  if (typeof legacyTarget === 'string' && legacyTarget.trim() !== '') {
-    const raw = legacyTarget.trim()
-    console.warn('[qq-companion] config "proactiveChatId" is deprecated; move it into proactivePrivateTargets / proactiveGroupTargets')
-    const isGroup = /^group:/i.test(raw)
-    const id = raw.replace(/^(?:private|group):/i, '').trim()
-    if (id !== '') {
-      const key = isGroup ? 'proactiveGroupTargets' : 'proactivePrivateTargets'
-      const list = Array.isArray(resolved[key]) ? resolved[key] as string[] : []
-      if (!list.some(entry => typeof entry === 'string' && entry.trim() === id)) resolved[key] = [...list, id]
+  // 主动聊天拆成私聊/群聊两条车道：旧的一套参数（总开关、目标、窗口、频率）并进
+  // 新键后丢掉旧键——它们已不在设置页上，也不该再出现在生效配置里。
+  // 只有旧键存在时才动手；某个车道的新键已被改成非默认值时不覆盖（新名优先）。
+  const legacy = resolved as Record<string, unknown>
+  const laneDefaults = PROACTIVE_LANE_DEFAULTS
+  const atDefault = (key: string): boolean => {
+    const current = resolved[key as keyof Config]
+    return current === laneDefaults[key as keyof typeof laneDefaults]
+  }
+  const foldScalar = (value: unknown, lanes: ReadonlyArray<string>): void => {
+    if (value === undefined || value === null) return
+    for (const key of lanes) {
+      if (!atDefault(key)) continue
+      ;(resolved as Record<string, unknown>)[key] = value
     }
   }
-  delete resolved.proactiveChatId
+  const foldList = (value: unknown, key: string): void => {
+    if (!Array.isArray(value)) return
+    const seen = new Set((resolved[key as keyof Config] as string[] | undefined) ?? [])
+    const merged = [...seen]
+    for (const entry of value) {
+      if (typeof entry !== 'string') continue
+      const id = entry.trim().replace(/^(?:private|group):/i, '').trim()
+      if (id === '' || seen.has(id)) continue
+      seen.add(id)
+      merged.push(id)
+    }
+    ;(resolved as Record<string, unknown>)[key] = merged
+  }
+  const legacyKeys = [
+    'proactiveEnabled', 'proactiveChatId',
+    'proactivePrivateTargets', 'proactiveGroupTargets',
+    'proactiveWindowStart', 'proactiveWindowEnd',
+    'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes',
+    'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered',
+  ] as const
+  const present = (key: string): boolean => {
+    const value = legacy[key]
+    if (value === undefined || value === null) return false
+    // 数组型旧键在 schemastery 里缺省就是 []，不能当成「用户设过」。
+    if (Array.isArray(value)) return value.length > 0
+    return true
+  }
+  const touched = legacyKeys.filter(present)
+  if (touched.length > 0) {
+    console.warn('[qq-companion] config "' + touched.join('", "') + '" is deprecated; proactive chats are now per-lane (privateProactive* / groupProactive*)')
+    if (legacy.proactiveEnabled === true) {
+      if (atDefault('privateProactiveEnabled')) resolved.privateProactiveEnabled = true
+      if (atDefault('groupProactiveEnabled')) resolved.groupProactiveEnabled = true
+    }
+    foldList(legacy.proactivePrivateTargets, 'privateProactiveTargets')
+    foldList(legacy.proactiveGroupTargets, 'groupProactiveTargets')
+    // 旧的单目标：群按群号进群车道，其余按私聊。
+    const single = typeof legacy.proactiveChatId === 'string' ? legacy.proactiveChatId.trim() : ''
+    if (single !== '') {
+      const toGroup = /^group:/i.test(single)
+      foldList([single], toGroup ? 'groupProactiveTargets' : 'privateProactiveTargets')
+    }
+    // 窗口/跳过/未答上限对两条车道都有意义；次数与间隔原本是照私聊节奏调的，
+    // 只并进私聊车道，群车道保留自己更保守的默认值。
+    const shared = ['proactiveWindowStart', 'proactiveWindowEnd', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'] as const
+    const sharedMap: Record<string, readonly string[]> = {
+      proactiveWindowStart: ['privateProactiveWindowStart', 'groupProactiveWindowStart'],
+      proactiveWindowEnd: ['privateProactiveWindowEnd', 'groupProactiveWindowEnd'],
+      proactiveSkipIfActiveMinutes: ['privateProactiveSkipIfActiveMinutes', 'groupProactiveSkipIfActiveMinutes'],
+      proactiveMaxUnanswered: ['privateProactiveMaxUnanswered', 'groupProactiveMaxUnanswered'],
+    }
+    for (const key of shared) foldScalar(legacy[key], sharedMap[key] ?? [])
+    const privateOnly = ['proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes'] as const
+    const privateMap: Record<string, readonly string[]> = {
+      proactiveMinPerDay: ['privateProactiveMinPerDay'],
+      proactiveMaxPerDay: ['privateProactiveMaxPerDay'],
+      proactiveMinGapMinutes: ['privateProactiveMinGapMinutes'],
+    }
+    for (const key of privateOnly) foldScalar(legacy[key], privateMap[key] ?? [])
+  }
+  for (const key of legacyKeys) delete legacy[key]
   return resolved
 }
+
+/** 各车道新键的 schema 默认值：迁移旧配置时用来判断「这一项还没被改过」。 */
+const PROACTIVE_LANE_DEFAULTS = {
+  privateProactiveEnabled: false,
+  groupProactiveEnabled: false,
+  privateProactiveWindowStart: '09:00',
+  privateProactiveWindowEnd: '22:00',
+  privateProactiveMinPerDay: 4,
+  privateProactiveMaxPerDay: 6,
+  privateProactiveMinGapMinutes: 90,
+  privateProactiveSkipIfActiveMinutes: 30,
+  privateProactiveMaxUnanswered: 2,
+  groupProactiveWindowStart: '09:00',
+  groupProactiveWindowEnd: '22:00',
+  groupProactiveMinPerDay: 1,
+  groupProactiveMaxPerDay: 2,
+  groupProactiveMinGapMinutes: 120,
+  groupProactiveSkipIfActiveMinutes: 30,
+  groupProactiveMaxUnanswered: 1,
+} as const
 
 /** Resolve env-var fallbacks into the effective access policy. */
 export function resolvePolicy(config: Config): AccessPolicyConfig {

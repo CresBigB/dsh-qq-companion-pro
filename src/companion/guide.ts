@@ -35,10 +35,14 @@ export interface CompanionGuideConfig {
   groupNameTriggers: readonly string[]
   groupFollowupSeconds: number
   groupPeekEnabled: boolean
-  proactiveEnabled: boolean
-  proactiveWindowStart: string
-  proactiveWindowEnd: string
-  proactiveMaxUnanswered: number
+  privateProactiveEnabled: boolean
+  privateProactiveWindowStart: string
+  privateProactiveWindowEnd: string
+  privateProactiveMaxUnanswered: number
+  groupProactiveEnabled: boolean
+  groupProactiveWindowStart: string
+  groupProactiveWindowEnd: string
+  groupProactiveMaxUnanswered: number
   stickerDir: string
   /** HH:MM of the nightly diary prompt ('' = none). */
   diaryTime: string
@@ -145,13 +149,22 @@ function memory(c: CompanionGuideConfig, audience: GuideAudience): string[] {
   return lines
 }
 
-function proactive(c: CompanionGuideConfig): string[] {
-  if (!c.proactiveEnabled) return []
+function proactivePrivate(c: CompanionGuideConfig): string[] {
+  if (!c.privateProactiveEnabled) return []
   const t = c.ownerTitle
   return [
     '### 主动找' + t,
-    '- 每天 ' + c.proactiveWindowStart + '–' + c.proactiveWindowEnd + ' 之间，系统会随机叫醒你几次（消息开头是 [主动聊天的机会 …]，不是' + t + '发的）。想找' + t + '就直接写要发的话；不想打扰或没什么具体想说的，就只回 ' + PROACTIVE_PASS + '。',
-    '- 你主动发的 ' + c.proactiveMaxUnanswered + ' 条' + t + '都没回，当天就不会再叫醒你。其他时间' + t + '来找你，照常回。',
+    '- 每天 ' + c.privateProactiveWindowStart + '–' + c.privateProactiveWindowEnd + ' 之间，系统会随机叫醒你几次（消息开头是 [主动聊天的机会 …]，不是' + t + '发的）。想找' + t + '就直接写要发的话；不想打扰或没什么具体想说的，就只回 ' + PROACTIVE_PASS + '。',
+    '- 你主动发的 ' + c.privateProactiveMaxUnanswered + ' 条' + t + '都没回，当天就不会再叫醒你。其他时间' + t + '来找你，照常回。',
+  ]
+}
+
+function proactiveGroup(c: CompanionGuideConfig): string[] {
+  if (!c.groupProactiveEnabled) return []
+  return [
+    '### 在群里主动说一句',
+    '- 每天 ' + c.groupProactiveWindowStart + '–' + c.groupProactiveWindowEnd + ' 之间，群里冷清时系统会随机叫醒你几次（消息开头是 [主动聊天的机会 …｜这条不是群成员发的]，是系统叫醒你，不是谁叫你）。这时候你是普通群成员，不能改文件；想说什么就直接写一句自然的群聊发言，没什么想说的就只回 ' + PROACTIVE_PASS + '。',
+    '- 你主动发的 ' + c.groupProactiveMaxUnanswered + ' 句没人接，这个群当天就不会再叫醒你。群里别人叫你时，照常回。',
   ]
 }
 
@@ -175,7 +188,8 @@ export function buildCompanionGuide(c: CompanionGuideConfig, audience: GuideAudi
     ...manner(c, audience),
     ...(audience === 'group' ? groupRules(c) : []),
     ...memory(c, audience),
-    ...(audience === 'owner' ? proactive(c) : []),
+    ...(audience === 'owner' ? proactivePrivate(c) : []),
+    ...(audience === 'group' ? proactiveGroup(c) : []),
     ...stickers(c, audience),
   ]
   return parts.join('\n') + '\n'

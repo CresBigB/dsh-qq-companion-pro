@@ -109,17 +109,35 @@
 | `groupResetDays` | number | `0` | 群聊会话跨过这么多个凌晨 4 点后，下一条消息开新会话（附交接；0=关闭） |
 | `privateSessionKeepDays` | number | `0` | 私聊的旧会话（已经不用的）超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
 | `groupSessionKeepDays` | number | `0` | 群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
-| `proactiveEnabled` | boolean | `false` | 每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员 |
+| `privateProactiveEnabled` | boolean | `false` | 私聊车道：每天在时段内随机叫醒机器人几次，让她决定要不要主动找管理员 |
+| `privateProactiveTargets` | string[] | `[]` | 私聊车道主动找的 QQ 号（每行一个，不用写 private:）；每个聊天各自一套随机计划与「几条没回就停」计数 |
+| `privateProactiveWindowStart` | string | `"09:00"` | 私聊车道时段开始（本地 HH:MM） |
+| `privateProactiveWindowEnd` | string | `"22:00"` | 私聊车道时段结束（本地 HH:MM） |
+| `privateProactiveMinPerDay` | number | `4` | 私聊车道每天最少叫醒几次 |
+| `privateProactiveMaxPerDay` | number | `6` | 私聊车道每天最多叫醒几次 |
+| `privateProactiveMinGapMinutes` | number | `90` | 私聊车道两次叫醒至少间隔多少分钟 |
+| `privateProactiveSkipIfActiveMinutes` | number | `30` | 私聊车道：对方这么多分钟内说过话就跳过这次 |
+| `privateProactiveMaxUnanswered` | number | `2` | 私聊车道主动发的消息有这么多条没回，当天就不再叫醒 |
+| `groupProactiveEnabled` | boolean | `false` | 群聊车道：群里冷清时隔一段时间让她主动说一句（群友身份，不能改文件） |
+| `groupProactiveTargets` | string[] | `[]` | 群聊车道要主动说话的群号（每行一个，不用写 group:）；群不在白名单里或这个群正在忙就跳过这次 |
+| `groupProactiveWindowStart` | string | `"09:00"` | 群聊车道时段开始（本地 HH:MM） |
+| `groupProactiveWindowEnd` | string | `"22:00"` | 群聊车道时段结束（本地 HH:MM） |
+| `groupProactiveMinPerDay` | number | `1` | 群聊车道每个群每天最少叫醒几次 |
+| `groupProactiveMaxPerDay` | number | `2` | 群聊车道每个群每天最多叫醒几次 |
+| `groupProactiveMinGapMinutes` | number | `120` | 群聊车道两次叫醒至少间隔多少分钟 |
+| `groupProactiveSkipIfActiveMinutes` | number | `30` | 群聊车道：这个群这么多分钟内有人说过话就跳过这次（刚聊过就不插话） |
+| `groupProactiveMaxUnanswered` | number | `1` | 群聊车道主动发的消息有这么多条没回，这个群当天就不再叫醒 |
+| `proactiveEnabled` | boolean |  | [deprecated] 旧的主动聊天总开关：本版仍会把 true 并进两条车道，之后可以删掉这一行 |
 | `proactiveChatId` | string |  | [deprecated] 旧的单个主动聊天目标（如 private:<管理员QQ>）：本版仍会把它的值并进下面两项，之后可以删掉这一行 |
-| `proactivePrivateTargets` | string[] | `[]` | 主动找的私聊 QQ 号（每行一个，不用写 private:）；每个聊天各自一套随机计划与「几条没回就停」计数 |
-| `proactiveGroupTargets` | string[] | `[]` | 主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次 |
-| `proactiveWindowStart` | string | `"09:00"` | 主动聊天时段开始（本地 HH:MM） |
-| `proactiveWindowEnd` | string | `"22:00"` | 主动聊天时段结束（本地 HH:MM） |
-| `proactiveMinPerDay` | number | `4` | 每天最少叫醒几次 |
-| `proactiveMaxPerDay` | number | `6` | 每天最多叫醒几次 |
-| `proactiveMinGapMinutes` | number | `90` | 两次叫醒至少间隔多少分钟 |
-| `proactiveSkipIfActiveMinutes` | number | `30` | 对方这么多分钟内说过话就跳过这次 |
-| `proactiveMaxUnanswered` | number | `2` | 主动发的消息有这么多条没回，当天就不再叫醒 |
+| `proactivePrivateTargets` | string[] | `[]` | [deprecated] 旧名别名（现 privateProactiveTargets）：本版兼容读取，新配置请用新名 |
+| `proactiveGroupTargets` | string[] | `[]` | [deprecated] 旧名别名（现 groupProactiveTargets）：本版兼容读取，新配置请用新名 |
+| `proactiveWindowStart` | string |  | [deprecated] 旧名别名（现 privateProactiveWindowStart / groupProactiveWindowStart） |
+| `proactiveWindowEnd` | string |  | [deprecated] 旧名别名（现 privateProactiveWindowEnd / groupProactiveWindowEnd） |
+| `proactiveMinPerDay` | number |  | [deprecated] 旧名别名（现 privateProactiveMinPerDay / groupProactiveMinPerDay） |
+| `proactiveMaxPerDay` | number |  | [deprecated] 旧名别名（现 privateProactiveMaxPerDay / groupProactiveMaxPerDay） |
+| `proactiveMinGapMinutes` | number |  | [deprecated] 旧名别名（现 privateProactiveMinGapMinutes / groupProactiveMinGapMinutes） |
+| `proactiveSkipIfActiveMinutes` | number |  | [deprecated] 旧名别名（现 privateProactiveSkipIfActiveMinutes / groupProactiveSkipIfActiveMinutes） |
+| `proactiveMaxUnanswered` | number |  | [deprecated] 旧名别名（现 privateProactiveMaxUnanswered / groupProactiveMaxUnanswered） |
 | `workspacePath` | string | `""` | QQ 会话的默认工作区目录（写入会话 cwd，并自动归入该工作区，不存在则创建）；管理员私聊优先用 adminWorkspacePath，开了群记忆（groupMemoryDir）的群聊用 <群记忆目录>/<群号>，这两类会话不受本项影响；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区），单聊 /workspace 覆盖优先且已持久化到会话映射文件，重启/恢复失败均不丢失 |
 | `attachWorkspaceMode` | "existing" / "auto" / "off" | `"existing"` | QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：existing（默认）= 只归入已存在的工作区（另外为 workspacePath 自动建一个）；auto = 群聊、私聊各自的工作目录也自动建工作区（每个群一个）；off = 不归入。已有会话可发 /workspace attach 立即补挂 |
 | `inboundFileMaxBytes` | number | `20971520` | QQ 入站文件最大字节数（直链/base64 拉取，0 = 不限制） |

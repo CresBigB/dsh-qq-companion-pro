@@ -27,11 +27,18 @@ export interface SelfCheckInput {
   groupMemoryDir: string
   publicMemoryFile: string
   scheduledPrompts: ReadonlyArray<{ id: string; time: string; chatId: string; prompt: string }>
-  proactiveEnabled: boolean
-  proactiveWindowStart: string
-  proactiveWindowEnd: string
-  proactiveMinPerDay: number
-  proactiveMaxPerDay: number
+  /** 「热闹时看一眼」开关，用来提示与群聊主动聊天同时开启会偏吵。 */
+  groupPeekEnabled?: boolean
+  privateProactiveEnabled: boolean
+  privateProactiveWindowStart: string
+  privateProactiveWindowEnd: string
+  privateProactiveMinPerDay: number
+  privateProactiveMaxPerDay: number
+  groupProactiveEnabled: boolean
+  groupProactiveWindowStart: string
+  groupProactiveWindowEnd: string
+  groupProactiveMinPerDay: number
+  groupProactiveMaxPerDay: number
   splitLines: boolean
   splitMaxMessages: number
   humanTypingPace?: boolean
@@ -67,9 +74,9 @@ export interface SelfCheckInput {
   sideAskEnabled?: boolean
   /** 挂载时是否拿到了旁问适配器（sideAskAgentOf 的结果非空）。 */
   sideAskAvailable?: boolean
-  /** 主动聊天额外目标（裸 QQ 号 / 群号，不带 private:/group: 前缀）。 */
-  proactivePrivateTargets?: readonly string[]
-  proactiveGroupTargets?: readonly string[]
+  /** 主动聊天两条车道的目标（裸 QQ 号 / 群号，不带 private:/group: 前缀）。 */
+  privateProactiveTargets?: readonly string[]
+  groupProactiveTargets?: readonly string[]
 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -110,27 +117,35 @@ export function selfCheck(c: SelfCheckInput): string[] {
     if (!CHAT_ID.test(p.chatId)) problems.push('scheduledPrompts「' + p.id + '」的 chatId「' + p.chatId + '」格式不对（应为 private:QQ号 或 group:群号）')
     if (p.prompt.trim() === '') problems.push('scheduledPrompts「' + p.id + '」的 prompt 为空，不会触发')
   }
-  if (c.proactiveEnabled) {
-    // 两个列表写的是裸 QQ 号/群号（不带 private:/group:）：写错时不会叫醒，
-    // 或者更糟——主动去私聊一个陌生人，所以逐条点出来。
-    for (const raw of c.proactivePrivateTargets ?? []) {
+  // 主动聊天分两条车道：私聊车道只会找管理员私聊，群聊车道只会进允许的群。
+  // 两个列表写的都是裸 QQ 号/群号（不带 private:/group:）：写错时不会叫醒，
+  // 或者更糟——主动去私聊一个陌生人，所以逐条点出来。
+  if (c.privateProactiveEnabled) {
+    const targets = c.privateProactiveTargets ?? []
+    for (const raw of targets) {
       const qq = raw.trim().replace(/^(?:private|group):/i, '').trim()
-      if (!QQ.test(qq)) problems.push('proactivePrivateTargets 里的「' + raw + '」不像 QQ 号，不会叫醒')
-      else if (!c.adminUsers.includes(qq)) problems.push('proactivePrivateTargets 里的「' + qq + '」不是管理员：她会主动去找一个非管理员')
+      if (!QQ.test(qq)) problems.push('私聊主动聊天里的「' + raw + '」不像 QQ 号，不会叫醒')
+      else if (!c.adminUsers.includes(qq)) problems.push('私聊主动聊天里的「' + qq + '」不是管理员：她会主动去找一个非管理员')
     }
-    for (const raw of c.proactiveGroupTargets ?? []) {
-      const groupId = raw.trim().replace(/^(?:private|group):/i, '').trim()
-      if (!QQ.test(groupId)) problems.push('proactiveGroupTargets 里的「' + raw + '」不像群号，不会叫醒')
-      else if (c.groupPolicy === 'allowlist' && !c.groupAllowFrom.includes(groupId)) problems.push('proactiveGroupTargets 里的群「' + groupId + '」不在白名单里：叫醒时会跳过，想在群里主动就先 /group allow')
-      else if (c.groupPolicy === 'disabled') problems.push('proactiveGroupTargets 已填，但 groupPolicy 是 disabled：群聊整体关着，群里不会叫醒')
-    }
-    if (!HHMM.test(c.proactiveWindowStart) || !HHMM.test(c.proactiveWindowEnd)) problems.push('主动聊天时段不是 HH:MM')
-    else if (c.proactiveWindowStart >= c.proactiveWindowEnd) problems.push('主动聊天时段开始不早于结束（不支持跨午夜），不会叫醒')
-    if (c.proactiveMinPerDay > c.proactiveMaxPerDay) problems.push('proactiveMinPerDay 大于 proactiveMaxPerDay')
-    if ((c.proactivePrivateTargets ?? []).every(raw => raw.trim() === '') && (c.proactiveGroupTargets ?? []).every(raw => raw.trim() === '')) {
-      problems.push('主动聊天已开启，但没填任何目标（proactivePrivateTargets / proactiveGroupTargets 都是空的），不会叫醒')
-    }
+    if (!HHMM.test(c.privateProactiveWindowStart) || !HHMM.test(c.privateProactiveWindowEnd)) problems.push('私聊主动聊天时段不是 HH:MM')
+    else if (c.privateProactiveWindowStart >= c.privateProactiveWindowEnd) problems.push('私聊主动聊天时段开始不早于结束（不支持跨午夜），不会叫醒')
+    if (c.privateProactiveMinPerDay > c.privateProactiveMaxPerDay) problems.push('私聊主动聊天：每天最少次数大于最多次数')
+    if (targets.every(raw => raw.trim() === '')) problems.push('私聊主动聊天已开启，但没填 QQ 号（privateProactiveTargets 是空的），不会叫醒')
   }
+  if (c.groupProactiveEnabled) {
+    const targets = c.groupProactiveTargets ?? []
+    for (const raw of targets) {
+      const groupId = raw.trim().replace(/^(?:private|group):/i, '').trim()
+      if (!QQ.test(groupId)) problems.push('群聊主动聊天里的「' + raw + '」不像群号，不会叫醒')
+      else if (c.groupPolicy === 'allowlist' && !c.groupAllowFrom.includes(groupId)) problems.push('群聊主动聊天里的群「' + groupId + '」不在白名单里：叫醒时会跳过，想在群里主动就先 /group allow')
+      else if (c.groupPolicy === 'disabled') problems.push('群聊主动聊天已填，但 groupPolicy 是 disabled：群聊整体关着，群里不会叫醒')
+    }
+    if (!HHMM.test(c.groupProactiveWindowStart) || !HHMM.test(c.groupProactiveWindowEnd)) problems.push('群聊主动聊天时段不是 HH:MM')
+    else if (c.groupProactiveWindowStart >= c.groupProactiveWindowEnd) problems.push('群聊主动聊天时段开始不早于结束（不支持跨午夜），不会叫醒')
+    if (c.groupProactiveMinPerDay > c.groupProactiveMaxPerDay) problems.push('群聊主动聊天：每天最少次数大于最多次数')
+    if (targets.every(raw => raw.trim() === '')) problems.push('群聊主动聊天已开启，但没填群号（groupProactiveTargets 是空的），不会叫醒')
+  }
+  if (c.groupProactiveEnabled && c.groupPeekEnabled) problems.push('群聊主动聊天和「热闹时看一眼」同时开着：这个群可能显得比平时更吵，想安静一点就关掉其中一个')
   if (c.humanTypingPace === true && (c.typingDelayMinMs ?? 0) > (c.typingDelayMaxMs ?? 0)) problems.push('按真人打字速度已开启，但 typingDelayMinMs 大于 typingDelayMaxMs：每条消息都会按最长时间等')
   if (c.splitLines && c.splitMaxMessages <= 1) problems.push('splitLines 已开启但 splitMaxMessages ≤ 1：实际不会拆分')
   // 语音合成（T15）：这里只看「填了什么」，不搜 PATH、不碰磁盘上的模型（自检是
