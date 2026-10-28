@@ -223,6 +223,16 @@ export declare class ChatBridge {
         unanswered: number;
         lastUserAt: number | undefined;
     }): Promise<void>;
+    /** One proactive wake-up in a group she is allowed to speak in. She decides
+     * whether to write; replying exactly PROACTIVE_PASS sends nothing.
+     * Runs as `member` on purpose: a group turn must never become an admin turn
+     * (canEditFiles() keys off the turn role), and a group that left the
+     * allowlist — or whose turn is busy — is skipped instead of typed into. */
+    fireGroupCheckin(groupId: string, context: {
+        time: string;
+        unanswered: number;
+        lastUserAt: number | undefined;
+    }): Promise<void>;
     /** One periodic look at a group (she decides herself whether to chip in;
      * the pass marker sends nothing). Skipped while the group's turn is busy. */
     firePeek(groupId: string): Promise<void>;

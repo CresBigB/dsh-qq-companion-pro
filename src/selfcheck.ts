@@ -68,6 +68,9 @@ export interface SelfCheckInput {
   sideAskEnabled?: boolean
   /** 挂载时是否拿到了旁问适配器（sideAskAgentOf 的结果非空）。 */
   sideAskAvailable?: boolean
+  /** 主动聊天额外目标（裸 QQ 号 / 群号，不带 private:/group: 前缀）。 */
+  proactivePrivateTargets?: readonly string[]
+  proactiveGroupTargets?: readonly string[]
 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -111,9 +114,25 @@ export function selfCheck(c: SelfCheckInput): string[] {
   if (c.proactiveEnabled) {
     if (!CHAT_ID.test(c.proactiveChatId)) problems.push('主动聊天已开启，但 proactiveChatId「' + c.proactiveChatId + '」格式不对，不会叫醒')
     else if (c.proactiveChatId.startsWith('private:') && !c.adminUsers.includes(c.proactiveChatId.slice(8))) problems.push('proactiveChatId 不是管理员的私聊：她会主动去找一个非管理员')
+    // 两个新列表写的是裸 QQ 号/群号（不带 private:/group:）：写错时不会叫醒，
+    // 或者更糟——主动去私聊一个陌生人，所以逐条点出来。
+    for (const raw of c.proactivePrivateTargets ?? []) {
+      const qq = raw.trim().replace(/^(?:private|group):/i, '').trim()
+      if (!QQ.test(qq)) problems.push('proactivePrivateTargets 里的「' + raw + '」不像 QQ 号，不会叫醒')
+      else if (!c.adminUsers.includes(qq)) problems.push('proactivePrivateTargets 里的「' + qq + '」不是管理员：她会主动去找一个非管理员')
+    }
+    for (const raw of c.proactiveGroupTargets ?? []) {
+      const groupId = raw.trim().replace(/^(?:private|group):/i, '').trim()
+      if (!QQ.test(groupId)) problems.push('proactiveGroupTargets 里的「' + raw + '」不像群号，不会叫醒')
+      else if (c.groupPolicy === 'allowlist' && !c.groupAllowFrom.includes(groupId)) problems.push('proactiveGroupTargets 里的群「' + groupId + '」不在白名单里：叫醒时会跳过，想在群里主动就先 /group allow')
+      else if (c.groupPolicy === 'disabled') problems.push('proactiveGroupTargets 已填，但 groupPolicy 是 disabled：群聊整体关着，群里不会叫醒')
+    }
     if (!HHMM.test(c.proactiveWindowStart) || !HHMM.test(c.proactiveWindowEnd)) problems.push('主动聊天时段不是 HH:MM')
     else if (c.proactiveWindowStart >= c.proactiveWindowEnd) problems.push('主动聊天时段开始不早于结束（不支持跨午夜），不会叫醒')
     if (c.proactiveMinPerDay > c.proactiveMaxPerDay) problems.push('proactiveMinPerDay 大于 proactiveMaxPerDay')
+    if (c.proactiveChatId.trim() === '' && (c.proactivePrivateTargets ?? []).every(raw => raw.trim() === '') && (c.proactiveGroupTargets ?? []).every(raw => raw.trim() === '')) {
+      problems.push('主动聊天已开启，但没填任何目标（proactiveChatId / proactivePrivateTargets / proactiveGroupTargets 都是空的），不会叫醒')
+    }
   }
   if (c.humanTypingPace === true && (c.typingDelayMinMs ?? 0) > (c.typingDelayMaxMs ?? 0)) problems.push('按真人打字速度已开启，但 typingDelayMinMs 大于 typingDelayMaxMs：每条消息都会按最长时间等')
   if (c.splitLines && c.splitMaxMessages <= 1) problems.push('splitLines 已开启但 splitMaxMessages ≤ 1：实际不会拆分')

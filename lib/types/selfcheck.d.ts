@@ -61,6 +61,9 @@ export interface SelfCheckInput {
     sideAskEnabled?: boolean;
     /** 挂载时是否拿到了旁问适配器（sideAskAgentOf 的结果非空）。 */
     sideAskAvailable?: boolean;
+    /** 主动聊天额外目标（裸 QQ 号 / 群号，不带 private:/group: 前缀）。 */
+    proactivePrivateTargets?: readonly string[];
+    proactiveGroupTargets?: readonly string[];
 }
 /** All problems found (empty = all good). */
 export declare function selfCheck(c: SelfCheckInput): string[];

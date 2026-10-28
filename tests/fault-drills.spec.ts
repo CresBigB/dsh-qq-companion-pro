@@ -148,7 +148,7 @@ describe('scheduler failures', () => {
     const s = new ProactiveScheduler({
       config: { chatId: 'private:1', windowStart: '09:00', windowEnd: '22:00', minPerDay: 2, maxPerDay: 2, minGapMinutes: 90, skipIfActiveMinutes: 30, maxUnanswered: 2 },
       activity,
-      fire: async ctx => { contexts.push(ctx); if (fail) throw new Error('no session') },
+      fire: async (_chatId, ctx) => { contexts.push(ctx); if (fail) throw new Error('no session') },
       log: (level, m) => { if (level === 'warn') warns.push(m) },
       now: () => now,
       random: () => 0,

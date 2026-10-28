@@ -155,6 +155,10 @@ export interface Config {
   groupSessionKeepDays: number
   proactiveEnabled: boolean
   proactiveChatId: string
+  /** 主动聊天额外要照顾的私聊（QQ 号，不带 private: 前缀）。 */
+  proactivePrivateTargets: string[]
+  /** 主动聊天额外要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
+  proactiveGroupTargets: string[]
   proactiveWindowStart: string
   proactiveWindowEnd: string
   proactiveMinPerDay: number
@@ -450,7 +454,11 @@ export const Config: Z<Config> = z.object({
   proactiveEnabled: z.boolean().default(false)
     .description('每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员'),
   proactiveChatId: z.string().default('')
-    .description('主动找的会话，如 private:<管理员QQ>'),
+    .description('主动找的会话，如 private:<管理员QQ>；兼容旧配置。想同时照顾多个私聊/群聊用下面两项（写 QQ 号/群号即可，不用带 private:/group: 前缀）'),
+  proactivePrivateTargets: z.array(z.string()).default([])
+    .description('额外主动找的私聊 QQ 号（每行一个，不用写 private:）；与 proactiveChatId 一起生效，每个聊天各自一套随机计划与「几条没回就停」计数'),
+  proactiveGroupTargets: z.array(z.string()).default([])
+    .description('额外主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次'),
   proactiveWindowStart: z.string().default('09:00')
     .description('主动聊天时段开始（本地 HH:MM）'),
   proactiveWindowEnd: z.string().default('22:00')

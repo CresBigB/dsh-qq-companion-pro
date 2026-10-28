@@ -205,7 +205,7 @@ describe('proactive check-ins', () => {
     const s = new ProactiveScheduler({
       config: { chatId: 'private:1', windowStart: '09:00', windowEnd: '22:00', minPerDay: 6, maxPerDay: 6, minGapMinutes: 90, skipIfActiveMinutes: 30, maxUnanswered: 2 },
       activity,
-      fire: async ctx => { fired.push(ctx.unanswered); activity.record('private:1', 'bot', '主动说的话') },
+      fire: async (_chatId, ctx) => { fired.push(ctx.unanswered); activity.record('private:1', 'bot', '主动说的话') },
       log: () => undefined,
       now: () => now,
       random: () => 0, // earliest slots: 09:00, 10:30, 12:00, 13:30, 15:00, 16:30

@@ -217,9 +217,11 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   groupMemoryMaxBytes: vNumber(0),
   privateMemoryMaxBytes: vNumber(0),
   memoryNoteDenyWords: vArray(vString(0, 1024)),
-  // proactive（9）
+  // proactive（11）
   proactiveEnabled: vBoolean(),
   proactiveChatId: vString(0, 1024),
+  proactivePrivateTargets: vArray(vString(0, 64)),
+  proactiveGroupTargets: vArray(vString(0, 64)),
   proactiveWindowStart: vString(0, 1024),
   proactiveWindowEnd: vString(0, 1024),
   proactiveMinPerDay: vNumber(0),

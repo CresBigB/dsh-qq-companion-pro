@@ -141,6 +141,21 @@ export class CompanionHooks {
     ].join('\n')
   }
 
+  /** The wake-up text of one proactive check-in in a group. Same marker, but
+   * the words fit a group: nobody here is "the owner", and the turn runs with
+   * the member role (a group turn must not gain admin rights). */
+  groupCheckinText(context: { time: string; unanswered: number; lastUserAt: number | undefined }): string {
+    const since = context.lastUserAt === undefined
+      ? '群里最近没有人跟你说话'
+      : '群里上一次有人说话是 ' + Math.round((this.now() - context.lastUserAt) / 60_000) + ' 分钟前'
+    return [
+      '[主动聊天的机会 ' + context.time + '｜这条不是群成员发的，是系统叫醒你]',
+      since + (context.unanswered > 0 ? '；你主动说的 ' + context.unanswered + ' 句还没人接' : '') + '。',
+      '按你的人设决定要不要在这个群里主动说一句：想说什么就直接写（像平时一样一句一条）；',
+      '这次不想说话，或者没什么具体想说的，就只回复 ' + PROACTIVE_PASS + '，什么都不会发出去。',
+    ].join('\n')
+  }
+
   /** The text of one scheduled prompt, with today's transcript when asked
    * (taking it clears it). */
   scheduledText(prompt: ScheduledPrompt): string {

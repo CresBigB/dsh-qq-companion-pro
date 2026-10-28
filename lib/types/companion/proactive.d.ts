@@ -1,21 +1,28 @@
 import type { ChatActivity } from './activity.js';
 import type { Log } from './time.js';
 export interface ProactiveConfig {
-    /** The chat she may reach out to (the owner's private chat). */
-    chatId: string;
+    /** Legacy single target (callers that only know one chat keep working). */
+    chatId?: string;
+    /** Every chat she may reach out to: `private:<QQ>` / `group:<id>`. */
+    targets?: readonly string[];
     /** Local window, HH:MM–HH:MM. */
     windowStart: string;
     windowEnd: string;
-    /** Wake-ups per day, picked at random in [min, max]. */
+    /** Wake-ups per chat per day, picked at random in [min, max]. */
     minPerDay: number;
     maxPerDay: number;
     /** Minimum minutes between two wake-ups. */
     minGapMinutes: number;
-    /** Skip a wake-up when the owner wrote within this many minutes. */
+    /** Skip a wake-up when that chat had activity within this many minutes. */
     skipIfActiveMinutes: number;
     /** Stop for the day after this many unanswered proactive messages. */
     maxUnanswered: number;
 }
+/**
+ * The chats a config names, in order, blanks dropped and duplicates removed.
+ * `chatId` comes first so a legacy single-target config keeps its plan slot.
+ */
+export declare function proactiveTargetsOf(config: Pick<ProactiveConfig, 'chatId' | 'targets'>): string[];
 /** The reply that means "nothing to say this time" — never sent to QQ.
  * The literal lives in output-protocol.ts ({@link PASS_MARKER}) so the outbound
  * gate and this marker can never drift apart. */
@@ -33,7 +40,10 @@ export declare function isProactivePass(text: string): boolean;
  * random. Returns fewer when the window cannot fit them.
  */
 export declare function pickCheckinTimes(start: number, end: number, count: number, gap: number, random?: () => number): number[];
-/** Wakes her a few random times a day inside the window (see ProactiveConfig). */
+/** Wakes her a few random times a day inside the window (see ProactiveConfig).
+ * Every chat gets its own plan, its own daily count and its own
+ * stop-after-unanswered bookkeeping, so adding a group never shifts the
+ * private chat's schedule. */
 export declare class ProactiveScheduler {
     private readonly config;
     private readonly fire;
@@ -41,16 +51,15 @@ export declare class ProactiveScheduler {
     private readonly log;
     private readonly now;
     private readonly random;
-    private day;
-    private plan;
-    /** Wake-ups actually fired today (persisted with the plan). */
-    private firedToday;
+    private readonly targets;
+    /** Per-chat state; a missing or stale entry means "not planned yet today". */
+    private readonly plans;
     private timer;
     private readonly state;
     constructor(options: {
         config: ProactiveConfig;
         activity: ChatActivity;
-        fire: (context: {
+        fire: (chatId: string, context: {
             time: string;
             unanswered: number;
             lastUserAt: number | undefined;
@@ -58,27 +67,30 @@ export declare class ProactiveScheduler {
         log: Log;
         now?: () => number;
         random?: () => number;
-        /** Persist today's plan and fired count (a restart keeps them). */
+        /** Persist today's plans and fired counts (a restart keeps them). */
         stateFile?: string;
     });
-    /** Restore today's plan from the state file (a restart mid-day keeps the
-     * remaining slots and the count instead of drawing a fresh day). */
+    /** Restore today's plans from the state file (a restart mid-day keeps the
+     * remaining slots and the counts instead of drawing a fresh day). */
     load(): Promise<void>;
-    /** Snapshot for /doctor. */
+    /** Snapshot for /doctor (summed over every chat). */
     snapshot(): {
         day: string;
         remaining: string[];
         firedToday: number;
     };
+    /** Read one stored plan, tolerating an older or corrupt shape. */
+    private readPlan;
     private persist;
     start(intervalMs?: number): void;
     stop(): void;
-    /** Today's remaining wake-up times as HH:MM (for /task listing). */
+    /** Today's remaining wake-up times as HH:MM (chat-prefixed when several
+     * chats are configured, so /task never shows two indistinguishable slots). */
     remaining(): string[];
-    /** Wake her right now (the /task checkin test hook): the hard rules
-     * still apply except the time plan. */
+    /** Wake her right now in every configured chat (the /task checkin test hook):
+     * the hard rules still apply except the time plan. */
     fireNow(): Promise<void>;
-    /** One check (exported for tests). */
+    /** One check over every chat (exported for tests). */
     tick(): Promise<void>;
     private ensurePlan;
 }

@@ -637,6 +637,18 @@ export class ChatBridge {
     await this.dispatchFollowup(chatId, this.companion.checkinText(context), 'admin', undefined, { scheduled: true })
   }
 
+  /** One proactive wake-up in a group she is allowed to speak in. She decides
+   * whether to write; replying exactly PROACTIVE_PASS sends nothing.
+   * Runs as `member` on purpose: a group turn must never become an admin turn
+   * (canEditFiles() keys off the turn role), and a group that left the
+   * allowlist — or whose turn is busy — is skipped instead of typed into. */
+  async fireGroupCheckin(groupId: string, context: { time: string; unanswered: number; lastUserAt: number | undefined }): Promise<void> {
+    if (!groupAllowed(groupId, this.deps.policy)) return
+    const chatId = ('group:' + groupId) as ChatId
+    if (this.chats.get(chatId)?.busy === true) return
+    await this.dispatchFollowup(chatId, this.companion.groupCheckinText(context), 'member', undefined, { scheduled: true })
+  }
+
   /** One periodic look at a group (she decides herself whether to chip in;
    * the pass marker sends nothing). Skipped while the group's turn is busy. */
   async firePeek(groupId: string): Promise<void> {

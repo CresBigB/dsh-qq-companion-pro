@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 131 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 133 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -483,10 +483,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(131)
+    expect(ALL_KEYS).toHaveLength(133)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 125 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 133 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -691,7 +691,7 @@ describe('字段元数据 — dependsOn 覆盖规范 §3「依赖」列的每一
     { keys: ['groupMemoryMaxBytes'], on: { groupMemoryDir: 'E:\\m\\groups' }, off: { groupMemoryDir: '' } },
     { keys: ['stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax'], on: { stickerDir: 'E:\\stickers' }, off: { stickerDir: '' } },
     { keys: ['groupPeekGapMinutes', 'groupPeekMinMessages', 'groupPeekQuietMinutes', 'groupPeekWindowStart', 'groupPeekWindowEnd'], on: { groupPeekEnabled: true }, off: { groupPeekEnabled: false } },
-    { keys: ['proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'], on: { proactiveEnabled: true }, off: { proactiveEnabled: false } },
+    { keys: ['proactiveChatId', 'proactivePrivateTargets', 'proactiveGroupTargets', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'], on: { proactiveEnabled: true }, off: { proactiveEnabled: false } },
     { keys: ['sttEngine', 'sttModel', 'sttLanguage', 'sttMaxSeconds', 'sttTimeoutMs'], on: { sttEnabled: true }, off: { sttEnabled: false } },
     { keys: ['sttCommand', 'sttArgs'], on: { sttEnabled: true, sttEngine: 'command' }, off: { sttEnabled: true, sttEngine: 'auto' } },
     { keys: ['traceLevel'], on: { traceEnabled: true }, off: { traceEnabled: false } },

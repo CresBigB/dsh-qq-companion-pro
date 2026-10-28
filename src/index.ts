@@ -666,11 +666,25 @@ export function apply(ctx: Context, config: Config): void {
   // Lifecycle: start the bridge and transport; unwind everything on unload.
   // daily scheduled prompts (diary …), fired into their chats.
   const scheduler = new DailyScheduler({ prompts: config.scheduledPrompts, fire: prompt => bridge.fireScheduled(prompt), log, stateFile: join(mediaDir, 'scheduler-state.json') })
-  // proactive wake-ups in the owner's chat.
-  const proactive = config.proactiveEnabled && config.proactiveChatId !== ''
+  // proactive wake-ups in the owner's chat (and, if asked, in groups too).
+  // 私聊与群聊分成两个列表，所以这里不用让人写 private:/group: 前缀；写漏了
+  // 前缀也认（bareId 会剥掉），空行与重复项由 proactiveTargetsOf 处理。
+  const bareId = (raw: string): string => raw.trim().replace(/^(?:private|group):/i, '').trim()
+  const proactiveTargets: string[] = [
+    ...(config.proactiveChatId.trim() === '' ? [] : [config.proactiveChatId.trim()]),
+    ...(config.proactivePrivateTargets ?? []).flatMap(raw => {
+      const qq = bareId(raw)
+      return qq === '' ? [] : ['private:' + qq]
+    }),
+    ...(config.proactiveGroupTargets ?? []).flatMap(raw => {
+      const groupId = bareId(raw)
+      return groupId === '' ? [] : ['group:' + groupId]
+    }),
+  ]
+  const proactive = config.proactiveEnabled && proactiveTargets.length > 0
     ? new ProactiveScheduler({
       config: {
-        chatId: config.proactiveChatId,
+        targets: proactiveTargets,
         windowStart: config.proactiveWindowStart,
         windowEnd: config.proactiveWindowEnd,
         minPerDay: config.proactiveMinPerDay,
@@ -680,7 +694,10 @@ export function apply(ctx: Context, config: Config): void {
         maxUnanswered: config.proactiveMaxUnanswered,
       },
       activity,
-      fire: context => bridge.fireCheckin(config.proactiveChatId as never, context),
+      fire: (chatId, context) => chatId.startsWith('group:')
+        // 群里用群友身份，且 fireGroupCheckin 自己会再查白名单与忙闲。
+        ? bridge.fireGroupCheckin(chatId.slice('group:'.length), context)
+        : bridge.fireCheckin(chatId as never, context),
       log,
       stateFile: join(mediaDir, 'proactive-state.json'),
     })

@@ -39,7 +39,7 @@
 | 陪伴功能说明 | 按配置自动写给她：认人、群里什么时候会收到消息、记忆文件和上限、主动聊天、表情包规则；人设只写性格 |
 | 每日定时任务 | 每天 HH:MM 往指定会话投递一个任务（比如写日记），可附当天聊天节选，也可附各群当天节选 |
 | 旧会话自动清理 | 换下来的私聊 / 群聊旧会话超过设定天数没用就删掉（`privateSessionKeepDays` / `groupSessionKeepDays`），正在用的永远不删 |
-| 主动聊天 | 每天在时段内随机叫醒几次，由模型决定要不要主动找管理员；回复 `[不发]` 就什么都不发；对方刚聊过就跳过，连续没回就当天停止 |
+| 主动聊天 | 每天在时段内随机叫醒几次，由模型决定要不要主动找管理员；回复 `[不发]` 就什么都不发；对方刚聊过就跳过，连续没回就当天停止。可以同时配多个私聊和多个群（`proactivePrivateTargets` / `proactiveGroupTargets`），每个聊天各有自己的时间表与计数；群里的回合固定是群友身份，不会拿到改文件的权限 |
 | 定期 / 空闲换新会话 | 私聊、群聊分别每 N 天换一次新会话，或空闲 N 小时后换；新会话附上最后几句“交接” |
 | `/task` 定时任务 | 仅管理员私聊：列出定时任务和今天剩余的主动聊天时间；`/task <id>`、`/task checkin` 立刻执行 |
 | 长任务（自动接力） | 管理员私聊发 `/task 写一份 3000 字的报告`，她会开一个带预算的长任务，之后宿主自己一轮轮驱动她接着做，不用人再催：它在宿主的 goals 里跑，**只有宿主把目标标成完成/暂停/阻塞才算结束**——她自己说“做完了”不等于结束。`-r N`（1～200）显式给预算，不传就用宿主的默认预算（多少轮以创建回执里宿主给的数为准）；`/task status` 看进度、`/task stop` 暂停（进度保留）、`/task resume` 继续；新会话 / 换工作目录 / 重开会话都会撤销授权，不会偷偷换地方接着做 |
@@ -156,7 +156,9 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `privateResetDays` / `groupResetDays` | `0` | 会话跨过这么多个凌晨 4 点后换新会话 |
 | `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句） |
 | `proactiveEnabled` | `false` | 主动聊天 |
-| `proactiveChatId` | 空 | 主动找的会话（应为管理员私聊） |
+| `proactiveChatId` | 空 | 兼容旧配置的单个目标（不用带 `private:`/`group:` 前缀） |
+| `proactivePrivateTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |
+| `proactiveGroupTargets` | `[]` | 要主动说话的群：每行一个群号；群里按群友身份说话（不能改文件），不在白名单或正忙时跳过 |
 | `proactiveWindowStart` / `proactiveWindowEnd` | `09:00` / `22:00` | 时段（不跨午夜） |
 | `proactiveMinPerDay` / `proactiveMaxPerDay` | `4` / `6` | 每天叫醒次数 |
 | `proactiveMinGapMinutes` | `90` | 两次之间至少隔多久 |

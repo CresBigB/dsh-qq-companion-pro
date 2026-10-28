@@ -76,6 +76,14 @@ export declare class CompanionHooks {
         unanswered: number;
         lastUserAt: number | undefined;
     }): string;
+    /** The wake-up text of one proactive check-in in a group. Same marker, but
+     * the words fit a group: nobody here is "the owner", and the turn runs with
+     * the member role (a group turn must not gain admin rights). */
+    groupCheckinText(context: {
+        time: string;
+        unanswered: number;
+        lastUserAt: number | undefined;
+    }): string;
     /** The text of one scheduled prompt, with today's transcript when asked
      * (taking it clears it). */
     scheduledText(prompt: ScheduledPrompt): string;

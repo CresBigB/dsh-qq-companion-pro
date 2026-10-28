@@ -111,7 +111,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'groupPeekEnabled', 'groupPeekGapMinutes', 'groupPeekMinMessages', 'groupPeekQuietMinutes', 'groupPeekWindowStart', 'groupPeekWindowEnd',
   ],
   memory: ['publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes', 'privateMemoryMaxBytes', 'memoryNoteDenyWords'],
-  proactive: ['proactiveEnabled', 'proactiveChatId', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
+  proactive: ['proactiveEnabled', 'proactiveChatId', 'proactivePrivateTargets', 'proactiveGroupTargets', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
   media: [
     'stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax',
     'sttEnabled', 'sttEngine', 'sttModel', 'sttCommand', 'sttArgs', 'sttLanguage', 'sttMaxSeconds', 'sttTimeoutMs',
