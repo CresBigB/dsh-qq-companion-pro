@@ -217,9 +217,8 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   groupMemoryMaxBytes: vNumber(0),
   privateMemoryMaxBytes: vNumber(0),
   memoryNoteDenyWords: vArray(vString(0, 1024)),
-  // proactive（11）
+  // proactive（10）
   proactiveEnabled: vBoolean(),
-  proactiveChatId: vString(0, 1024),
   proactivePrivateTargets: vArray(vString(0, 64)),
   proactiveGroupTargets: vArray(vString(0, 64)),
   proactiveWindowStart: vString(0, 1024),

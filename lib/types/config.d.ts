@@ -139,10 +139,11 @@ export interface Config {
     privateSessionKeepDays: number;
     groupSessionKeepDays: number;
     proactiveEnabled: boolean;
-    proactiveChatId: string;
-    /** 主动聊天额外要照顾的私聊（QQ 号，不带 private: 前缀）。 */
+    /** @deprecated 已并入 proactivePrivateTargets / proactiveGroupTargets；只为读旧配置保留。 */
+    proactiveChatId?: string;
+    /** 主动聊天要照顾的私聊（QQ 号，不带 private: 前缀）。 */
     proactivePrivateTargets: string[];
-    /** 主动聊天额外要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
+    /** 主动聊天要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
     proactiveGroupTargets: string[];
     proactiveWindowStart: string;
     proactiveWindowEnd: string;

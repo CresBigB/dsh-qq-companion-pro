@@ -12,7 +12,7 @@
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
 import { buildCompanionStatusSnapshot, provideCompanionStatus } from './status.js'
-import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -412,6 +412,21 @@ export function apply(ctx: Context, config: Config): void {
   let peekTimer: ReturnType<typeof setInterval> | undefined
   // how her companion features work, written from this config for each chat
   const diary = (config.scheduledPrompts ?? []).find(p => p.includeTodayLog === true)
+  // 主动聊天的目标：私聊与群聊分成两个列表，所以这里不用让人写 private:/group:
+  // 前缀；写漏了前缀也认（bareId 会剥掉），空行与重复项交给 proactiveTargetsOf。
+  const bareId = (raw: string): string => raw.trim().replace(/^(?:private|group):/i, '').trim()
+  const proactiveTargets = proactiveTargetsOf({
+    targets: [
+      ...(config.proactivePrivateTargets ?? []).flatMap(raw => {
+        const qq = bareId(raw)
+        return qq === '' ? [] : ['private:' + qq]
+      }),
+      ...(config.proactiveGroupTargets ?? []).flatMap(raw => {
+        const groupId = bareId(raw)
+        return groupId === '' ? [] : ['group:' + groupId]
+      }),
+    ],
+  })
   const companionGuide = (chatId: string): string => buildCompanionGuide({
     ownerTitle: config.ownerTitle,
     adminUsers: policy.adminUsers,
@@ -432,7 +447,7 @@ export function apply(ctx: Context, config: Config): void {
     groupNameTriggers: config.groupNameTriggers ?? [],
     groupFollowupSeconds: config.groupFollowupSeconds ?? 0,
     groupPeekEnabled: config.groupPeekEnabled ?? false,
-    proactiveEnabled: config.proactiveEnabled && config.proactiveChatId === chatId,
+    proactiveEnabled: config.proactiveEnabled && proactiveTargets.includes(chatId),
     proactiveWindowStart: config.proactiveWindowStart,
     proactiveWindowEnd: config.proactiveWindowEnd,
     proactiveMaxUnanswered: config.proactiveMaxUnanswered,
@@ -667,20 +682,6 @@ export function apply(ctx: Context, config: Config): void {
   // daily scheduled prompts (diary …), fired into their chats.
   const scheduler = new DailyScheduler({ prompts: config.scheduledPrompts, fire: prompt => bridge.fireScheduled(prompt), log, stateFile: join(mediaDir, 'scheduler-state.json') })
   // proactive wake-ups in the owner's chat (and, if asked, in groups too).
-  // 私聊与群聊分成两个列表，所以这里不用让人写 private:/group: 前缀；写漏了
-  // 前缀也认（bareId 会剥掉），空行与重复项由 proactiveTargetsOf 处理。
-  const bareId = (raw: string): string => raw.trim().replace(/^(?:private|group):/i, '').trim()
-  const proactiveTargets: string[] = [
-    ...(config.proactiveChatId.trim() === '' ? [] : [config.proactiveChatId.trim()]),
-    ...(config.proactivePrivateTargets ?? []).flatMap(raw => {
-      const qq = bareId(raw)
-      return qq === '' ? [] : ['private:' + qq]
-    }),
-    ...(config.proactiveGroupTargets ?? []).flatMap(raw => {
-      const groupId = bareId(raw)
-      return groupId === '' ? [] : ['group:' + groupId]
-    }),
-  ]
   const proactive = config.proactiveEnabled && proactiveTargets.length > 0
     ? new ProactiveScheduler({
       config: {

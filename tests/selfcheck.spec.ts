@@ -9,7 +9,7 @@ const good: SelfCheckInput = {
   memberPermission: 'read-only',
   workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '', publicMemoryFile: '',
   scheduledPrompts: [{ id: 'diary', time: '01:30', chatId: 'private:123450001', prompt: '写日记' }],
-  proactiveEnabled: true, proactiveChatId: 'private:123450001', proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00',
+  proactiveEnabled: true, proactivePrivateTargets: ['123450001'], proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00',
   proactiveMinPerDay: 4, proactiveMaxPerDay: 6, splitLines: true, splitMaxMessages: 6,
 }
 
@@ -48,7 +48,7 @@ describe('selfCheck', () => {
   })
 
   it('warns when proactive chat targets a non-admin', () => {
-    expect(selfCheck({ ...good, proactiveChatId: 'private:999999' }).join()).toContain('不是管理员的私聊')
+    expect(selfCheck({ ...good, proactivePrivateTargets: ['999999'] }).join()).toContain('不是管理员：她会主动去找一个非管理员')
   })
 
   it('output protocol: a greylist without the switch, and malformed chat ids', () => {

@@ -1,8 +1,6 @@
 import type { ChatActivity } from './activity.js';
 import type { Log } from './time.js';
 export interface ProactiveConfig {
-    /** Legacy single target (callers that only know one chat keep working). */
-    chatId?: string;
     /** Every chat she may reach out to: `private:<QQ>` / `group:<id>`. */
     targets?: readonly string[];
     /** Local window, HH:MM–HH:MM. */
@@ -20,9 +18,8 @@ export interface ProactiveConfig {
 }
 /**
  * The chats a config names, in order, blanks dropped and duplicates removed.
- * `chatId` comes first so a legacy single-target config keeps its plan slot.
  */
-export declare function proactiveTargetsOf(config: Pick<ProactiveConfig, 'chatId' | 'targets'>): string[];
+export declare function proactiveTargetsOf(config: Pick<ProactiveConfig, 'targets'>): string[];
 /** The reply that means "nothing to say this time" — never sent to QQ.
  * The literal lives in output-protocol.ts ({@link PASS_MARKER}) so the outbound
  * gate and this marker can never drift apart. */

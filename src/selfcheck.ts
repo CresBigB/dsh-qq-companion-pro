@@ -28,7 +28,6 @@ export interface SelfCheckInput {
   publicMemoryFile: string
   scheduledPrompts: ReadonlyArray<{ id: string; time: string; chatId: string; prompt: string }>
   proactiveEnabled: boolean
-  proactiveChatId: string
   proactiveWindowStart: string
   proactiveWindowEnd: string
   proactiveMinPerDay: number
@@ -112,9 +111,7 @@ export function selfCheck(c: SelfCheckInput): string[] {
     if (p.prompt.trim() === '') problems.push('scheduledPrompts「' + p.id + '」的 prompt 为空，不会触发')
   }
   if (c.proactiveEnabled) {
-    if (!CHAT_ID.test(c.proactiveChatId)) problems.push('主动聊天已开启，但 proactiveChatId「' + c.proactiveChatId + '」格式不对，不会叫醒')
-    else if (c.proactiveChatId.startsWith('private:') && !c.adminUsers.includes(c.proactiveChatId.slice(8))) problems.push('proactiveChatId 不是管理员的私聊：她会主动去找一个非管理员')
-    // 两个新列表写的是裸 QQ 号/群号（不带 private:/group:）：写错时不会叫醒，
+    // 两个列表写的是裸 QQ 号/群号（不带 private:/group:）：写错时不会叫醒，
     // 或者更糟——主动去私聊一个陌生人，所以逐条点出来。
     for (const raw of c.proactivePrivateTargets ?? []) {
       const qq = raw.trim().replace(/^(?:private|group):/i, '').trim()
@@ -130,8 +127,8 @@ export function selfCheck(c: SelfCheckInput): string[] {
     if (!HHMM.test(c.proactiveWindowStart) || !HHMM.test(c.proactiveWindowEnd)) problems.push('主动聊天时段不是 HH:MM')
     else if (c.proactiveWindowStart >= c.proactiveWindowEnd) problems.push('主动聊天时段开始不早于结束（不支持跨午夜），不会叫醒')
     if (c.proactiveMinPerDay > c.proactiveMaxPerDay) problems.push('proactiveMinPerDay 大于 proactiveMaxPerDay')
-    if (c.proactiveChatId.trim() === '' && (c.proactivePrivateTargets ?? []).every(raw => raw.trim() === '') && (c.proactiveGroupTargets ?? []).every(raw => raw.trim() === '')) {
-      problems.push('主动聊天已开启，但没填任何目标（proactiveChatId / proactivePrivateTargets / proactiveGroupTargets 都是空的），不会叫醒')
+    if ((c.proactivePrivateTargets ?? []).every(raw => raw.trim() === '') && (c.proactiveGroupTargets ?? []).every(raw => raw.trim() === '')) {
+      problems.push('主动聊天已开启，但没填任何目标（proactivePrivateTargets / proactiveGroupTargets 都是空的），不会叫醒')
     }
   }
   if (c.humanTypingPace === true && (c.typingDelayMinMs ?? 0) > (c.typingDelayMaxMs ?? 0)) problems.push('按真人打字速度已开启，但 typingDelayMinMs 大于 typingDelayMaxMs：每条消息都会按最长时间等')

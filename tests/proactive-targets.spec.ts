@@ -20,15 +20,15 @@ const window2 = {
   windowStart: '09:00', windowEnd: '22:00', minPerDay: 2, maxPerDay: 2,
   minGapMinutes: 60, skipIfActiveMinutes: 30, maxUnanswered: 2,
 }
-const single = { chatId: 'private:1', ...window2 }
+const single = { targets: ['private:1'], ...window2 }
 const both = { targets: ['private:1', 'group:888'], ...window2 }
 
 describe('proactiveTargetsOf', () => {
-  it('keeps the legacy chatId first, drops blanks and de-duplicates', () => {
-    expect(proactiveTargetsOf({ chatId: 'private:1', targets: ['  ', 'private:1', 'group:888', '  group:888  ', 'private:2'] }))
+  it('drops blanks and de-duplicates, keeping the written order', () => {
+    expect(proactiveTargetsOf({ targets: ['  ', 'private:1', 'group:888', '  group:888  ', 'private:2'] }))
       .toEqual(['private:1', 'group:888', 'private:2'])
     expect(proactiveTargetsOf({ targets: ['group:888'] })).toEqual(['group:888'])
-    expect(proactiveTargetsOf({ chatId: '   ', targets: [] })).toEqual([])
+    expect(proactiveTargetsOf({ targets: [] })).toEqual([])
   })
 })
 

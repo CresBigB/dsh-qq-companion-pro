@@ -932,7 +932,7 @@ describe('未知能力 id 在启动自检里告警', () => {
     host: '127.0.0.1', accessToken: 't', botQQ: '', adminUsers: ['2824149798'],
     dmPolicy: 'open', groupPolicy: 'open', allowFrom: [], groupAllowFrom: [], allowAllUsers: false,
     memberPermission: 'read-only', workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '',
-    publicMemoryFile: '', scheduledPrompts: [], proactiveEnabled: false, proactiveChatId: '',
+    publicMemoryFile: '', scheduledPrompts: [], proactiveEnabled: false,
     proactiveWindowStart: '09:00', proactiveWindowEnd: '22:00', proactiveMinPerDay: 0,
     proactiveMaxPerDay: 0, splitLines: false, splitMaxMessages: 6,
   }

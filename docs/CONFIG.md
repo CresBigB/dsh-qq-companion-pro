@@ -109,9 +109,9 @@
 | `privateSessionKeepDays` | number | `0` | 私聊的旧会话（已经不用的）超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
 | `groupSessionKeepDays` | number | `0` | 群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删 |
 | `proactiveEnabled` | boolean | `false` | 每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员 |
-| `proactiveChatId` | string | `""` | 主动找的会话，如 private:<管理员QQ>；兼容旧配置。想同时照顾多个私聊/群聊用下面两项（写 QQ 号/群号即可，不用带 private:/group: 前缀） |
-| `proactivePrivateTargets` | string[] | `[]` | 额外主动找的私聊 QQ 号（每行一个，不用写 private:）；与 proactiveChatId 一起生效，每个聊天各自一套随机计划与「几条没回就停」计数 |
-| `proactiveGroupTargets` | string[] | `[]` | 额外主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次 |
+| `proactiveChatId` | string |  | [deprecated] 旧的单个主动聊天目标（如 private:<管理员QQ>）：本版仍会把它的值并进下面两项，之后可以删掉这一行 |
+| `proactivePrivateTargets` | string[] | `[]` | 主动找的私聊 QQ 号（每行一个，不用写 private:）；每个聊天各自一套随机计划与「几条没回就停」计数 |
+| `proactiveGroupTargets` | string[] | `[]` | 主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次 |
 | `proactiveWindowStart` | string | `"09:00"` | 主动聊天时段开始（本地 HH:MM） |
 | `proactiveWindowEnd` | string | `"22:00"` | 主动聊天时段结束（本地 HH:MM） |
 | `proactiveMinPerDay` | number | `4` | 每天最少叫醒几次 |

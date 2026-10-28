@@ -203,7 +203,7 @@ describe('proactive check-ins', () => {
     const activity = new ChatActivity({ mediaDir: tmp(), log: () => undefined, now: () => now })
     const fired: number[] = []
     const s = new ProactiveScheduler({
-      config: { chatId: 'private:1', windowStart: '09:00', windowEnd: '22:00', minPerDay: 6, maxPerDay: 6, minGapMinutes: 90, skipIfActiveMinutes: 30, maxUnanswered: 2 },
+      config: { targets: ['private:1'], windowStart: '09:00', windowEnd: '22:00', minPerDay: 6, maxPerDay: 6, minGapMinutes: 90, skipIfActiveMinutes: 30, maxUnanswered: 2 },
       activity,
       fire: async (_chatId, ctx) => { fired.push(ctx.unanswered); activity.record('private:1', 'bot', '主动说的话') },
       log: () => undefined,

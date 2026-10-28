@@ -130,7 +130,8 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
         includeGroupLogs: true
         prompt: 现在是写日记的时间……
     proactiveEnabled: true
-    proactiveChatId: 'private:你的QQ号'
+    proactivePrivateTargets: ['你的QQ号']
+    proactiveGroupTargets: ['群号']
     proactiveWindowStart: '09:00'
     proactiveWindowEnd: '22:00'
     proactiveMinPerDay: 4
@@ -156,7 +157,6 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `privateResetDays` / `groupResetDays` | `0` | 会话跨过这么多个凌晨 4 点后换新会话 |
 | `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句） |
 | `proactiveEnabled` | `false` | 主动聊天 |
-| `proactiveChatId` | 空 | 兼容旧配置的单个目标（不用带 `private:`/`group:` 前缀） |
 | `proactivePrivateTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |
 | `proactiveGroupTargets` | `[]` | 要主动说话的群：每行一个群号；群里按群友身份说话（不能改文件），不在白名单或正忙时跳过 |
 | `proactiveWindowStart` / `proactiveWindowEnd` | `09:00` / `22:00` | 时段（不跨午夜） |

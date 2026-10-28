@@ -154,10 +154,11 @@ export interface Config {
   privateSessionKeepDays: number
   groupSessionKeepDays: number
   proactiveEnabled: boolean
-  proactiveChatId: string
-  /** 主动聊天额外要照顾的私聊（QQ 号，不带 private: 前缀）。 */
+  /** @deprecated 已并入 proactivePrivateTargets / proactiveGroupTargets；只为读旧配置保留。 */
+  proactiveChatId?: string
+  /** 主动聊天要照顾的私聊（QQ 号，不带 private: 前缀）。 */
   proactivePrivateTargets: string[]
-  /** 主动聊天额外要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
+  /** 主动聊天要照顾的群（群号，不带 group: 前缀；群里按群友身份说话）。 */
   proactiveGroupTargets: string[]
   proactiveWindowStart: string
   proactiveWindowEnd: string
@@ -453,12 +454,12 @@ export const Config: Z<Config> = z.object({
     .description('群聊的旧会话超过这么多天没写入就删掉（0=不删）；正在用的会话永远不删'),
   proactiveEnabled: z.boolean().default(false)
     .description('每天在时段内随机叫醒机器人几次，让它决定要不要主动找管理员'),
-  proactiveChatId: z.string().default('')
-    .description('主动找的会话，如 private:<管理员QQ>；兼容旧配置。想同时照顾多个私聊/群聊用下面两项（写 QQ 号/群号即可，不用带 private:/group: 前缀）'),
+  proactiveChatId: z.string().deprecated()
+    .description('[deprecated] 旧的单个主动聊天目标（如 private:<管理员QQ>）：本版仍会把它的值并进下面两项，之后可以删掉这一行'),
   proactivePrivateTargets: z.array(z.string()).default([])
-    .description('额外主动找的私聊 QQ 号（每行一个，不用写 private:）；与 proactiveChatId 一起生效，每个聊天各自一套随机计划与「几条没回就停」计数'),
+    .description('主动找的私聊 QQ 号（每行一个，不用写 private:）；每个聊天各自一套随机计划与「几条没回就停」计数'),
   proactiveGroupTargets: z.array(z.string()).default([])
-    .description('额外主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次'),
+    .description('主动说话的群号（每行一个，不用写 group:）；群里按群友身份叫醒（不能改文件），群不在白名单里或这个群正在忙就跳过这次'),
   proactiveWindowStart: z.string().default('09:00')
     .description('主动聊天时段开始（本地 HH:MM）'),
   proactiveWindowEnd: z.string().default('22:00')
@@ -586,6 +587,21 @@ export function resolveDeprecatedConfig(config: Config): Config {
     delete resolved[oldName]
     if (resolved[newName] === defaultValue) resolved[newName] = legacy
   }
+  // 旧的单个主动聊天目标：并进新的两个列表（群目标进群列表，其余按私聊），
+  // 然后丢掉旧键——它已经不在设置页上，也不该再出现在生效配置里。
+  const legacyTarget = resolved.proactiveChatId
+  if (typeof legacyTarget === 'string' && legacyTarget.trim() !== '') {
+    const raw = legacyTarget.trim()
+    console.warn('[qq-companion] config "proactiveChatId" is deprecated; move it into proactivePrivateTargets / proactiveGroupTargets')
+    const isGroup = /^group:/i.test(raw)
+    const id = raw.replace(/^(?:private|group):/i, '').trim()
+    if (id !== '') {
+      const key = isGroup ? 'proactiveGroupTargets' : 'proactivePrivateTargets'
+      const list = Array.isArray(resolved[key]) ? resolved[key] as string[] : []
+      if (!list.some(entry => typeof entry === 'string' && entry.trim() === id)) resolved[key] = [...list, id]
+    }
+  }
+  delete resolved.proactiveChatId
   return resolved
 }
 

@@ -69,7 +69,7 @@ describe('DailyScheduler persistence', () => {
 })
 
 describe('ProactiveScheduler persistence', () => {
-  const config = { chatId: 'private:1', windowStart: '09:00', windowEnd: '22:00', minPerDay: 6, maxPerDay: 6, minGapMinutes: 90, skipIfActiveMinutes: 30, maxUnanswered: 2 }
+  const config = { targets: ['private:1'], windowStart: '09:00', windowEnd: '22:00', minPerDay: 6, maxPerDay: 6, minGapMinutes: 90, skipIfActiveMinutes: 30, maxUnanswered: 2 }
 
   it('a restart keeps the same plan and count; a new day draws afresh', async () => {
     const dir = tmp()

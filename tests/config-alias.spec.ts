@@ -93,3 +93,50 @@ describe('deprecated config aliases', () => {
     warn.mockRestore()
   })
 })
+
+describe('deprecated proactiveChatId (removed from the settings page)', () => {
+  it('folds a legacy private target into proactivePrivateTargets and drops the old key', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const config = resolveDeprecatedConfig(Config({ proactiveChatId: 'private:123450001' }))
+    expect(config.proactivePrivateTargets).toEqual(['123450001'])
+    expect(config.proactiveGroupTargets).toEqual([])
+    expect('proactiveChatId' in config).toBe(false)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('"proactiveChatId"')
+    warn.mockRestore()
+  })
+
+  it('sends a legacy group target to the group list', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const config = resolveDeprecatedConfig(Config({ proactiveChatId: 'group:888000001' }))
+    expect(config.proactivePrivateTargets).toEqual([])
+    expect(config.proactiveGroupTargets).toEqual(['888000001'])
+    warn.mockRestore()
+  })
+
+  it('keeps new lists intact and de-duplicates the legacy value', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const config = resolveDeprecatedConfig(Config({
+      proactiveChatId: 'private:123450001',
+      proactivePrivateTargets: ['123450001', '123450002'],
+    }))
+    expect(config.proactivePrivateTargets).toEqual(['123450001', '123450002'])
+    warn.mockRestore()
+  })
+
+  it('stays silent when the legacy key is absent or blank', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const absent = resolveDeprecatedConfig(Config({}))
+    expect(absent.proactivePrivateTargets).toEqual([])
+    expect(absent.proactiveGroupTargets).toEqual([])
+    const blank = resolveDeprecatedConfig(Config({ proactiveChatId: '   ' }))
+    expect(blank.proactivePrivateTargets).toEqual([])
+    expect(blank.proactiveGroupTargets).toEqual([])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('still type-validates the legacy value at the schema layer', () => {
+    expect(() => Config({ proactiveChatId: 5 })).toThrow()
+  })
+})

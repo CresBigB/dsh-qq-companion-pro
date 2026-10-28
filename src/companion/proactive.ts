@@ -13,8 +13,6 @@ import { dayKey, hhmm, minutesOfDay, toMinutes } from './time.js'
 import type { Log } from './time.js'
 
 export interface ProactiveConfig {
-  /** Legacy single target (callers that only know one chat keep working). */
-  chatId?: string
   /** Every chat she may reach out to: `private:<QQ>` / `group:<id>`. */
   targets?: readonly string[]
   /** Local window, HH:MM–HH:MM. */
@@ -40,11 +38,10 @@ interface TargetPlan {
 
 /**
  * The chats a config names, in order, blanks dropped and duplicates removed.
- * `chatId` comes first so a legacy single-target config keeps its plan slot.
  */
-export function proactiveTargetsOf(config: Pick<ProactiveConfig, 'chatId' | 'targets'>): string[] {
+export function proactiveTargetsOf(config: Pick<ProactiveConfig, 'targets'>): string[] {
   const out: string[] = []
-  for (const raw of [config.chatId, ...(config.targets ?? [])]) {
+  for (const raw of config.targets ?? []) {
     const chatId = typeof raw === 'string' ? raw.trim() : ''
     if (chatId === '' || out.includes(chatId)) continue
     out.push(chatId)

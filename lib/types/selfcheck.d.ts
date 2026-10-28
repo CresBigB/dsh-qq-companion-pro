@@ -21,7 +21,6 @@ export interface SelfCheckInput {
         prompt: string;
     }>;
     proactiveEnabled: boolean;
-    proactiveChatId: string;
     proactiveWindowStart: string;
     proactiveWindowEnd: string;
     proactiveMinPerDay: number;

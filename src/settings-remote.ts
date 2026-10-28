@@ -63,7 +63,7 @@ export const NAMESPACE = 'onebotSettings'
 /** 快照固定值：设置页的键都是插件级热重启生效。 */
 export const REMOTE_EFFECT = 'restart'
 
-/** 不上设置页的键（前端设计规范 §3.11）：三个已废弃的旧名别名 + 两个 `kindOf`
+/** 不上设置页的键（前端设计规范 §3.11）：四个已废弃的旧名别名 + 两个 `kindOf`
  *  不支持的对象型键（scheduledPrompts 对象数组 / sttReplacements 字典）。
  *  契约测试用它守住「Config.dict − 本表 = ALL_KEYS」——后端新增键忘了上页会
  *  在这条测试上失败。 */
@@ -71,6 +71,7 @@ export const EXCLUDED_KEYS: readonly string[] = [
   'imageMaxSize',
   'maxImageBytes',
   'maxInboundFileBytes',
+  'proactiveChatId',
   'scheduledPrompts',
   'sttReplacements',
 ]
@@ -111,7 +112,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'groupPeekEnabled', 'groupPeekGapMinutes', 'groupPeekMinMessages', 'groupPeekQuietMinutes', 'groupPeekWindowStart', 'groupPeekWindowEnd',
   ],
   memory: ['publicMemoryFile', 'publicMemoryMaxBytes', 'groupMemoryDir', 'groupMemoryMaxBytes', 'privateMemoryMaxBytes', 'memoryNoteDenyWords'],
-  proactive: ['proactiveEnabled', 'proactiveChatId', 'proactivePrivateTargets', 'proactiveGroupTargets', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
+  proactive: ['proactiveEnabled', 'proactivePrivateTargets', 'proactiveGroupTargets', 'proactiveWindowStart', 'proactiveWindowEnd', 'proactiveMinPerDay', 'proactiveMaxPerDay', 'proactiveMinGapMinutes', 'proactiveSkipIfActiveMinutes', 'proactiveMaxUnanswered'],
   media: [
     'stickerDir', 'stickerMaxCount', 'stickerMaxBytes', 'stickerDailyMax',
     'sttEnabled', 'sttEngine', 'sttModel', 'sttCommand', 'sttArgs', 'sttLanguage', 'sttMaxSeconds', 'sttTimeoutMs',
