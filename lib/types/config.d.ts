@@ -133,6 +133,8 @@ export interface Config {
     stickerMaxBytes: number;
     stickerDailyMax: number;
     privateResetDays: number;
+    /** seconds of private silence before the held lines are merged (0 = off). */
+    privateQuietSeconds: number;
     groupResetDays: number;
     privateMemoryMaxBytes: number;
     memoryNoteDenyWords: string[];

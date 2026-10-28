@@ -192,6 +192,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   sideAskContextChars: vOptional(vNumber(0, 20000)),
   idleResetHours: vNumber(0),
   privateResetDays: vNumber(0),
+  privateQuietSeconds: vOptional(vNumber(0, 30)),
   groupResetDays: vNumber(0),
   sessionTitleTemplate: vString(0, 1024),
   privateSessionKeepDays: vNumber(0),

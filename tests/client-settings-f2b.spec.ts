@@ -602,7 +602,7 @@ describe('collectRisks — §5.5 每个触发条件', () => {
 })
 
 describe('新后端设置键 — 分组、旧快照兼容与 JSON 透传', () => {
-  const NEW_KEYS = ['groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars']
+  const NEW_KEYS = ['groupTriggerPolicy', 'sideAskEnabled', 'sideAskConcurrency', 'sideAskMaxChars', 'sideAskContextChars', 'privateQuietSeconds']
 
   it('字段进入群聊 / 会话与任务页，旧快照控件禁用且无关保存不夹带缺席键', () => {
     expect(GROUPS.find(group => group.id === 'access')?.fields.map(field => field.key)).toContain('groupTriggerPolicy')

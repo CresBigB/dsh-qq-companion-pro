@@ -124,6 +124,9 @@ export interface BridgeConfig {
     /** start a fresh session once the current one has crossed
      * this many 04:00 day boundaries (0 = off). */
     privateResetDays?: number;
+    /** seconds of private silence before held lines are merged into one turn
+     * (0 = dispatch every message immediately, the pre-existing behaviour). */
+    privateQuietSeconds?: number;
     groupResetDays?: number;
     /** the daily scheduled prompts (for /task listing / run-now). */
     scheduledPrompts?: readonly ScheduledPrompt[];

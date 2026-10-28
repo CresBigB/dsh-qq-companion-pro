@@ -57,6 +57,8 @@ export declare const TRACE_REASONS: {
     readonly inboundRateLimited: "消息频率超限，已丢弃";
     readonly inboundRateNoticeFailed: "限流提示发送失败";
     readonly inboundEmptyContent: "消息展开后无有效文本内容，已丢弃";
+    readonly inboundQuietHeld: "私聊静默窗口：消息已缓存，等发送方停止输入后合并派发";
+    readonly inboundQuietFlushed: "私聊静默窗口到期：缓存的多条消息已合并成一次派发";
     readonly busyTurnQueued: "任务运行中，新消息已入队等待当前回合结束";
     readonly busyTurnSteered: "任务运行中，新消息已作为补充指令插话";
     readonly busyTurnSideAsk: "任务运行中，新消息已交给独立旁问回答";

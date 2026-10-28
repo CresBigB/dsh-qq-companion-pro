@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 10 组 132 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 10 组 133 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -483,10 +483,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(132)
+    expect(ALL_KEYS).toHaveLength(133)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 132 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 133 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -574,7 +574,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     /** 下限 1 的键（与宿主 Config 一致：0 没有意义）。 */
     const MIN_ONE_KEYS = ['taskEveryRounds', 'sideAskConcurrency', 'sideAskMaxChars']
     /** 下限 0 但宿主有上限的键（与宿主 Config 的 max 一致）。 */
-    const MIN_ZERO_BOUNDED_KEYS: Record<string, number> = { sideAskContextChars: 20000 }
+    const MIN_ZERO_BOUNDED_KEYS: Record<string, number> = { sideAskContextChars: 20000, privateQuietSeconds: 30 }
     for (const field of allFields) {
       if (field.type === 'number') {
         if (field.key === 'port') {

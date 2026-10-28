@@ -46,6 +46,7 @@
 | `/doctor` 陪伴状态 | QQ 账号是否真在线、定时任务今天执行没有、主动聊天计划、每个记忆文件占上限多少 |
 | 群聊怎么触发 | 默认「必须 @ 才回」（`requireMention`）。要更细就配 `groupTriggerPolicy`（JSON）：按群、按人分别设要不要 @、没 @ 要不要主动接话、只回相关的 / 按概率回 / 不回（`replyMode=related|probability|off`，`probability` 0–1）；不配仍是原来的行为 |
 | 旁问（自动） | 打开 `sideAskEnabled` 后，任务还在跑时又发来的纯文字消息**不用加任何指令**，会自动交给一个独立的旁问子代理（宿主 subagent，`spawn` 提供方 + 调用方投递，**不是** fork 会话副本：不会给会话库添前缀副本，也不会向父会话投递完成通知）立刻回答，回答作为另一条消息发回，主任务完全不受影响（既不排队也不被插话）。`sideAskConcurrency`（1–8，默认 2）是跨所有聊天的并发上限，占满或消息超长时静默退回原来的排队/插话策略；宿主自己的子代理名额满时会明确回一句可操作提示。子代理不复制会话历史，所以插件会把主会话最近的一段纯文字对话（你的指令 + 她已说出的内容）当背景塞进提示词：`sideAskContextChars`（0–20000，默认 4000，0 = 完全不带背景）。带图片/文件/引用/转发的消息仍按排队处理 |
+| 私聊等你打完 | 打开 `privateQuietSeconds`（0–30，默认 0 = 关闭）后，你在私聊里连着发的几条会先攒着：等你安静这么多秒，才按发送顺序并成**一次**交给她（每条各自保留自己的发言边界，她答的是第一条）。斜杠命令立刻执行；带图片/文件/语音/引用/转发的消息会先把攒着的文字发出去；群聊不受影响。每条消息仍各占一次每分钟频率名额 |
 | 设置页 | 在 dsh 网页的设置里有这个插件的**概览 + 11 个配置子页**（功能权限、连接、谁能找她、她、说话方式、会话与任务、群聊、记忆、主动聊天、媒体与语音、诊断），改完保存即写回 profile |
 | 表情包库 | 她把收到的表情包、照片存进自己的库（带标签），聊天时按情绪找一张发出去，每次回复最多 1 张；改和删只有主人能让她做 |
 | 防风控 | 所有消息按真人打字速度发（整个小号同一时间只打一条）、群里不拆句；`/doctor` 显示发送量 |
@@ -120,6 +121,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     publicMemoryFile: /home/bot/memory/AGENTS.md
     publicMemoryMaxBytes: 24576
     privateResetDays: 5
+    privateQuietSeconds: 3                 # 私聊里等你安静 3 秒再合并派发（0=关闭）
     groupResetDays: 2
     idleResetHours: 168
     scheduledPrompts:
@@ -155,6 +157,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `autoAllowInvitedGroups` | `false` | 管理员拉进的群自动加白名单 |
 | `idleResetHours` | `0` | 空闲这么多小时后换新会话 |
 | `privateResetDays` / `groupResetDays` | `0` | 会话跨过这么多个凌晨 4 点后换新会话 |
+| `privateQuietSeconds` | `0` | 私聊里等发送方安静这么多秒（0–30），再把他连着发的几条并成一次交给她；只作用于私聊纯文字，命令/媒体/引用/转发会先把攒着的文字发出去 |
 | `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句） |
 | `proactiveEnabled` | `false` | 主动聊天 |
 | `proactivePrivateTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |

@@ -126,7 +126,7 @@ export interface InboundContext {
     /** Bridge log line callback. */
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
     /** The only config fields the inbound pipeline reads. */
-    config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'groupTriggerPolicy' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds' | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy'>;
+    config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'groupTriggerPolicy' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds' | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy' | 'privateQuietSeconds'>;
 }
 /** Longest a voice message waits for its transcript before it is handed
  * over as a bare [语音]. */
@@ -137,6 +137,9 @@ export declare const DEFAULT_DEDUP_WINDOW_SECONDS = 300;
 /** max entries kept in the dedup window map (LRU-evicted beyond this)
  * so a flood of distinct message_ids cannot grow memory unbounded. */
 export declare const DEDUP_MAX_ENTRIES = 4096;
+/** hard ceiling on the private quiet window (seconds): the config key is
+ * capped at 30 so a mistyped value can never hold a message forever. */
+export declare const QUIET_WINDOW_MAX_SECONDS = 30;
 /** Constructor tuning knobs for the inbound pipeline (tests inject a fake
  * clock / a small LRU cap; production uses the defaults). */
 export interface InboundPipelineOptions {
@@ -161,6 +164,8 @@ export declare class InboundPipeline {
     /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
      * insertion order (Map) so the oldest entry is the LRU victim. */
     private readonly seenMessages;
+    /** private quiet window: held messages per chat (see QuietBuffer). */
+    private readonly quietBuffers;
     /** Messages are prepared one at a time, across all chats, in arrival
      * order: a voice message waiting for its transcript (or an image still
      * downloading) is never overtaken by a later message. */
@@ -173,6 +178,26 @@ export declare class InboundPipeline {
      * that arrived before it (see `queue`). */
     processInbound(inbound: NormalizedInbound): Promise<void>;
     private processNow;
+    /** The busy-turn policy seam runs AFTER every gate above (dedup / self /
+     * policy / mention / command / rate-limit) and only around the final
+     * dispatch — a queued or steered message has already paid for its rate-limit
+     * slot and passed the whole pipeline. `plain` = no media, no quote, no
+     * forward: the only shape eligible for steer (media-bearing messages always
+     * queue so the full media pipeline runs for their own turn). Seam absent =
+     * straight dispatch. Shared by the normal path and the quiet-window flush so
+     * a merged batch meets exactly the same seam. */
+    private dispatchFinal;
+    /** Milliseconds of the private quiet window (0 = disabled). The config value
+     * is clamped to [0, QUIET_WINDOW_MAX_SECONDS] and non-finite values fall back
+     * to 0, so a broken config can never hold messages. */
+    private quietWindowMs;
+    /** Append one wrapped segment to the chat's quiet buffer and (re)arm its
+     * debounce timer; the timer fires the merge. */
+    private holdQuiet;
+    /** Dispatch everything held for this chat as ONE turn (no-op when empty).
+     * Called by the debounce timer and by any message that is not eligible for
+     * buffering (command / media / quote / forward). */
+    private flushQuiet;
     /** (chatId, message_id) sliding-window dedup against OneBot
      * re-delivery (reconnect replay / ws retry). Runs before every other gate
      * so a redelivered message can neither re-trigger a command nor reset the

@@ -184,7 +184,7 @@ export interface InboundContext {
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
   /** The only config fields the inbound pipeline reads. */
   config: Pick<BridgeConfig, 'botQQ' | 'ignoreSelf' | 'requireMention' | 'groupTriggerPolicy' | 'rateLimitPerMinute' | 'restrictedMemberPrefix' | 'maxInboundFileBytes' | 'dedupWindowSeconds'
-    | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy'>
+    | 'friendUsers' | 'memberObedience' | 'friendObedience' | 'friendIntimacy' | 'privateQuietSeconds'>
 }
 
 /** Longest a voice message waits for its transcript before it is handed
@@ -197,6 +197,26 @@ export const DEFAULT_DEDUP_WINDOW_SECONDS = 300
 /** max entries kept in the dedup window map (LRU-evicted beyond this)
  * so a flood of distinct message_ids cannot grow memory unbounded. */
 export const DEDUP_MAX_ENTRIES = 4096
+
+/** hard ceiling on the private quiet window (seconds): the config key is
+ * capped at 30 so a mistyped value can never hold a message forever. */
+export const QUIET_WINDOW_MAX_SECONDS = 30
+
+/** One held private message: the already-wrapped segment plus the identity
+ * of the *first* message (the merged turn answers that one). */
+interface QuietBuffer {
+  /** wrapped <user_message> segments, in arrival order. */
+  segments: string[]
+  /** role / nickname of the first message (one private chat = one peer). */
+  role: UserRole
+  nickname: string | undefined
+  /* the first message id (the merged dispatch answers this one). */
+  messageId: string | undefined
+  /** the relation banner, computed once from the first message; '' = none. */
+  banner: string
+  /** the pending debounce timer, if any. */
+  timer: ReturnType<typeof setTimeout> | undefined
+}
 
 /** Constructor tuning knobs for the inbound pipeline (tests inject a fake
  * clock / a small LRU cap; production uses the defaults). */
@@ -223,6 +243,8 @@ export class InboundPipeline {
   /** dedup window state: "chatId#messageId" → first-seen epoch ms, in
    * insertion order (Map) so the oldest entry is the LRU victim. */
   private readonly seenMessages = new Map<string, number>()
+  /** private quiet window: held messages per chat (see QuietBuffer). */
+  private readonly quietBuffers = new Map<ChatId, QuietBuffer>()
   /** Messages are prepared one at a time, across all chats, in arrival
    * order: a voice message waiting for its transcript (or an image still
    * downloading) is never overtaken by a later message. */
@@ -398,6 +420,30 @@ export class InboundPipeline {
       }
     }
 
+    const isAdmin = classifyUserRole(userId, policy.adminUsers) === 'admin'
+    // The private quiet window: a plain text private message is held until the
+    // sender has been quiet for N seconds, then every held line is dispatched
+    // as ONE turn (see holdQuiet/flushQuiet). Any other shape — a command, or
+    // a message carrying media / a quote / a forward — flushes the held lines
+    // first, so the buffered text always leaves before the message that ended
+    // the window. Every original message keeps its own rate-limit slot (the
+    // hold path charges one below, the normal path keeps charging at its own
+    // gate), so five short lines still count as five against the per-minute
+    // limit even though they dispatch once.
+    const quietMs = this.quietWindowMs()
+    const plainMessage = inbound.media.length === 0 && inbound.replyId === undefined && inbound.forwardId === undefined
+    if (kind === 'private' && quietMs > 0) {
+      if (!plainMessage || isKnownCommand(inbound.text)) {
+        await this.flushQuiet(chatId)
+      } else {
+        if (this.rateLimited(chatId)) return
+        this.holdQuiet(chatId, wrapUserMessage(inbound.text, userId, nickname, messageId), isAdmin ? 'admin' : 'member', nickname, messageId, quietMs)
+        currentTrace()?.emit('inbound', { ok: true, reason: TRACE_REASONS.inboundQuietHeld })
+        this.ctx.log('debug', '私聊静默窗口：消息已缓存，等待停止输入: ' + chatId)
+        return
+      }
+    }
+
     // route slash commands BEFORE any media/quote I/O — a message that
     // happens to carry media must not pay for downloads or get_msg calls just
     // to be consumed as a command (admin-only; unknown /-words still fall
@@ -424,7 +470,6 @@ export class InboundPipeline {
       }
     }
 
-    const isAdmin = classifyUserRole(userId, policy.adminUsers) === 'admin'
     if (this.rateLimited(chatId)) return
 
     // the whole sender-controlled payload (body + quote/forward
@@ -465,19 +510,107 @@ export class InboundPipeline {
       }, this.ctx.config) + ' ' + final
     }
     const role: UserRole = isAdmin ? 'admin' : 'member'
-    // the busy-turn policy seam runs AFTER every gate above (dedup /
-    // self / policy / mention / command / rate-limit) and only around the
-    // final dispatch — a queued or steered message has already paid for its
-    // rate-limit slot and passed the whole pipeline. `plain` = no media, no
-    // quote, no forward: the only shape eligible for steer (media-bearing
-    // messages always queue so the full media pipeline runs for their own
-    // turn). Seam absent = straight dispatch.
-    const plain = inbound.media.length === 0 && inbound.replyId === undefined && inbound.forwardId === undefined
+    await this.dispatchFinal(chatId, final, role, nickname, messageId, plainMessage)
+  }
+
+  /** The busy-turn policy seam runs AFTER every gate above (dedup / self /
+   * policy / mention / command / rate-limit) and only around the final
+   * dispatch — a queued or steered message has already paid for its rate-limit
+   * slot and passed the whole pipeline. `plain` = no media, no quote, no
+   * forward: the only shape eligible for steer (media-bearing messages always
+   * queue so the full media pipeline runs for their own turn). Seam absent =
+   * straight dispatch. Shared by the normal path and the quiet-window flush so
+   * a merged batch meets exactly the same seam. */
+  private async dispatchFinal(
+    chatId: ChatId,
+    final: string,
+    role: UserRole,
+    nickname: string | undefined,
+    messageId: string | undefined,
+    plain: boolean,
+  ): Promise<void> {
     if (this.ctx.interceptBusyTurn !== undefined
       && await this.ctx.interceptBusyTurn(chatId, final, role, nickname, plain, messageId)) {
       return
     }
     await this.ctx.dispatchFollowup(chatId, final, role, nickname, messageId)
+  }
+
+  /** Milliseconds of the private quiet window (0 = disabled). The config value
+   * is clamped to [0, QUIET_WINDOW_MAX_SECONDS] and non-finite values fall back
+   * to 0, so a broken config can never hold messages. */
+  private quietWindowMs(): number {
+    const raw = this.ctx.config.privateQuietSeconds
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 0
+    return Math.min(QUIET_WINDOW_MAX_SECONDS, raw) * 1000
+  }
+
+  /** Append one wrapped segment to the chat's quiet buffer and (re)arm its
+   * debounce timer; the timer fires the merge. */
+  private holdQuiet(
+    chatId: ChatId,
+    segment: string,
+    role: UserRole,
+    nickname: string | undefined,
+    messageId: string | undefined,
+    quietMs: number,
+  ): void {
+    const existing = this.quietBuffers.get(chatId)
+    if (existing === undefined) {
+      // the relation banner is computed once, from the first held message, and
+      // stays outside the <user_message> boundary (framework metadata).
+      const banner = role !== 'admin' && this.ctx.config.restrictedMemberPrefix
+        ? relationBanner({
+          userId: chatId.split(':').pop() ?? '',
+          chatKind: 'private',
+          policy: { adminUsers: this.ctx.policy.adminUsers, friendUsers: this.ctx.config.friendUsers ?? [] },
+        }, this.ctx.config)
+        : ''
+      this.quietBuffers.set(chatId, {
+        segments: [segment],
+        role,
+        nickname,
+        messageId,
+        banner,
+        timer: undefined,
+      })
+    } else {
+      existing.segments.push(segment)
+    }
+    const buffer = this.quietBuffers.get(chatId)
+    if (buffer === undefined) return
+    if (buffer.timer !== undefined) clearTimeout(buffer.timer)
+    const timer = setTimeout(() => {
+      // the flush is serialized behind whatever the pipeline is doing so a
+      // merged batch can never overtake an earlier message.
+      const run = this.queue.then(() => this.flushQuiet(chatId))
+      this.queue = run.catch(() => undefined)
+      void run.catch((error: unknown) => {
+        this.ctx.log('warn', '私聊静默窗口冲刷失败: ' + describeError(error))
+      })
+    }, quietMs)
+    timer.unref?.()
+    buffer.timer = timer
+  }
+
+  /** Dispatch everything held for this chat as ONE turn (no-op when empty).
+   * Called by the debounce timer and by any message that is not eligible for
+   * buffering (command / media / quote / forward). */
+  private async flushQuiet(chatId: ChatId): Promise<void> {
+    const buffer = this.quietBuffers.get(chatId)
+    if (buffer === undefined) return
+    this.quietBuffers.delete(chatId)
+    if (buffer.timer !== undefined) {
+      clearTimeout(buffer.timer)
+      buffer.timer = undefined
+    }
+    const body = buffer.segments.join('\n')
+    const final = buffer.banner === '' ? body : buffer.banner + ' ' + body
+    if (buffer.segments.length > 1) {
+      currentTrace()?.emit('inbound', { ok: true, reason: TRACE_REASONS.inboundQuietFlushed })
+    }
+    this.ctx.log('debug', '私聊静默窗口到期：合并派发 ' + String(buffer.segments.length) + ' 条: ' + chatId)
+    await this.dispatchFinal(chatId, final, buffer.role, buffer.nickname, buffer.messageId, true)
   }
 
   /** (chatId, message_id) sliding-window dedup against OneBot
