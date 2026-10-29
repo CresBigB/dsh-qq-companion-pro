@@ -6,8 +6,8 @@
  * - queue（默认）：门控后的新消息保持 0.8.1 的 dispatch 路径 ——
  *   agent.followup 的宿主契约是「Queue an ordinary follow-up turn… becomes
  *   the sole ordinary message of its own turn」（runtime-types.d.ts:189-193），
- *   即入队并在当前回合结束后按到达顺序各自成为独立回合；插件侧新增的是
- *   门控后每运行回合至多 1 条的排队提示（QUEUE_NOTICE_TEXT，turn/end 重置）。
+ *   即入队并在当前回合结束后按到达顺序各自成为独立回合；插件侧**不再发**任何
+ *   排队提示（T27 移除了旧的 QUEUE_NOTICE_TEXT，排队靠她稍后的答复体现）。
  * - steer：普通纯文字（无媒体/无引用/无转发）经 bridge 单一 steerMessage
  *   写点（agent.steer + plugin:dsh-onebot source）作为补充指令进当前任务，
  *   在最近 step 边界被读取，不新开回合；每条提交回复一次提交提示。
@@ -22,9 +22,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-import { QUEUE_NOTICE_TEXT } from '../src/bridge.js'
 import { STEER_ACCEPTED_NOTICE, STEER_USAGE_HINT } from '../src/commands.js'
 import { makeCmdHarness, makeEvent, sentTexts } from './helpers/bridge-harness.js'
+
+/** 排队提示已移除（T27）：这个字符串只用来断言它再也不会出现。 */
+const QUEUE_NOTICE_TEXT = '⏳ 当前任务运行中，新消息已排队，将在当前任务结束后依次处理。'
 
 /** 把指定 chat 的假 agent 置于运行态（真实宿主中由回合驱动自动切换）。 */
 function setRunning(h: Awaited<ReturnType<typeof makeCmdHarness>>, chatId = 'private:10001'): void {
@@ -34,7 +36,7 @@ function setRunning(h: Awaited<ReturnType<typeof makeCmdHarness>>, chatId = 'pri
 }
 
 describe('newMessagePolicy — queue（默认，缺省即 queue）', () => {
-  it('运行回合中收到 2 条新消息：按序入队 dispatch、排队提示恰 1 条、零 steer', async () => {
+  it('运行回合中收到 2 条新消息：按序入队 dispatch、零提示、零 steer', async () => {
     const h = await makeCmdHarness() // 不传 newMessagePolicy = 缺省 queue
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
@@ -51,33 +53,32 @@ describe('newMessagePolicy — queue（默认，缺省即 queue）', () => {
     expect(texts[2]).toContain('排队消息二')
     expect(h.captured.steers).toHaveLength(0)
 
-    // 排队提示同一运行回合只发 1 条（防刷屏）
-    await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes(QUEUE_NOTICE_TEXT))).toBe(true))
-    expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1)
+    // 排队不再发提示（T27），也不插话：整个回合一条出站消息都没有
+    expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0)
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)
-    expect(h.outbound.filter(f => f.action === 'send_msg')).toHaveLength(1) // 除提示外无其他出站
+    expect(h.outbound.filter(f => f.action === 'send_msg')).toHaveLength(0)
 
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
   }, 60_000)
 
-  it('turn/end 重置提示计数：下一个运行回合再排队会再次提示', async () => {
+  it('turn/end 之后的下一个运行回合里再排队：仍入队，仍不提示', async () => {
     const h = await makeCmdHarness()
     h.sendText('启动任务')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
     setRunning(h)
     h.sendText('第一条排队')
-    await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes(QUEUE_NOTICE_TEXT))).toBe(true))
+    await vi.waitFor(() => expect(h.captured.followups.length).toBeGreaterThanOrEqual(2))
 
-    // 当前回合结束 → 提示计数重置 → 新回合开始
+    // 当前回合结束 → 新回合开始
     const session = { id: h.sessionIds[0] }
     h.ctx.emit('session/event', session as never, makeEvent('turn/end', { turn: 1, reason: { kind: 'completed' } }))
     h.ctx.emit('session/event', session as never, makeEvent('turn/start', { turn: 2 }))
 
     h.sendText('第二条排队')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(3))
-    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(2))
+    await vi.waitFor(() => expect(h.captured.followups.length).toBeGreaterThanOrEqual(3))
 
     h.client.close()
     await h.bridge.stop()
@@ -146,7 +147,7 @@ describe('插话例外规则（两种模式都不进 steer）', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2), )
     expect(h.captured.steers).toHaveLength(0)
     expect(h.captured.followups[1].text).toContain('针对引用的补充')
-    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
+    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0))
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)
 
     h.client.close()
@@ -170,7 +171,7 @@ describe('插话例外规则（两种模式都不进 steer）', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.steers).toHaveLength(0)
     expect(h.captured.followups[1].text).toContain('[图片]')
-    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
+    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0))
 
     h.client.close()
     await h.bridge.stop()
@@ -190,7 +191,7 @@ describe('插话例外规则（两种模式都不进 steer）', () => {
     // 关系绸标原样保留：排队消息仍带 [关系:…]
     expect(h.captured.followups[1].text).toContain('[关系:群友｜语气中性｜服从0.2｜亲密0.2｜不可指挥]')
     expect(h.captured.followups[1].text).toContain('群成员想插话')
-    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
+    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0))
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)
 
     h.client.close()
@@ -210,7 +211,7 @@ describe('autoSteerPolicy—— steer 模式下自动插话资格', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.steers).toHaveLength(0)
     expect(h.captured.followups[1].text).toContain('普通成员的补充')
-    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
+    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0))
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)
 
     h.client.close()
@@ -248,7 +249,7 @@ describe('autoSteerPolicy—— steer 模式下自动插话资格', () => {
     expect(h.captured.steers).toHaveLength(0)
     expect(h.captured.followups[1].text).toContain('[关系:群友')
     expect(h.captured.followups[1].text).toContain('受限成员的补充')
-    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(1))
+    await vi.waitFor(() => expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0))
     expect(sentTexts(h.outbound).filter(t => t.includes(STEER_ACCEPTED_NOTICE))).toHaveLength(0)
 
     h.client.close()

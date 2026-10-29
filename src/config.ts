@@ -296,7 +296,7 @@ export const Config: Z<Config> = z.object({
   sideAskContextChars: z.number().min(0).max(20000).default(4000)
     .description('旁问子级能看到的主会话背景字符数（0–20000，默认 4000；0=不带背景，只回答这一条）'),
   newMessagePolicy: z.union([z.const('queue'), z.const('steer')]).default('queue')
-    .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间至多提示一次；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
+    .description('任务运行中的新消息处理策略：queue（默认）=排队——新消息在当前任务结束后按序处理为后续回合，等待期间不发任何提示；steer=插话——运行中收到的新普通纯文字消息作为补充指令加入当前任务（模型在下一步读取）并回复提交提示；图片/文件/语音/带引用消息与带关系绸标的非管理员消息两种模式下都按排队处理，/steer 命令两种模式下均可用'),
   autoSteerPolicy: z.union([z.const('admin'), z.const('all')]).default('admin')
     .description('steer 模式下自动插话的发送者资格：admin（默认）=仅管理员可自动插话；all=所有非受限发送者均可。不具备资格的消息按排队处理；/steer 命令始终仅管理员、不受本项影响；queue 模式行为不变'),
   taskEveryRounds: z.number().min(1).default(1)

@@ -6,11 +6,6 @@ import type { OneBotEvent } from './connection.js';
 import { type OutboundSegment, type SendOptions } from './outbound.js';
 import { type TraceStage } from './trace.js';
 export * from './bridge-types.js';
-/** the queue notice sent to a chat when a message arrives while its
- * task is running under the default 'queue' policy — at most ONE per running
- * turn (the flag resets at turn/end) so a burst of queued messages never
- * spams the chat. Exported for the deterministic text wait in tests. */
-export declare const QUEUE_NOTICE_TEXT = "\u23F3 \u5F53\u524D\u4EFB\u52A1\u8FD0\u884C\u4E2D\uFF0C\u65B0\u6D88\u606F\u5DF2\u6392\u961F\uFF0C\u5C06\u5728\u5F53\u524D\u4EFB\u52A1\u7ED3\u675F\u540E\u4F9D\u6B21\u5904\u7406\u3002";
 /**
  * Bridge between OneBot events and dsh agents. Create via the constructor and
  * call start() from the plugin's effect; call stop() on disposal.
@@ -50,10 +45,6 @@ export declare class ChatBridge {
      * would orphan exactly that reply's outbound events. One entry per chat
      * id (bounded by the chat population), so growth is not a concern. */
     private readonly traceByChat;
-    /** chats that already got the QUEUE_NOTICE_TEXT for their current
-     * running turn (one notice per turn; cleared at turn/end and on chat
-     * removal — bounded by the chat population). */
-    private readonly queueNoticeChats;
     /** chats that already sent their one sticker in the running turn
      * (cleared at turn/start and on chat removal). */
     private readonly stickerSentChats;

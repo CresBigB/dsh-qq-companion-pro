@@ -268,7 +268,7 @@ export const GROUPS: GroupMeta[] = [
     title: '会话与任务',
     desc: '忙的时候来新消息怎么办、多久换新会话、旧会话怎么清理',
     fields: [
-      { key: 'newMessagePolicy', label: '任务运行中的新消息', type: 'enum', options: ['queue', 'steer'], optionLabels: { queue: '排队', steer: '插话' }, hint: '任务运行中收到新普通消息：排队=当前任务结束后按序处理（每回合至多提示一次）；插话=作为补充指令加入当前任务。图片/文件/语音/引用消息与带关系绸标的非管理员消息始终按排队处理。', section: '忙的时候' },
+      { key: 'newMessagePolicy', label: '任务运行中的新消息', type: 'enum', options: ['queue', 'steer'], optionLabels: { queue: '排队', steer: '插话' }, hint: '任务运行中收到新普通消息：排队=当前任务结束后按序处理（不另发提示，她随后会照常答复）；插话=作为补充指令加入当前任务。图片/文件/语音/引用消息与带关系绸标的非管理员消息始终按排队处理。', section: '忙的时候' },
       { key: 'autoSteerPolicy', label: '自动插话资格', type: 'enum', options: ['admin', 'all'], optionLabels: { admin: '仅管理员', all: '所有成员' }, hint: '插话模式下运行中收到的新普通纯文字消息谁可自动插话：仅管理员（默认）或所有成员。不具备资格的消息按排队处理；/steer 命令始终仅管理员；带关系绸标的非管理员消息任何档都不自动插话。', section: '忙的时候', dependsOnText: '仅在「任务运行中的新消息」为插话时生效', dependsOn: draft => draftText(draft, 'newMessagePolicy') === 'steer' },
       { key: 'deferredTimeoutMs', label: '等待模型回复超时（毫秒）', type: 'number', hint: '回合超过该时长无任何模型输出时提示超时并登记补发跟踪，任务完成后自动补发最终文字（超时补发）；发送失败最多重试 3 次，结果不确定时停止自动重试；/stop 终止该聊天的补发跟踪。0=关闭。', section: '忙的时候', unit: 'ms', min: 0, zeroMeans: '关闭' },
       { key: 'pokeReplyEnabled', label: '回应拍一拍', type: 'boolean', hint: '有人拍她一下时，把这一下当成一次「没写字的招呼」：私聊里当招呼，群里等同于被 @（会绕过「必须 @」的限制）。拍的是别人、或她自己拍自己，一律不理。', section: '拍一拍' },

@@ -61,12 +61,6 @@ import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope,
 
 export * from './bridge-types.js'
 
-/** the queue notice sent to a chat when a message arrives while its
- * task is running under the default 'queue' policy — at most ONE per running
- * turn (the flag resets at turn/end) so a burst of queued messages never
- * spams the chat. Exported for the deterministic text wait in tests. */
-export const QUEUE_NOTICE_TEXT = '⏳ 当前任务运行中，新消息已排队，将在当前任务结束后依次处理。'
-
 /** 排队回合身份的队列上限（T16 D1）：被 pre-step 拒绝/被丢弃的提案永远等不到
  * `user/message` 接纳事件，超限时丢最早的——身份对账失败只会退回 member
  * （失败闭合），不会误升权限。 */
@@ -120,10 +114,6 @@ export class ChatBridge {
    * would orphan exactly that reply's outbound events. One entry per chat
    * id (bounded by the chat population), so growth is not a concern. */
   private readonly traceByChat = new Map<ChatId, string>()
-  /** chats that already got the QUEUE_NOTICE_TEXT for their current
-   * running turn (one notice per turn; cleared at turn/end and on chat
-   * removal — bounded by the chat population). */
-  private readonly queueNoticeChats = new Set<ChatId>()
   /** chats that already sent their one sticker in the running turn
    * (cleared at turn/start and on chat removal). */
   private readonly stickerSentChats = new Set<string>()
@@ -170,7 +160,6 @@ export class ChatBridge {
       onChatRemoved: chat => {
         this.stopTyping(chat)
         this.traceByChat.delete(chat.chatId)
-        this.queueNoticeChats.delete(chat.chatId)
         this.stickerSentChats.delete(chat.chatId)
         this.seenMessageIds.forget(chat.chatId)
         // 长任务授权随聊天一起消失（只在内存）：宿主目标本身仍在会话日志里，
@@ -1046,14 +1035,9 @@ export class ChatBridge {
       return true
     }
     await this.dispatchFollowup(chatId, text, role, nickname, { messageId })
+    // 排队本身不发提示（T27 用户要求）：显式的「已排队」通报会打断对话节奏，
+    // 而排队的证据是她随后仍会答复这条消息。trace 里仍留一条记录便于排查。
     currentTrace()?.emit('dispatch', { ok: true, reason: TRACE_REASONS.busyTurnQueued })
-    if (!this.queueNoticeChats.has(chatId)) {
-      this.queueNoticeChats.add(chatId)
-      this.sendToChat(chatId, QUEUE_NOTICE_TEXT).catch((error: unknown) => {
-        this.deps.log('debug', '排队提示发送失败: ' + describeError(error))
-        currentTrace()?.emit('notice', { ok: false, reason: '排队提示发送失败: ' + describeError(error) })
-      })
-    }
     return true
   }
 
@@ -1274,9 +1258,6 @@ export class ChatBridge {
       this.stopTyping(chat)
       chat.lastActivityAt = Date.now()
       chat.busy = false
-      // the turn that armed the queue notice is over — a later
-      // running turn notifies again.
-      this.queueNoticeChats.delete(chatId)
       this.deps.log('info', 'turn/end for ' + chatId + ': ' + event.data.reason.kind)
       // Durable: flush the session so a later restart can resume it.
       void this.deps.sessions.flush(chat.agent.session).catch((error: unknown) => {

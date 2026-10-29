@@ -17,7 +17,8 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-import { QUEUE_NOTICE_TEXT } from '../src/bridge.js'
+/** 排队提示已移除（T27）：这个字符串只用来断言它再也不会出现。 */
+const QUEUE_NOTICE_TEXT = '⏳ 当前任务运行中，新消息已排队，将在当前任务结束后依次处理。'
 import { STEER_ACCEPTED_NOTICE } from '../src/commands.js'
 import { makeCmdHarness, sentTexts } from './helpers/bridge-harness.js'
 
@@ -72,7 +73,7 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('并发占满时静默退回排队：旁问只跑一次、消息照旧入队并给一次排队提示', async () => {
+  it('并发占满时静默退回排队：旁问只跑一次、消息照旧入队，且不再发排队提示', async () => {
     let release!: (text: string) => void
     const h = await makeCmdHarness({
       sideAsk: {
@@ -91,7 +92,7 @@ describe('自动旁问 — 开启后替换忙碌回合的排队/插话', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.followups[1].text).toContain('第二条挤不进去')
     expect(h.captured.sideAsks).toHaveLength(1) // 没有第二条旁问
-    await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes(QUEUE_NOTICE_TEXT))).toBe(true))
+    expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0)
 
     release('第一条的回答')
     h.client.close()
@@ -173,7 +174,7 @@ describe('自动旁问 — 关闭时行为逐字不变', () => {
     h.sendText('照旧排队')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.captured.sideAsks).toHaveLength(0)
-    await vi.waitFor(() => expect(sentTexts(h.outbound).some(t => t.includes(QUEUE_NOTICE_TEXT))).toBe(true))
+    expect(sentTexts(h.outbound).filter(t => t.includes(QUEUE_NOTICE_TEXT))).toHaveLength(0)
 
     h.client.close()
     await h.bridge.stop()
