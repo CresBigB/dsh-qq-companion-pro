@@ -33,6 +33,10 @@ export interface BridgeConfig {
     sideAskEnabled?: boolean;
     /** 每个聊天各自的旁问并发上限（1–8）；缺省 2。 */
     sideAskConcurrency?: number;
+    /** 群聊「要不要接这句话」先过模型自判。 */
+    groupJumpInJudgeEnabled?: boolean;
+    /** 群里没人理她时的最长安静间隔（分钟）。 */
+    groupJumpInBackoffMaxMinutes?: number;
     sideAskMaxChars?: number;
     interimMessages: boolean;
     /** Per-interim auto-recall delay (ms) from each interim's send completion
@@ -272,6 +276,14 @@ export interface LlmCatalogPort {
 /** Narrow host seam for one BTW-style side answer. The adapter owns the host
  * activation and its cancellation; bridge code only sees a text result and
  * never host subagent state. */
+/** 群聊「要不要接这句话」的自判端口（宿主 subagent，无工具）。 */
+export interface JumpInJudgePort {
+    /**
+     * 给一条没被 @ 的群消息判个「接 / 不接」。实现应当在无法判断时返回 true
+     * （保持旧行为：照常接话），只有明确判为不接时才返回 false。
+     */
+    judge(text: string, parent: unknown): Promise<boolean>;
+}
 export interface SideAskAgentPort {
     ask(parent: unknown, prompt: string, signal: AbortSignal): Promise<string>;
 }
@@ -401,6 +413,8 @@ export interface BridgeDeps {
     /** 可选旁问适配器（宿主 subagent activation）；absent 表示宿主管不了
      * 旁问，功能整体不可用。 */
     sideAskAgent?: SideAskAgentPort;
+    /** 群聊自判端口；缺省时不开自判（照旧按触发策略回复）。 */
+    jumpInJudge?: JumpInJudgePort;
     config: BridgeConfig;
     policy: AccessPolicyConfig;
     /** health: the ALREADY-redacted plugin config snapshot (secrets

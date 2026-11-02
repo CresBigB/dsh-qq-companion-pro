@@ -27,6 +27,7 @@ import { describeError, errorStack } from './errors.js'
 import { exportDiagnostics, healthReport, type HealthDeps } from './health.js'
 import { InboundPipeline, normalizeOneBot11 } from './inbound.js'
 import { parsePokeNotice, pokeMessageEvent } from './poke.js'
+import { createJumpInState, jumpInBlocked, noteJumpInAnswered as markJumpInAnswered, noteJumpInSpoke as markJumpInSpoke, type JumpInState } from './group-jumpin.js'
 import { InterimTracker } from './interim.js'
 import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outbound.js'
 import { SideAskScheduler } from './side-ask.js'
@@ -141,6 +142,8 @@ export class ChatBridge {
    * Only constructed when explicitly enabled and backed by a host adapter.
    */
   private readonly sideAsks = new Map<ChatId, SideAskScheduler>()
+  /** 每个群自己的「没人理就安静一会儿」状态（只存在内存里，重启就重新开始）。 */
+  private readonly jumpIns = new Map<ChatId, JumpInState>()
   private readonly sideAskAgent: SideAskAgentPort | undefined
 
   constructor(deps: BridgeDeps) {
@@ -211,6 +214,8 @@ export class ChatBridge {
       noteSeenMessage: (chatId, messageId) => { this.seenMessageIds.noteInbound(chatId, messageId) },
       dispatchFollowup: (chatId, text, role, nickname, messageId) => this.dispatchFollowup(chatId, text, role, nickname, { messageId }),
       interceptBusyTurn: (chatId, text, role, nickname, plain, messageId) => this.interceptBusyTurn(chatId, text, role, nickname, plain, messageId),
+      shouldJumpIn: (chatId, text) => this.shouldJumpIn(chatId, text),
+      noteJumpInAnswered: chatId => this.noteJumpInAnswered(chatId),
       ...(deps.groupChatter !== undefined ? { groupChatter: deps.groupChatter } : {}),
       ...(deps.stickers !== undefined ? { stickers: deps.stickers } : {}),
       sendToChat: (chatId, text) => this.sendToChat(chatId, text),
@@ -452,6 +457,8 @@ export class ChatBridge {
     const queued = parts === undefined ? undefined : (head === '' ? [...parts] : [head, ...parts])
     if (options.humanize === true) this.companion.recordFinalReply(chatId, queued !== undefined ? queued.join('\n') : body)
     if (options.humanize === true && chatId.startsWith('group:')) this.deps.groupChatter?.noteSpoke(chatId.slice('group:'.length))
+    // 她真的在群里说了一句：社交退避进入下一档（没人接就安静得越来越久）。
+    if (options.humanize === true && chatId.startsWith('group:')) this.noteJumpInSpoke(chatId)
     // ⑨.5 header（长任务轮次前缀）：②③④ 的协议解析**全部走完之后**才拼上，
     // 所以 [引用:id] / [不回] / 控制块的语义完全不受影响；正文被判定为不回时
     // 整条（含前缀）也不发。只拼第一条。
@@ -814,6 +821,51 @@ export class ChatBridge {
    * 自动触发的旁路，占满时不能占用当前回合该走的路，因此固定 reject 而不是
    * 排队——调用方会退回既有的排队/插话策略。
    */
+  private jumpInStateOf(chatId: ChatId): JumpInState {
+    const existing = this.jumpIns.get(chatId)
+    if (existing !== undefined) return existing
+    const created = createJumpInState()
+    this.jumpIns.set(chatId, created)
+    return created
+  }
+
+  /**
+   * 群聊「没人 @ 她、也不是接着她的话」这一类回复要不要接。
+   *
+   * 关掉自判、或者宿主没给判断端口时一律返回 true——那是改动前的行为，不能
+   * 因为一个缺失的能力把她的嘴缝上。只有在明确判为「不接」时才返回 false。
+   */
+  private async shouldJumpIn(chatId: ChatId, text: string): Promise<boolean> {
+    const judge = this.deps.jumpInJudge
+    if (this.deps.config.groupJumpInJudgeEnabled !== true || judge === undefined) return true
+    const state = this.jumpInStateOf(chatId)
+    const maxMinutes = this.deps.config.groupJumpInBackoffMaxMinutes ?? 30
+    if (jumpInBlocked(state, Date.now(), maxMinutes)) {
+      this.deps.log('debug', '群聊自判跳过（还在退避里）: ' + chatId)
+      return false
+    }
+    try {
+      // 宿主要求「活的父 agent」才能开子代理：这个聊天还没有 agent 时先不判。
+      const parent = this.chats.get(chatId)?.agent
+      if (parent === undefined) return true
+      return await judge.judge(text, parent)
+    } catch (error) {
+      // 判断本身失败不该变成「不理人」：退回旧行为，让她照常接话。
+      this.deps.log('warn', '群聊自判失败，按原样接话: ' + describeError(error))
+      return true
+    }
+  }
+
+  /** 她在群里说了一句：进入下一档退避。 */
+  private noteJumpInSpoke(chatId: ChatId): void {
+    markJumpInSpoke(this.jumpInStateOf(chatId), Date.now())
+  }
+
+  /** 有人在群里接着她说话：退避清零。 */
+  private noteJumpInAnswered(chatId: ChatId): void {
+    markJumpInAnswered(this.jumpInStateOf(chatId))
+  }
+
   private sideAskOf(chatId: ChatId): SideAskScheduler | undefined {
     if (this.sideAskAgent === undefined) return undefined
     if (this.deps.config.sideAskEnabled !== true) return undefined

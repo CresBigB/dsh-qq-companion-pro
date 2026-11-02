@@ -109,7 +109,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
   group: [
     'groupPolicy', 'groupAllowFrom', 'requireMention', 'groupTriggerPolicy', 'restrictedMemberPrefix',
     'groupReasoningEffort', 'groupSplitLines',
-    'groupResetDays', 'groupSessionKeepDays', 'groupAutoQuote',
+    'groupResetDays', 'groupSessionKeepDays', 'groupAutoQuote', 'groupJumpInJudgeEnabled', 'groupJumpInBackoffMaxMinutes',
     'groupNameTriggers', 'groupFollowupSeconds', 'groupContextLines',
     'groupMemoryDir', 'groupMemoryMaxBytes', 'memoryNoteDenyWords',
     'groupPeekEnabled', 'groupPeekGapMinutes', 'groupPeekMinMessages', 'groupPeekQuietMinutes', 'groupPeekWindowStart', 'groupPeekWindowEnd',

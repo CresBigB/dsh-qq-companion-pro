@@ -228,7 +228,9 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   protocolMode: vEnum(['off', 'on']),
   protocolChats: vArray(vString(0, 1024)),
   // group（10）
-  groupNameTriggers: vArray(vString(0, 1024)),
+  groupJumpInJudgeEnabled: vOptional(vBoolean()),
+ groupJumpInBackoffMaxMinutes: vOptional(vNumber(1, 180)),
+ groupNameTriggers: vArray(vString(0, 1024)),
   groupFollowupSeconds: vNumber(0),
   groupContextLines: vNumber(0),
   groupAutoQuote: vEnum(['off', 'busy', 'always']),

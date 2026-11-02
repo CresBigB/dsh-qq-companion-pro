@@ -10,6 +10,7 @@
  */
 
 import { selfCheck } from './selfcheck.js'
+import { JUMP_IN_INSTRUCTION, parseJumpInAnswer } from './group-jumpin.js'
 import { QqLiveness } from './liveness.js'
 import { buildCompanionStatusSnapshot, provideCompanionStatus } from './status.js'
 import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter, groupMemoryRootOf } from './companion/index.js'
@@ -22,7 +23,7 @@ import type { SessionStore } from '@deepseek-ai/dsh-session'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type Z from '@deepseek-ai/schemastery'
 import type { OneBotEvent } from './connection.js'
-import type { BridgeDeps, SideAskAgentPort, WorkspaceRegistryLike } from './bridge.js'
+import type { BridgeDeps, JumpInJudgePort, SideAskAgentPort, WorkspaceRegistryLike } from './bridge.js'
 import type { SessionTitleLike } from './session-title.js'
 import { join } from 'node:path'
 
@@ -189,6 +190,9 @@ function optionalService<T>(ctx: ServiceReader, name: string): T | undefined {
 const SIDE_ASK_INSTRUCTION = '你是一次性的旁问专家：只回答下面这条消息，只输出文字，不要继续主任务、不要调用工具。\n\n'
 
 /** 旁问子级的输出预算：旁问要短、要快，不需要整轮长文。 */
+/** 自判只要一个词，给 8 个 token 就够，也省得她长篇解释。 */
+const JUMP_IN_MAX_TOKENS = 8
+
 const SIDE_ASK_MAX_TOKENS = 32_000
 
 /** 从 activation 结果里取最后一条文字的纯文本；没有文字就是空串。 */
@@ -282,6 +286,47 @@ const SIDE_ASK_CONTEXT_DEFAULT = 4000
 
 /** 旁问背景预算的可用区间，与配置里的约束一致。 */
 const SIDE_ASK_CONTEXT_MAX = 20_000
+
+/** 群聊自判适配器：同样走宿主 subagents 的 spawn（无 fork 副本），但只问一个词。
+ *
+ * 复用 {@link sideAskAgentOf} 那套查服务/找 provider 的前置检查，只是提示词与
+ * token 预算不同：这里只让她回答「接」或「不接」，所以 maxTokens 给得很小。
+ * 拿不到服务时返回 undefined，桥接据此退回旧行为（照常接话）。 */
+export function jumpInJudgeOf(ctx: ServiceReader): JumpInJudgePort | undefined {
+  const subagents = optionalService<SubagentsLike>(ctx, 'subagents')
+  if (subagents === undefined) return undefined
+  if (typeof subagents.startActivation !== 'function') return undefined
+  if (typeof subagents.getProvider !== 'function') return undefined
+  try {
+    if (subagents.getProvider('spawn') === undefined) return undefined
+  } catch {
+    return undefined
+  }
+  const startActivation = subagents.startActivation
+  return {
+    judge: async (text, parent) => {
+      // 自判没有可取消的上游（一条消息一判），用一个已经结束的 signal 不成立，
+      // 因此这里显式给一个不会触发的控制器。
+      const controller = new AbortController()
+      const handle = await startActivation.call(subagents, {
+        provider: 'spawn',
+        label: 'QQ 群聊自判',
+        request: {
+          parent,
+          prompt: [{ type: 'text', text: JUMP_IN_INSTRUCTION + text }],
+          agentOptions: { maxTokens: JUMP_IN_MAX_TOKENS },
+        },
+        signal: controller.signal,
+        delivery: 'caller',
+      })
+      try {
+        return parseJumpInAnswer(sideAskTextOf(await handle.result))
+      } finally {
+        void Promise.resolve(handle.dispose()).catch(() => undefined)
+      }
+    },
+  }
+}
 
 /** Build the BTW-style side-answer seam from the optional host subagents service.
  *
@@ -586,6 +631,11 @@ export function apply(ctx: Context, config: Config): void {
   if (config.sideAskEnabled && sideAskAgent === undefined) {
     log('warn', '旁问已开启，但宿主没有可用的 subagents（spawn）服务；任务运行中的新消息仍按原策略排队/插话')
   }
+  // 群聊自判也在这里解析一次（同一个结论给桥接与自检）。
+  const jumpInJudge = config.groupJumpInJudgeEnabled === true ? jumpInJudgeOf(ctx) : undefined
+  if (config.groupJumpInJudgeEnabled === true && jumpInJudge === undefined) {
+    log('warn', '群聊自判已开启，但宿主没有可用的 subagents（spawn）服务；没被 @ 的消息仍按触发策略一律接')
+  }
   const bridge: import('./bridge.js').ChatBridge = new ChatBridge({
     ctx,
     // the bridge sees only explicit ports — the session-event feed
@@ -638,6 +688,7 @@ export function apply(ctx: Context, config: Config): void {
       }
     },
     ...(sideAskAgent === undefined ? {} : { sideAskAgent }),
+    ...(jumpInJudge === undefined ? {} : { jumpInJudge }),
     defaultModel: () => {
       try {
         return ctx.agentDefaultModel.currentSelection()

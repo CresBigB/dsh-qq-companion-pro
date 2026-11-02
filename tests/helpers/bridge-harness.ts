@@ -94,7 +94,7 @@ export function makeFakeAgents(
 }
 
 /** Full bridge + WS harness: inbound via real WebSocket, outbound captured. */
-export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; requireMention?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig; log?: (level: string, message: string) => void }) {
+export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; requireMention?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig; log?: (level: string, message: string) => void; jumpIn?: { enabled?: boolean; maxMinutes?: number; judge?: (text: string, parent: unknown) => Promise<boolean> } }) {
   const ctx = new Context()
   const sessionIds: string[] = []
   const captured = { followups: [] as Array<{ text: string; sessionId: string; id?: string; source?: unknown }>, steers: [] as Array<{ text: string; sessionId: string }>, channelTools: [] as string[], channelSections: [] as string[] }
@@ -110,6 +110,11 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
     media: new MediaStore(join(mediaDir, 'media'), 6),
     transcriber: opts?.transcriber ?? new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
     agents: agents as never,
+    ...(opts?.jumpIn?.judge !== undefined ? {
+      jumpInJudge: {
+        judge: async (text: string, parent: unknown) => opts.jumpIn!.judge!(text, parent),
+      },
+    } : {}),
     sessions: sessions as never,
     agentPresets: undefined as never,
     workspaceRegistry: undefined as never,
@@ -126,6 +131,11 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
       ...(opts?.newMessagePolicy !== undefined ? { newMessagePolicy: opts.newMessagePolicy } : {}),
       // deferred-delivery timeout override (absent = the 10min default).
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
+      // T30：群聊自判开关（absent = 不开，退化为旧行为）。
+      ...(opts?.jumpIn !== undefined ? {
+        groupJumpInJudgeEnabled: opts.jumpIn.enabled ?? true,
+        ...(opts.jumpIn.maxMinutes !== undefined ? { groupJumpInBackoffMaxMinutes: opts.jumpIn.maxMinutes } : {}),
+      } : {}),
       // optional decision-trace sink (absent = tracing off).
       trace: opts?.trace,
     },
@@ -311,6 +321,12 @@ export async function makeCmdHarness(opts?: {
   goals?: () => unknown
   /** 长任务回传节奏（T16；absent = 配置默认值 1 = 逐轮回传）。 */
   taskEveryRounds?: number
+  /** 群聊自判（T30）：给 judge 就等于开启并接线；absent = 不开（旧行为）。 */
+  jumpIn?: {
+    enabled?: boolean
+    maxMinutes?: number
+    judge?: (text: string, parent: unknown) => Promise<boolean>
+  }
   /** 自动旁问（BTW 式侧道）：给 ask 就等于开启功能并接线（T18 自动模式）。 */
   sideAsk?: {
     enabled?: boolean
@@ -356,6 +372,11 @@ export async function makeCmdHarness(opts?: {
     // T16：和立即生产接线同构——宿主没有 goals 服务时 deps 里也不放它。
     ...(opts?.goals !== undefined ? { goals: opts.goals as never } : {}),
     // T18：只有真的拿到适配器才接线，和 src/index.ts 的降级路径同构。
+    ...(opts?.jumpIn?.judge !== undefined ? {
+      jumpInJudge: {
+        judge: async (text: string, parent: unknown) => opts.jumpIn!.judge!(text, parent),
+      },
+    } : {}),
     ...(opts?.sideAsk?.ask !== undefined ? {
       sideAskAgent: {
         ask: (parent: unknown, prompt: string, signal: AbortSignal) => {
@@ -410,8 +431,12 @@ export async function makeCmdHarness(opts?: {
       // deferred-delivery timeout override (absent = the 10min default).
       ...(opts?.deferredTimeoutMs !== undefined ? { deferredTimeoutMs: opts.deferredTimeoutMs } : {}),
       ...(opts?.taskEveryRounds !== undefined ? { taskEveryRounds: opts.taskEveryRounds } : {}),
+        ...(opts?.jumpIn !== undefined ? {
+        groupJumpInJudgeEnabled: opts.jumpIn.enabled ?? true,
+        ...(opts.jumpIn.maxMinutes !== undefined ? { groupJumpInBackoffMaxMinutes: opts.jumpIn.maxMinutes } : {}),
+    } : {}),
       ...(opts?.sideAsk !== undefined ? {
-        sideAskEnabled: opts.sideAsk.enabled ?? true,
+      sideAskEnabled: opts.sideAsk.enabled ?? true,
         ...(opts.sideAsk.concurrency !== undefined ? { sideAskConcurrency: opts.sideAsk.concurrency } : {}),
         ...(opts.sideAsk.maxChars !== undefined ? { sideAskMaxChars: opts.sideAsk.maxChars } : {}),
       } : {}),

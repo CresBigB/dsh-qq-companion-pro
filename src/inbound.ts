@@ -177,6 +177,10 @@ export interface InboundContext {
    * reach the group context and never trigger a turn). Absent = no quote
    * bookkeeping (tests that never quote). */
   noteSeenMessage?(chatId: ChatId, messageId: string): void
+  /** 群聊自判：true = 接着处理，false = 这条不接。缺省视为 true（保持旧行为）。 */
+  shouldJumpIn?: (chatId: ChatId, text: string) => Promise<boolean>
+  /** 有人在群里接着她说话了：社交退避清零。 */
+  noteJumpInAnswered?: (chatId: ChatId) => void
   /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
   groupChatter?: GroupChatter
   /** Her sticker library: an incoming sticker is labeled with whether she
@@ -410,6 +414,19 @@ export class InboundPipeline {
             addressed,
           },
         })
+        // 「没人 @ 她、也不是接着她的话」这一类回复，先让她自己判断要不要接：
+        // 群聊里全接会刷屏，所以这里过一次极短的模型自判，判不接就安静。
+        // 被点名、被回复、被拍一拍的消息不经过这一层。
+        if (evaluation.shouldReply && !mentioned && !replyToBot && !addressed && !poked) {
+          const verdict = await this.ctx.shouldJumpIn?.(chatId, inbound.text) ?? true
+          if (!verdict) {
+            this.ctx.log('debug', '群聊自判：这条不接 group:' + groupId + ' user:' + userId)
+            currentTrace()?.emit('mention', { ok: false, reason: TRACE_REASONS.inboundJumpInOff })
+            return
+          }
+        } else if (mentioned || replyToBot || addressed) {
+          this.ctx.noteJumpInAnswered?.(chatId)
+        }
         if (!evaluation.shouldReply) {
           const reason = evaluation.reason === 'mention-required'
             ? TRACE_REASONS.inboundUnmentioned

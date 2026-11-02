@@ -71,6 +71,8 @@ export declare class ChatBridge {
      * Only constructed when explicitly enabled and backed by a host adapter.
      */
     private readonly sideAsks;
+    /** 每个群自己的「没人理就安静一会儿」状态（只存在内存里，重启就重新开始）。 */
+    private readonly jumpIns;
     private readonly sideAskAgent;
     constructor(deps: BridgeDeps);
     /** Start listening: wire connection handlers and the session event feed. */
@@ -283,6 +285,18 @@ export declare class ChatBridge {
      * 自动触发的旁路，占满时不能占用当前回合该走的路，因此固定 reject 而不是
      * 排队——调用方会退回既有的排队/插话策略。
      */
+    private jumpInStateOf;
+    /**
+     * 群聊「没人 @ 她、也不是接着她的话」这一类回复要不要接。
+     *
+     * 关掉自判、或者宿主没给判断端口时一律返回 true——那是改动前的行为，不能
+     * 因为一个缺失的能力把她的嘴缝上。只有在明确判为「不接」时才返回 false。
+     */
+    private shouldJumpIn;
+    /** 她在群里说了一句：进入下一档退避。 */
+    private noteJumpInSpoke;
+    /** 有人在群里接着她说话：退避清零。 */
+    private noteJumpInAnswered;
     private sideAskOf;
     /** Hand a message that arrived while the chat's turn is still running to the
      * host subagent adapter (BTW-style side lane: the main task keeps running and

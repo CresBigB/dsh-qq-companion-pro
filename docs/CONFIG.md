@@ -155,6 +155,8 @@
 | `groupPeekWindowStart` | string | `"09:00"` | 每天几点开始可以看一眼（HH:MM） |
 | `groupPeekWindowEnd` | string | `"24:00"` | 每天几点以后不再看一眼（HH:MM，可以写 24:00） |
 | `groupAutoQuote` | "off" / "busy" / "always" | `"off"` | 群里回复时是否自动引用叫她的那条消息：off（默认）= 不自动（她仍可以自己决定引用）；busy = 中间有别人插话时才引用；always = 总是引用。只作用于群聊的最终回复，模型自己写 [引用:消息 id] 时始终以模型为准；私聊不自动引用 |
+| `groupJumpInJudgeEnabled` | boolean | `true` | 群里没有被 @ 到的消息，先让她用一次极短的判断决定要不要接（关掉就是旧行为：按触发策略一律接） |
+| `groupJumpInBackoffMaxMinutes` | number | `30` | 她主动说完没人接时，下一次开口最多等多少分钟（每没人接一次就翻倍，1–180） |
 | `protocolMode` | "off" / "on" | `"off"` | 输出协议（B 档）：让模型可以在回复最后一行写【控制】{json} 精确控制是否回应、分几条发、引用哪条。默认关闭（关闭时完全不解析，行为与改造前逐字节相同）；开启前先看 /doctor 里的解析成功率，成功率 <95% 不要全局开 |
 | `protocolChats` | string[] | `[]` | 只在哪些聊天启用输出协议（private:QQ号 / group:群号，每行一个）；留空 = 开启时对所有聊天生效。用于先灰度一个群 |
 | `chatIdleEvictDays` | number | `7` | 会话空闲淘汰天数：chat 超过该天数无任何活动时，在下一条入站消息处理前清理其 agent（会话先落盘 flush、映射保留，之后同一 chat 的消息可 resume 恢复原会话）；0 = 禁用 |

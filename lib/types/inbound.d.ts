@@ -120,6 +120,10 @@ export interface InboundContext {
      * reach the group context and never trigger a turn). Absent = no quote
      * bookkeeping (tests that never quote). */
     noteSeenMessage?(chatId: ChatId, messageId: string): void;
+    /** 群聊自判：true = 接着处理，false = 这条不接。缺省视为 true（保持旧行为）。 */
+    shouldJumpIn?: (chatId: ChatId, text: string) => Promise<boolean>;
+    /** 有人在群里接着她说话了：社交退避清零。 */
+    noteJumpInAnswered?: (chatId: ChatId) => void;
     /** group chatter (context, name / follow-up calls); absent = only @ and replies to her. */
     groupChatter?: GroupChatter;
     /** Her sticker library: an incoming sticker is labeled with whether she

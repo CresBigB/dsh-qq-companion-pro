@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 11 组 143 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 11 组 145 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -483,10 +483,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(143)
+    expect(ALL_KEYS).toHaveLength(145)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 143 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 145 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -572,7 +572,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     /** 0–1 比例键（关系矩阵 T10a）：上下界都在设置页钉住。 */
     const RATIO_KEYS = ['memberObedience', 'friendObedience', 'friendIntimacy']
     /** 下限 1 的键（与宿主 Config 一致：0 没有意义）。 */
-    const MIN_ONE_KEYS = ['taskEveryRounds', 'sideAskConcurrency', 'sideAskMaxChars']
+    const MIN_ONE_KEYS = ['taskEveryRounds', 'sideAskConcurrency', 'sideAskMaxChars', 'groupJumpInBackoffMaxMinutes']
     /** 下限 0 但宿主有上限的键（与宿主 Config 的 max 一致）。 */
     const MIN_ZERO_BOUNDED_KEYS: Record<string, number> = { sideAskContextChars: 20000, privateQuietSeconds: 30 }
     for (const field of allFields) {
@@ -587,6 +587,7 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
           expect(field.min).toBe(1)
           if (field.key === 'sideAskConcurrency') expect(field.max).toBe(8)
           else if (field.key === 'sideAskMaxChars') expect(field.max).toBe(8000)
+        else if (field.key === 'groupJumpInBackoffMaxMinutes') expect(field.max).toBe(180)
           else expect(field.max).toBeUndefined()
         } else if (field.key in MIN_ZERO_BOUNDED_KEYS) {
           expect(field.min).toBe(0)
@@ -1555,7 +1556,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（143 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（145 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

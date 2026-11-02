@@ -51,6 +51,7 @@ export declare const TRACE_REASONS: {
     readonly inboundSelf: "机器人自己的消息已忽略";
     readonly inboundDmBlocked: "私聊用户不在允许名单，已忽略";
     readonly inboundGroupBlocked: "群聊不在允许名单，已忽略";
+    readonly inboundJumpInOff: "群聊：先自判了一遍，这条不接";
     readonly inboundUnmentioned: "群聊未 @ 机器人，已忽略";
     readonly inboundCommand: "消息已由命令处理";
     readonly inboundDedup: "消息在去重窗口内重复投递，已跳过";

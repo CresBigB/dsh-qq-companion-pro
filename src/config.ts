@@ -222,6 +222,10 @@ export interface Config {
   groupPeekWindowEnd: string
   /** 群里回复时是否自动引用叫她的那条消息：off（默认，不自动）/ busy（中间有别人插话时才引用）/ always（总是引用）。 */
   groupAutoQuote: 'off' | 'busy' | 'always'
+  /** 群聊里「没被叫到」的回复先过一道极短的模型自判。 */
+  groupJumpInJudgeEnabled: boolean
+  /** 她主动说完没人理时的最长安静间隔（分钟）。 */
+  groupJumpInBackoffMaxMinutes: number
   /** 输出协议 B 档总开关：on = 模型可以在回复最后一行写【控制】{json} 精确控制
    *  是否回应 / 分几条发 / 引用哪条；默认 off（不解析、零行为变化）。 */
   protocolMode: 'off' | 'on'
@@ -580,6 +584,8 @@ export const Config: Z<Config> = z.object({
     .description('每天几点以后不再看一眼（HH:MM，可以写 24:00）'),
   groupAutoQuote: z.union([z.const('off'), z.const('busy'), z.const('always')]).default('off')
     .description('群里回复时是否自动引用叫她的那条消息：off（默认）= 不自动（她仍可以自己决定引用）；busy = 中间有别人插话时才引用；always = 总是引用。只作用于群聊的最终回复，模型自己写 [引用:消息 id] 时始终以模型为准；私聊不自动引用'),
+  groupJumpInJudgeEnabled: z.boolean().default(true).description('群里没有被 @ 到的消息，先让她用一次极短的判断决定要不要接（关掉就是旧行为：按触发策略一律接）'),
+  groupJumpInBackoffMaxMinutes: z.number().min(1).max(180).default(30).description('她主动说完没人接时，下一次开口最多等多少分钟（每没人接一次就翻倍，1–180）'),
   protocolMode: z.union([z.const('off'), z.const('on')]).default('off')
     .description('输出协议（B 档）：让模型可以在回复最后一行写【控制】{json} 精确控制是否回应、分几条发、引用哪条。默认关闭（关闭时完全不解析，行为与改造前逐字节相同）；开启前先看 /doctor 里的解析成功率，成功率 <95% 不要全局开'),
   protocolChats: z.array(z.string()).default([])

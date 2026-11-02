@@ -207,6 +207,10 @@ export interface Config {
     groupPeekWindowEnd: string;
     /** 群里回复时是否自动引用叫她的那条消息：off（默认，不自动）/ busy（中间有别人插话时才引用）/ always（总是引用）。 */
     groupAutoQuote: 'off' | 'busy' | 'always';
+    /** 群聊里「没被叫到」的回复先过一道极短的模型自判。 */
+    groupJumpInJudgeEnabled: boolean;
+    /** 她主动说完没人理时的最长安静间隔（分钟）。 */
+    groupJumpInBackoffMaxMinutes: number;
     /** 输出协议 B 档总开关：on = 模型可以在回复最后一行写【控制】{json} 精确控制
      *  是否回应 / 分几条发 / 引用哪条；默认 off（不解析、零行为变化）。 */
     protocolMode: 'off' | 'on';

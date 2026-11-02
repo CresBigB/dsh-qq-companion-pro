@@ -16,7 +16,7 @@ import type { SessionStore } from '@deepseek-ai/dsh-session';
 import type { ModelSelection } from '@deepseek-ai/dsh-agent';
 import type Z from '@deepseek-ai/schemastery';
 import type { OneBotEvent } from './connection.js';
-import type { SideAskAgentPort } from './bridge.js';
+import type { JumpInJudgePort, SideAskAgentPort } from './bridge.js';
 type Context = CordisContext & {
     tools: ToolRuntime;
     systemPrompt: SystemPrompt;
@@ -168,6 +168,12 @@ export interface ServiceReader {
 export declare function sideAskContextOf(parent: unknown, limit: number): string;
 /** 一条旁问的完整提示词：固定身份前缀 + （可选的）主会话背景 + 最后是这句问题。 */
 export declare function sideAskPromptOf(prompt: string, context: string): string;
+/** 群聊自判适配器：同样走宿主 subagents 的 spawn（无 fork 副本），但只问一个词。
+ *
+ * 复用 {@link sideAskAgentOf} 那套查服务/找 provider 的前置检查，只是提示词与
+ * token 预算不同：这里只让她回答「接」或「不接」，所以 maxTokens 给得很小。
+ * 拿不到服务时返回 undefined，桥接据此退回旧行为（照常接话）。 */
+export declare function jumpInJudgeOf(ctx: ServiceReader): JumpInJudgePort | undefined;
 /** Build the BTW-style side-answer seam from the optional host subagents service.
  *
  * 用的是宿主公开的 `startActivation`（provider `spawn`，`delivery: 'caller'`）：
