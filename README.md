@@ -52,6 +52,7 @@
 | `/doctor` 陪伴状态 | QQ 账号是否真在线、定时任务今天执行没有、主动聊天计划、每个记忆文件占上限多少 |
 | 群聊怎么触发 | 默认「必须 @ 才回」（`requireMention`）。要更细就配 `groupTriggerPolicy`（JSON）：按群、按人分别设要不要 @、没 @ 要不要主动接话（`replyWithoutMention`，旧写法 `proactiveEnabled` 仍可用但会提示改名）、只回相关的 / 按概率回 / 不回（`replyMode=related|probability|off`，`probability` 0–1）；不配仍是原来的行为 |
 | 群里先判要不要接 | 打开 `groupJumpInJudgeEnabled` 后，群里**没被 @、也不是接着她的话**的消息会先过一道极短的判断（要不要接），判为不接就整条不派发——用来治「不需要 @ 也能回复」开了以后被闲聊刷屏。她说完没人接会逐步退避（1 分钟起、最多 `groupJumpInBackoffMaxMinutes` 默认 30 分钟），有人接着她说话就立刻恢复正常。被 @、接着她的话、私聊与命令都不受影响；这个群还没有她的会话时（第一条消息）无法判断，照旧接话 |
+| 群里附带的聊天记录 | `groupContextLines`（0–40，默认 0 = 不附）是**全局**的：她在群里每一次说话都把最近的 N 条聊天记录一并给她看——被 @、被叫名字、接话窗口里的人接着说、自己判断后插话、自己开话题、以及「热闹时看一眼」，全都一样。它给的是「最近的 N 条」而不是「没看过的新内容」，所以同一批记录下一次回合还会再附一次，不会莫名其妙空一段 |
 | 忙的时候排队 | 任务还在跑时又发来的消息默认排队（当前任务结束后按序处理），**不再发「已排队」提示**——她处理完会直接答复那条消息；想改成「插话」就把 `newMessagePolicy` 设成 `steer`，插话会回一句「已插话」回执 |
 | 旁问（自动） | 打开 `sideAskEnabled` 后，任务还在跑时又发来的纯文字消息**不用加任何指令**，会自动交给一个独立的旁问子代理（宿主 subagent，`spawn` 提供方 + 调用方投递，**不是** fork 会话副本：不会给会话库添前缀副本，也不会向父会话投递完成通知）立刻回答，回答作为另一条消息发回，主任务完全不受影响（既不排队也不被插话）。`sideAskConcurrency`（1–8，默认 2）是**每个聊天各自**的并发上限（一个热闹的群不会占用你私聊的名额），同一个聊天占满或消息超长时静默退回原来的排队/插话策略；宿主自己的子代理名额满时会明确回一句可操作提示。子代理不复制会话历史，所以插件会把主会话最近的一段纯文字对话（你的指令 + 她已说出的内容）当背景塞进提示词：`sideAskContextChars`（0–20000，默认 4000，0 = 完全不带背景）。带图片/文件/引用/转发的消息仍按排队处理 |
 | 私聊等你打完 | 打开 `privateQuietSeconds`（0–30，默认 0 = 关闭）后，你在私聊里连着发的几条会先攒着：等你安静这么多秒，才按发送顺序并成**一次**交给她（每条各自保留自己的发言边界，她答的是第一条）。斜杠命令立刻执行；带图片/文件/语音/引用/转发的消息会先把攒着的文字发出去；群聊不受影响。每条消息仍各占一次每分钟频率名额 |
@@ -135,6 +136,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     pokeReplyEnabled: true                 # 有人拍她一下时当成招呼（群里等同被 @）
     groupJumpInJudgeEnabled: true          # 群里没被 @ 的消息先判断要不要接
     groupJumpInBackoffMaxMinutes: 30       # 说完没人接时逐次翻倍，最多这么久
+    groupContextLines: 10                  # 群里每次说话都附上最近 10 条聊天记录（0=不附）
     groupResetDays: 2
     idleResetHours: 168
     scheduledPrompts:                       # 也可以完全在设置页「会话与任务」里编辑
@@ -178,6 +180,7 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `pokeReplyEnabled` | `true` | 有人拍她一下时是否理会：私聊里当招呼、群里等同被 @；拍的是别人或她自己拍自己时一律不理 |
 | `groupJumpInJudgeEnabled` | `true` | 群里没被 @ 的消息先过一道极短判断再决定接不接（关掉就回到「一条条都接」） |
 | `groupJumpInBackoffMaxMinutes` | `30` | 她说完没人接时的最长退避（1–180 分钟；每没人接一次翻倍，有人接立刻恢复） |
+| `groupContextLines` | `0` | 群里她每次说话都附上群里最近的这么多条聊天记录（被 @、被叫名字、自己插话、主动开话题、看一眼都算；同一批记录每次都会再附一次）；0 = 不附，最多 40 条 |
 | `scheduledPrompts` | `[]` | 每日定时任务：`id`、`time`（HH:MM）、`chatId`、`prompt`、`includeTodayLog`（附这个会话当天的聊天节选）、`includeGroupLogs`（附各群当天她参与的聊天，每群最多 80 句）。设置页里的「每天定时投递的任务」就是这张表，可以直接增删；页面上和 host 用同一套校验（时间要 HH:MM、目标要带 `private:`/`group:` 前缀、内容不能空、`id` 不能重复），不合格的行会拦在保存之前 |
 | `privateProactiveEnabled` | `false` | 开启私聊主动聊天（与群聊各自独立开关） |
 | `privateProactiveTargets` | `[]` | 要主动找的私聊：每行一个 QQ 号（不带前缀） |

@@ -23,7 +23,7 @@ const plain = (text: string, userId: number) => JSON.stringify({
 })
 
 describe('GroupChatter', () => {
-  it('context: unseen lines minus the calling one, then they count as seen', () => {
+  it('context: the newest lines minus the calling one, and the same tail comes back next time', () => {
     let now = 1_000_000
     const c = new GroupChatter({ config, now: () => now })
     for (const t of ['一', '二', '三']) { now += 1000; c.observe('1', '9', '小王', t) }
@@ -33,7 +33,25 @@ describe('GroupChatter', () => {
     expect(ctx).toContain('小王（9）：三')
     expect(ctx).not.toContain('在吗')
     now += 1000; c.observe('1', '8', '小李', '@她 再问一次')
-    expect(c.takeContext('1')).toBe('')
+    const again = c.takeContext('1')
+    expect(again).toContain('小李（8）：@她 在吗') // the previous call is plain tail now
+    expect(again).toContain('小王（9）：一')
+    expect(again).not.toContain('再问一次')
+  })
+
+  it('context: only the configured number of lines, and 0 turns it off', () => {
+    let now = 1_000_000
+    const short = new GroupChatter({ config: { ...config, contextLines: 2 }, now: () => now })
+    for (const t of ['一', '二', '三', '四']) { now += 1000; short.observe('1', '9', '小王', t) }
+    now += 1000; short.observe('1', '8', '小李', '@她 在吗')
+    const ctx = short.takeContext('1')
+    expect(ctx).toContain('小王（9）：三')
+    expect(ctx).toContain('小王（9）：四')
+    expect(ctx).not.toContain('小王（9）：二')
+    const off = new GroupChatter({ config: { ...config, contextLines: 0 }, now: () => now })
+    off.observe('1', '9', '小王', '一')
+    expect(off.takeContext('1')).toBe('')
+    expect(off.recentContext('1')).toContain('小王（9）：一') // a look still shows the tail
   })
 
   it('names and the follow-up window', () => {

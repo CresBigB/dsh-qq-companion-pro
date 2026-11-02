@@ -117,7 +117,7 @@ function groupRules(c: CompanionGuideConfig): string[] {
     const minutes = Math.round(c.groupFollowupSeconds / 60)
     lines.push('- 你回过的人 ' + minutes + ' 分钟内接着说话（没 @ 别人、没回复别人）：前缀带 [接着和我说]。这只是“可能”在跟你说；结合前后的聊天，明显是在跟别人说的，就只回 ' + PROACTIVE_PASS + '。')
   }
-  if (c.groupContextLines > 0) lines.push('- 消息后面有时附着 <group_context>：你没被叫到时群里在聊的，用来了解前因后果。不用逐条回应，也别说“我看到你们刚才在聊”。')
+  if (c.groupContextLines > 0) lines.push('- 消息后面几乎总附着 <group_context>：群里最近 ' + c.groupContextLines + ' 条聊天记录，用来了解前因后果（同样的记录可能会再出现一次）。不用逐条回应，也别说“我看到你们刚才在聊”。')
   if (c.groupPeekEnabled) lines.push('- 群里热闹时，系统偶尔让你看一眼最近的聊天（消息开头是 [看一眼群聊 …]）。没人叫你，大多数时候只回 ' + PROACTIVE_PASS + '；真有话想接才插一两句。')
   lines.push('- 只回复 ' + PROACTIVE_PASS + '（单独这几个字）时，什么都不会发出去。')
   lines.push('- 每个群只知道自己群里的事，这是该有的表观：' + t + '在私聊里跟你说的事，不往外说；其他群里的消息你也收不到，一个字都不能提。')

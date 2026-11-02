@@ -662,7 +662,10 @@ export class ChatBridge {
     if (!groupAllowed(groupId, this.deps.policy)) return
     const chatId = ('group:' + groupId) as ChatId
     if (this.chats.get(chatId)?.busy === true) return
-    await this.dispatchFollowup(chatId, this.companion.groupCheckinText(context), 'member', undefined, { scheduled: true })
+    // 她自己开的这一轮群聊也算“她在这个群里说话”：一样带上最近的聊天记录。
+    const block = this.deps.groupChatter?.recentContext(groupId) ?? ''
+    const text = this.companion.groupCheckinText(context)
+    await this.dispatchFollowup(chatId, block === '' ? text : text + '\n' + block, 'member', undefined, { scheduled: true })
   }
 
   /** One periodic look at a group (she decides herself whether to chip in;

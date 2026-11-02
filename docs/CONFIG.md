@@ -146,7 +146,7 @@
 | `maxInboundFileBytes` | number |  | [deprecated] 旧名别名（现 inboundFileMaxBytes）：QQ 入站文件最大字节数；本版兼容读取，新配置请用新名 |
 | `allowPrivateHosts` | boolean | `false` | 下载 SSRF 防护逃生门：默认拒绝解析到私网/环回/链路本地地址的下载目标（协议仅 http/https、重定向逐跳复检仍生效）；NapCat 文件服务器或反代部署在本机/内网时置 true 跳过私网检查 |
 | `groupReasoningEffort` | "" / "off" / "low" / "high" / "max" | `""` | 群聊会话的思考强度（off/low/high/max；留空 = 和部署默认一样）。私聊不受影响 |
-| `groupContextLines` | number | `0` | 群里叫到她时，附上她没看到的最近几条群聊（只给她看上下文，0=不附） |
+| `groupContextLines` | number | `0` | 群里她每次说话都附上群里最近的这么多条聊天记录（被 @、被叫名字、自己插话、主动开话题、看一眼都算；同一批记录每次都会再附一次，0=不附）。私聊不受影响 |
 | `groupNameTriggers` | string[] | `[]` | 群里说出这些名字也算叫她，不用 @（空=只认 @ 和回复她） |
 | `groupFollowupSeconds` | number | `0` | 她在群里回了某人之后这么多秒内，这个人接着说话不用 @ 也算在跟她聊（0=关闭） |
 | `groupPeekEnabled` | boolean | `false` | 群里热闹时隔一段时间让她看一眼最近的聊天，她自己决定插不插话（不插就回 [不发]） |
