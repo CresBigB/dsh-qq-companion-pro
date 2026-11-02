@@ -1,4 +1,4 @@
-import type { BridgeDeps } from './bridge-types.js';
+import type { BridgeDeps, ImagesPort } from './bridge-types.js';
 import { type CapabilitySummary } from './capabilities.js';
 import type { MemoryHit } from './memory-store.js';
 import type { ChatId } from './chat.js';
@@ -118,6 +118,11 @@ export declare class ChatBridge {
         roots: string[];
         isTurnAdmin: boolean;
     }>;
+    /**
+     * 图片进模型的那条路（T32）：宿主附件库 + 当前模型路由的图片输入能力。
+     * 宿主没挂附件服务时返回 undefined，动图拼图就退回「存成文件 + 给路径」。
+     */
+    images(): ImagesPort | undefined;
     /** Whether the connection is usable for sends. */
     get connected(): boolean;
     /**

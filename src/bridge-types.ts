@@ -324,10 +324,36 @@ export interface GoalChangedPayloadLike {
  * the two explicit ports below — session events and the /model catalog). */
 import type { MemoryHit } from './memory-store.js'
 
+/** 宿主附件库里一张图的引用（T32：拼好的动图要作为图片回到模型眼前）。 */
+export interface ImageRefPort {
+  readonly attachmentId: string
+  readonly mediaType: string
+  readonly bytes: number
+  readonly width: number
+  readonly height: number
+  readonly name?: string
+}
+
+/**
+ * 图片进模型的那条路（T32）：能力探针 + 附件库。
+ *
+ * 两个方法分开是因为它们的失败方式不同：`canReceive` 只是问一句「这条路由吃不吃
+ * 图」（不吃就退回文件路径，不算错），`save` 是真去存（存不下返回 undefined，由
+ * 调用方退回文件路径）。插件本身不假设宿主一定装着附件服务。
+ */
+export interface ImagesPort {
+  /** 当前这条模型路由是否声明了图片输入。 */
+  canReceive(agent: unknown, signal?: AbortSignal): Promise<boolean>
+  /** 存一张 PNG，回附件引用；没有附件服务 / 存不下时返回 undefined。 */
+  save(png: Uint8Array, name: string): Promise<ImageRefPort | undefined>
+}
+
 export interface BridgeDeps {
   ctx: SessionEventPort
   /** T31 note index: one SQLite library per chat (absent = /memory off). */
   memoryLibrary?: { remember(chatId: string, text: string, now?: number): Promise<void>; search(chatId: string, query: string, limit?: number): Promise<MemoryHit[]>; recent(chatId: string, limit?: number): Promise<MemoryHit[]>; count(chatId: string): Promise<number> }
+  /** T32 image path into the model (absent = 动图拼图只能落文件). */
+  images?: ImagesPort
   /** runtime group allowlist for /group (absent = disabled). */
   groupAccess?: GroupAccessLike
   /** Companion lines for /doctor (liveness, plans, memory sizes). */

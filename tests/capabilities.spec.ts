@@ -86,9 +86,10 @@ describe('能力注册表 — 结构自洽', () => {
     expect(capabilityOfTool('not_a_tool')).toBeUndefined()
   })
 
-  it('覆盖现在的全部模型工具（26 个）', () => {
+  it('覆盖现在的全部模型工具（27 个）', () => {
     expect(REGISTRY_TOOLS).toEqual([
       'qq_send_image',
+      'qq_gif_frames',
       'qq_send_voice',
       'qq_send_tts',
       'qq_send_video',
@@ -235,6 +236,9 @@ describe('工具清单一致性 — 两份手写清单 ≡ 注册表 ≡ 实际�
   })
 })
 
+/** T32：看动图的工具（挂在 `qq.send.image` 这一档，默认开，所有关系都能用）。 */
+const GIF_TOOLS = ['qq_gif_frames']
+
 /**
  * 矩阵的**改造前**期望集合：在 capability 层落地之前用同一套 harness 跑一遍
  * （三种会话 × 表情包库开关 × 记忆文件开关 = 12 组）得到的原始输出，逐字写死
@@ -289,8 +293,8 @@ const INTERACT_DEFAULT_TOOLS = ['qq_emoji_react']
 function expectedTools(key: string): string {
   const legacy = PRE_CHANGE_TOOLS[key]
   const extra = key.startsWith('admin-private|')
-    ? [...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS, ...INTERACT_TOOLS]
-    : INTERACT_DEFAULT_TOOLS
+    ? [...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS, ...INTERACT_TOOLS, ...GIF_TOOLS]
+    : [...INTERACT_DEFAULT_TOOLS, ...GIF_TOOLS]
   return [...legacy.split(' '), ...extra].sort().join(' ')
 }
 
@@ -923,7 +927,10 @@ describe('群聊里主人的回合也走群友档（故意的，别当 bug 修�
   it('端到端：管理员在群里发言，注册到的是群档工具集（与群友发话完全一致）', async () => {
     const byAdmin = await toolsOf('group', { stickers: true, memory: true, deny: ['qq.send.image'] })
     expect(byAdmin).not.toContain('qq_send_image')
-    expect(byAdmin).toEqual(expectedTools('group|sticker=on|memory=on').split(' ').filter(tool => tool !== 'qq_send_image'))
+    expect(byAdmin).not.toContain('qq_gif_frames')
+    // 关掉「发图」这一档时，挂在这一档下的工具（发图 + T32 看动图）一起消失。
+    const denied = ['qq_send_image', ...GIF_TOOLS]
+    expect(byAdmin).toEqual(expectedTools('group|sticker=on|memory=on').split(' ').filter(tool => !denied.includes(tool)))
   })
 })
 

@@ -12,7 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 
-import type { BridgeDeps, SideAskAgentPort } from './bridge-types.js'
+import type { BridgeDeps, ImagesPort, SideAskAgentPort } from './bridge-types.js'
 import { resolveCapabilities, summarizeCapabilities, groupWriteWarningLine, interactionWarningLine, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
 import type { MemoryHit } from './memory-store.js'
@@ -39,6 +39,7 @@ import { ChatRegistry, type ChatAgent } from './registry.js'
 import { sessionRelation, stripRelationPrefix, type Relation } from './relation.js'
 import { parseLeadingQuote, SELF_QUOTE_TOKEN, SeenMessageIds, type QuoteMarker } from './reply-quote.js'
 import { registerStickerTools } from './sticker-tools.js'
+import { registerGifTool } from './gif-tools.js'
 import { registerGroupTools } from './group-tools.js'
 import { registerInteractionTools } from './interaction-tools.js'
 import {
@@ -388,6 +389,14 @@ export class ChatBridge {
       if (!roots.includes(resolved)) roots.push(resolved)
     }
     return { roots, isTurnAdmin }
+  }
+
+  /**
+   * 图片进模型的那条路（T32）：宿主附件库 + 当前模型路由的图片输入能力。
+   * 宿主没挂附件服务时返回 undefined，动图拼图就退回「存成文件 + 给路径」。
+   */
+  images(): ImagesPort | undefined {
+    return this.deps.images
   }
 
   /** Whether the connection is usable for sends. */
@@ -1921,6 +1930,9 @@ export class ChatBridge {
     // 每个执行体仍有会话绑定与回合门禁
     // （谁在说话只有回合级知道），见 src/interaction-tools.ts。
     registerInteractionTools(agentCtx, this, this.deps.connection, allow)
+    // 看动图（T32）：抽帧拼成一张静态图，能进模型就进模型，进不去就落文件。
+    // 只读媒体目录里的文件，不改任何 QQ 状态，所以没有回合门禁。
+    registerGifTool(agentCtx, this, allow)
   }
 
   /**

@@ -24,7 +24,7 @@ import type { SessionStore } from '@deepseek-ai/dsh-session'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type Z from '@deepseek-ai/schemastery'
 import type { OneBotEvent } from './connection.js'
-import type { BridgeDeps, JumpInJudgePort, SideAskAgentPort, WorkspaceRegistryLike } from './bridge.js'
+import type { BridgeDeps, ImagesPort, JumpInJudgePort, SideAskAgentPort, WorkspaceRegistryLike } from './bridge.js'
 import type { SessionTitleLike } from './session-title.js'
 import { join } from 'node:path'
 
@@ -177,6 +177,35 @@ type SubagentsLike = NonNullable<Context['subagents']>
 /** 惰性读服务需要的最小上下文形状：只有 `get`。 */
 export interface ServiceReader {
   get?: (key: string) => unknown
+}
+
+/** 一次模型路由的两个字段（`requestHeader().config` 或 agent 的 options）。 */
+interface RouteConfig {
+  provider?: string
+  model?: string
+}
+
+/** 判断「这条模型路由吃不吃图」需要的最小 agent 形状（T32）。 */
+interface RoutedAgent {
+  options?: RouteConfig
+  session?: { requestHeader?(): { config?: RouteConfig } | undefined }
+}
+
+/** 宿主 llm 服务里只用到的那一个方法（T32）。 */
+interface ModelInfoReader {
+  resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{ inputModalities?: readonly string[] }>
+}
+
+/** 宿主附件服务里只用到的那一个方法（T32）。 */
+interface AttachmentSink {
+  saveImage(input: { data: Uint8Array; mediaType: string; name: string }): Promise<{
+    attachmentId: string
+    mediaType: string
+    bytes: number
+    width: number
+    height: number
+    name?: string
+  }>
 }
 
 /** 惰性读取一个宿主服务：`ctx.get` 不存在或服务未注册都返回 undefined。 */
@@ -642,6 +671,44 @@ export function apply(ctx: Context, config: Config): void {
     if (root === '') return undefined
     return new MemoryLibrary(root, log)
   })()
+  // T32：动图拼图作为图片交给模型的那条路。附件服务与 llm 都惰性取（宿主没装
+  // 附件服务时这个端口问不出图，工具自己退回「存成文件 + 给路径」）。
+  const images: ImagesPort = {
+    async canReceive(agent, signal) {
+      const llm = optionalService<ModelInfoReader>(ctx, 'llm')
+      if (llm === undefined) return false
+      const target = agent as RoutedAgent | undefined
+      const routed = target?.session?.requestHeader?.()?.config
+      const provider = routed?.provider ?? target?.options?.provider
+      const model = routed?.model ?? target?.options?.model
+      if (provider === undefined || model === undefined) return false
+      try {
+        const info = await llm.resolveModelInfo(provider, model, signal)
+        return info.inputModalities?.includes('image') === true
+      } catch (error) {
+        log('debug', '模型图片能力查询失败：' + describeError(error))
+        return false
+      }
+    },
+    async save(png, name) {
+      const attachments = optionalService<AttachmentSink>(ctx, 'attachments')
+      if (attachments === undefined) return undefined
+      try {
+        const ref = await attachments.saveImage({ data: png, mediaType: 'image/png', name })
+        return {
+          attachmentId: String(ref.attachmentId),
+          mediaType: String(ref.mediaType),
+          bytes: Number(ref.bytes),
+          width: Number(ref.width),
+          height: Number(ref.height),
+          ...(ref.name === undefined ? {} : { name: String(ref.name) }),
+        }
+      } catch (error) {
+        log('warn', '拼图存不进附件库（这一轮只能给路径）：' + describeError(error))
+        return undefined
+      }
+    },
+  }
   const bridge: import('./bridge.js').ChatBridge = new ChatBridge({
     ctx,
     // the bridge sees only explicit ports — the session-event feed
@@ -668,6 +735,8 @@ export function apply(ctx: Context, config: Config): void {
     // T31：每个聊天一个 SQLite 记忆库（<总工作区>/memorys/<号码>.db）。
     // 工作区没配就没有落点，/memory 直接提示去填。
     ...(memoryLibrary === undefined ? {} : { memoryLibrary }),
+    // T32：动图拼图作为图片交给模型（附件服务缺席 = 退回文件路径）。
+    images,
     agents: ctx.agents,
     sessions: ctx.sessions,
     agentPresets: ctx.agentPresets,

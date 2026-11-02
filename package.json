@@ -60,6 +60,7 @@
     "contributes": {
       "tools": [
         "qq_send_image",
+        "qq_gif_frames",
         "qq_send_voice",
         "qq_send_tts",
         "qq_send_video",
