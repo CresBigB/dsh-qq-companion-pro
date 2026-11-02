@@ -96,12 +96,12 @@ function zhT(key: string): string {
 /** 一份完整的假快照（与 src/status.ts 的 CompanionStatusSnapshot 同构）。 */
 function demoStatus(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return Object.assign({
-    connection: { connected: true, online: true, selfId: '2564812526', botQQ: '2564812526', host: '127.0.0.1', port: 8643 },
+    connection: { connected: true, online: true, selfId: '10002', botQQ: '10002', host: '127.0.0.1', port: 8643 },
     sessions: {
       private: 1,
       group: 2,
       list: [
-        { chatId: 'private:2824149798', sessionId: 's1', title: 'QQ私聊 2824149798 · 10-23', workspaceAttached: false },
+        { chatId: 'private:10001', sessionId: 's1', title: 'QQ私聊 10001 · 10-23', workspaceAttached: false },
         { chatId: 'group:123456', sessionId: 's2', workspaceAttached: true },
       ],
     },
@@ -109,7 +109,7 @@ function demoStatus(overrides: Record<string, unknown> = {}): Record<string, unk
     proactive: { enabled: true, doneToday: 1, plannedToday: 3, nextAt: '15:30' },
     stickers: { enabled: true, count: 10, maxCount: 300, today: 2, dailyMax: 20 },
     memory: [{ label: '公开', path: 'E:\\To DeepSeek\\AGENTS.md', bytes: 5000, maxBytes: 6144 }],
-    scheduled: [{ id: 'diary', time: '23:00', chatId: 'private:2824149798', doneToday: false, nextAt: '23:00' }],
+    scheduled: [{ id: 'diary', time: '23:00', chatId: 'private:10001', doneToday: false, nextAt: '23:00' }],
     permissions: { admin: 'danger-full-access', member: 'read-only' },
     capabilities: { enabled: 11, total: 11, disabled: [], byRelation: { owner: 11, friend: 11, groupMember: 11, stranger: 11 } },
     generatedAt: 1_700_000_000_000,
@@ -140,7 +140,7 @@ function viewProps(overrides: Record<string, unknown> = {}): Record<string, unkn
     changedOnly: false,
     draft: draftFromSnapshot({ config }),
     config,
-    botQQ: '2564812526',
+    botQQ: '10002',
     status: null,
     statusAvailable: true,
     statusError: null,
@@ -203,7 +203,7 @@ describe('概览子页 — 六格状态（§4.14）', () => {
     const stats = byClass(nodes, 'qqc-stats')[0]
     const connection = statOf(stats, 'connection')
     expect(textOf(byClass(connection, 'qqc-stat-value')[0])).toBe('在线')
-    expect(textOf(byClass(connection, 'qqc-stat-sub')[0])).toBe('2564812526')
+    expect(textOf(byClass(connection, 'qqc-stat-sub')[0])).toBe('10002')
     expect(byClass(connection, 'qqc-dot')[0].props['data-state']).toBe('ok')
     expect(textOf(statOf(stats, 'sessions'))).toContain('私聊 1 · 群 2')
     expect(textOf(byClass(statOf(stats, 'today'), 'qqc-stat-value')[0])).toBe('12')
@@ -309,7 +309,7 @@ describe('概览子页 — 记忆用量 / 定时任务 / 会话卡片（§4.14�
     const card = byRole(nodes, 'overview-scheduled')[0]
     const row = byClass(card, 'qqc-list-row')[0]
     expect(textOf(row)).toContain('diary · 23:00')
-    expect(textOf(row)).toContain('private:2824149798')
+    expect(textOf(row)).toContain('private:10001')
     expect(textOf(row)).toContain('今天待执行')
 
     const empty = renderOverview(stubReact, overviewProps({ status: demoStatus({ scheduled: [] }) }))
@@ -322,7 +322,7 @@ describe('概览子页 — 记忆用量 / 定时任务 / 会话卡片（§4.14�
     const card = byRole(nodes, 'overview-sessions')[0]
     const rows = byClass(card, 'qqc-list-row')
     expect(rows).toHaveLength(2)
-    expect(textOf(rows[0])).toContain('QQ私聊 2824149798 · 10-23')
+    expect(textOf(rows[0])).toContain('QQ私聊 10001 · 10-23')
     expect(textOf(rows[0])).toContain('未归入工作区')
     expect(textOf(rows[0])).toContain('/workspace attach')
     // 已归入的行没有 attach 提示，显示「已归入工作区」
@@ -470,14 +470,14 @@ describe('页头连接胶囊用真实状态（§2）', () => {
     const view = SettingsView(viewProps({ status: demoStatus() }))
     const conn = byClass(view, 'qqc-conn')[0]
     expect(byClass(conn, 'qqc-dot')[0].props['data-state']).toBe('ok')
-    expect(textOf(conn)).toBe('已连接 · 2564812526')
+    expect(textOf(conn)).toBe('已连接 · 10002')
   })
 
   it('已连接但 QQ 离线 → warn', () => {
-    const view = SettingsView(viewProps({ status: demoStatus({ connection: { connected: true, online: false, selfId: '2564812526' } }) }))
+    const view = SettingsView(viewProps({ status: demoStatus({ connection: { connected: true, online: false, selfId: '10002' } }) }))
     const conn = byClass(view, 'qqc-conn')[0]
     expect(byClass(conn, 'qqc-dot')[0].props['data-state']).toBe('warn')
-    expect(textOf(conn)).toBe('QQ 离线 · 2564812526')
+    expect(textOf(conn)).toBe('QQ 离线 · 10002')
   })
 
   it('未连接 → error；在线状态未知 → idle', () => {
@@ -486,17 +486,17 @@ describe('页头连接胶囊用真实状态（§2）', () => {
     expect(byClass(errorConn, 'qqc-dot')[0].props['data-state']).toBe('error')
     expect(textOf(errorConn)).toBe('未连接')
 
-    const unknown = SettingsView(viewProps({ status: demoStatus({ connection: { connected: true, online: null, selfId: '2564812526' } }) }))
+    const unknown = SettingsView(viewProps({ status: demoStatus({ connection: { connected: true, online: null, selfId: '10002' } }) }))
     const idleConn = byClass(unknown, 'qqc-conn')[0]
     expect(byClass(idleConn, 'qqc-dot')[0].props['data-state']).toBe('idle')
-    expect(textOf(idleConn)).toBe('QQ 状态未知 · 2564812526')
+    expect(textOf(idleConn)).toBe('QQ 状态未知 · 10002')
   })
 
   it('没有状态快照时保持旧形态（idle + QQ 号）', () => {
     const view = SettingsView(viewProps({ status: null }))
     const conn = byClass(view, 'qqc-conn')[0]
     expect(byClass(conn, 'qqc-dot')[0].props['data-state']).toBe('idle')
-    expect(textOf(conn)).toBe('QQ 号 2564812526')
+    expect(textOf(conn)).toBe('QQ 号 10002')
   })
 })
 

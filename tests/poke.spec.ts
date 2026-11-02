@@ -27,10 +27,10 @@ describe('parsePokeNotice', () => {
   })
 
   it('reads a group poke and keeps the group id', () => {
-    expect(parsePokeNotice(pokeEvent({ group_id: 643561596 }))).toEqual({
+    expect(parsePokeNotice(pokeEvent({ group_id: 20001 }))).toEqual({
       kind: 'group',
       userId: '10001',
-      groupId: '643561596',
+      groupId: '20001',
       targetId: '10002',
     })
   })
@@ -103,20 +103,20 @@ describe('the bridge answers a poke like a message', () => {
 
   it('treats a group poke as an @ even when a mention is required', async () => {
     const h = await makeCmdHarness({ requireMention: true })
-    await h.bridge.handlePoke(pokeEvent({ group_id: 643561596 }))
+    await h.bridge.handlePoke(pokeEvent({ group_id: 20001 }))
     expect(h.captured.followups).toHaveLength(1)
     expect(h.captured.followups[0]?.text).toContain(POKE_TEXT)
   })
 
   it('stays silent for a group poke aimed at another member', async () => {
     const h = await makeCmdHarness({ requireMention: true })
-    await h.bridge.handlePoke(pokeEvent({ group_id: 643561596, target_id: 55555 }))
+    await h.bridge.handlePoke(pokeEvent({ group_id: 20001, target_id: 55555 }))
     expect(h.captured.followups).toHaveLength(0)
   })
 
   it('still respects the group allowlist (a poke is not a bypass)', async () => {
     const h = await makeCmdHarness({ groupPolicy: 'allowlist', groupAllowFrom: ['999'] })
-    await h.bridge.handlePoke(pokeEvent({ group_id: 643561596 }))
+    await h.bridge.handlePoke(pokeEvent({ group_id: 20001 }))
     expect(h.captured.followups).toHaveLength(0)
   })
 })

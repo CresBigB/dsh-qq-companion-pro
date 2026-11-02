@@ -92,7 +92,7 @@
 | `strangerGrant` | string[] | `[]` | 额外给陌生人私聊（不在好友名单里的非管理员）开放的能力 id 列表——这是「默认关闭、单独给陌生人开」，默认位已开启的能力不需要写进来。默认关闭的是语音念出来、群列表 / 群资料、好友列表、私聊历史、群管理（禁言/群名片）、群公告与精华、戳一戳、点赞（即使按关系开了，其中会真的改动外部状态的也只有主人本人发起的回合能真的执行），要给陌生人开就写在这里（等于把主人的社交关系给不认识的人，谨慎）。要把陌生人这一档单独关掉用 strangerDeny；capabilitiesDeny 里的能力写在这里也仍然关闭；不知道填什么就看 /doctor。可用能力 id：qq.send.image（发图片）、qq.send.voice（发语音）、qq.voice.tts（语音念出来）、qq.send.video（发视频）、qq.send.file（发文件）、qq.send.forward（合并转发）、qq.napcat.api（NapCat 接口）、qq.group.history（群历史消息）、qq.message.open（打开消息）、qq.memory.note（群记忆笔记）、qq.memory.store（记忆库（记 / 搜））、qq.sticker.use（表情包（存 / 搜 / 发））、qq.sticker.manage（表情包整理（改 / 删））、qq.list.groups（群列表 / 群资料）、qq.list.friends（好友列表）、qq.history.private（私聊历史）、qq.group.manage（群管理（禁言/群名片））、qq.group.notice（群公告与精华）、qq.interact.react（表情回应）、qq.interact.poke（戳一戳）、qq.interact.like（点赞） |
 | `adminWorkspacePath` | string | `""` | 管理员私聊的工作目录（私密记忆目录；留空=同 workspacePath）。管理员私聊设置后覆盖 workspacePath（这类会话用本目录）；群聊用 workspacePath，读不到这里的 AGENTS.md |
 | `idleResetHours` | number | `0` | 超过这么多小时没说话，下一条消息开新会话，并附上最后几句作交接（0=关闭） |
-| `sessionTitleTemplate` | string | `"{kind} {target} · {date}"` | 新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 2824149798 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名 |
+| `sessionTitleTemplate` | string | `"{kind} {target} · {date}"` | 新建 QQ 会话（以及恢复时还没有标题的旧会话）自动命名的模板；可用 {kind} {target} {nickname} {date} {time}（例：QQ私聊 10001 · 10-23）。已有标题（比如在网页上手动改过）的会话不会被覆盖；留空 = 不自动命名 |
 | `publicMemoryFile` | string | `""` | qq_memory_note 工具追加的公开记忆文件（留空=不提供该工具） |
 | `scheduledPrompts` | object[] | `[]` | 每天定时投递给指定会话的任务（写日记等）；time 为本地 HH:MM |
 | `publicMemoryMaxBytes` | number | `6144` | 公开记忆文件达到这个大小（字节）后 qq_memory_note 不再追加 |

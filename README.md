@@ -2,7 +2,7 @@
 
 给 [dsh（DeepSeek Harness）](https://github.com/deepseek-ai/deepseek-harness) 接**个人 QQ 号**的陪伴型通道插件。
 
-本仓库是 `dsh-qq-companion` 的 **-pro** 发行版：npm 包名和插件 id 都是 `dsh-qq-companion-pro`，宿主里挂载用的 config 行 id 仍沿用上游的 `dsh-onebot`（见下面「安装」），所以从上游版本换过来时 config 覆盖行不用改。
+本仓库是 [Geng-zy/dsh-qq-companion](https://github.com/Geng-zy/dsh-qq-companion) 的 **-pro** 发行版：npm 包名和插件 id 都是 `dsh-qq-companion-pro`，宿主里挂载用的 config 行 id 仍沿用上游的 `dsh-onebot`（见下面「安装」），所以从上游版本换过来时 config 覆盖行不用改。
 
 基于 [mario841859784/dsh-onebot](https://github.com/mario841859784/dsh-onebot)（BSD-3-Clause）修改：保留原版的全部功能（OneBot 11、NapCat、私聊群聊、图片语音、斜杠命令、设置页……），在此之上补了稳定性，并加了一套“让 AI 像个真人朋友”的陪伴功能。
 
@@ -257,4 +257,4 @@ npm.cmd run docs:config      # 改了配置项后重新生成 docs/CONFIG.md（�
 
 BSD-3-Clause，见 [LICENSE](LICENSE)。
 
-上游版权归 dsh-external contributors（dsh-onebot）与 mario841859784，原样保留；本仓库（`dsh-qq-companion-pro`）的修改部分版权归 Geng-zy。第三方组件的许可与声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+上游版权归 dsh-external contributors（dsh-onebot）与 mario841859784，原样保留；中间的 `dsh-qq-companion` 分支由 [Geng-zy](https://github.com/Geng-zy) 修改；本仓库（`dsh-qq-companion-pro`）的修改部分版权归 [CresBigB](https://github.com/CresBigB)。第三方组件的许可与声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。

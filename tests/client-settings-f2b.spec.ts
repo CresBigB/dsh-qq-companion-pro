@@ -130,7 +130,7 @@ function viewProps(overrides: Record<string, unknown> = {}): Record<string, unkn
     changedOnly: false,
     draft: defaultDraft(config),
     config: config,
-    botQQ: '2564812526',
+    botQQ: '10002',
     secretSet: true,
     clearSecret: false,
     tagInputs: {},
@@ -859,7 +859,7 @@ describe('视图 — 危险确认对话框（§4.12 / §5.5）', () => {
 describe('视图 — 冲突流程（§5.6）', () => {
   it('error 横幅 + 两个操作，草稿改动仍留在保存条上', () => {
     const values = defaultDraft()
-    values.botQQ = '2564812526'
+    values.botQQ = '10002'
     const view = SettingsView(viewProps({ draft: values, conflict: true }))
     const banner = byClass(view, 'qqc-banner').filter(item => item.props['data-tone'] === 'error')[0]
     expect(textOf(banner)).toContain('这期间配置在别处被改过')
@@ -873,14 +873,14 @@ describe('视图 — 冲突流程（§5.6）', () => {
 
   it('「查看我的修改」展开：子页 · 标签 · 我的值；密钥只显示「已修改」', () => {
     const values = defaultDraft()
-    values.botQQ = '2564812526'
+    values.botQQ = '10002'
     values.allowAllUsers = true
     const view = SettingsView(viewProps({ draft: values, conflict: true, conflictShowMine: true, clearSecret: true }))
     const list = byRole(view, 'conflict-changes')[0]
     expect(list).toBeDefined()
     const rows = byClass(list, 'qqc-list-row')
     const texts = rows.map(row => textOf(row))
-    expect(texts).toContain('连接 · 机器人 QQ 号2564812526')
+    expect(texts).toContain('连接 · 机器人 QQ 号10002')
     expect(texts.some(text => text.includes('私聊 · 允许所有用户'))).toBe(true)
     // 密钥行只显示「已修改」，不回显值
     const secretRow = rows.filter(row => row.props['data-key'] === 'accessToken')[0]
@@ -912,7 +912,7 @@ describe('视图 — 键盘（§5.7）与搜索补充', () => {
 
   it('Ctrl+S / ⌘+S 触发保存并 preventDefault；其它键不触发', () => {
     const values = defaultDraft()
-    values.botQQ = '2564812526'
+    values.botQQ = '10002'
     const dirty = { draft: values }
     expect(fireRoot(dirty, { key: 's', ctrlKey: true })).toEqual({ prevented: 1, saves: 1 })
     expect(fireRoot(dirty, { key: 'S', metaKey: true })).toEqual({ prevented: 1, saves: 1 })
@@ -922,7 +922,7 @@ describe('视图 — 键盘（§5.7）与搜索补充', () => {
 
   it('保存中不重复保存；对话框开着时 Ctrl+S 不直接保存', () => {
     const values = defaultDraft()
-    values.botQQ = '2564812526'
+    values.botQQ = '10002'
     expect(fireRoot({ draft: values, busy: true }, { key: 's', ctrlKey: true }).saves).toBe(0)
     const dialogProps = {
       draft: values,
@@ -1015,7 +1015,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     const harness = mountPanel({ updateResult: { ok: false, error: { code: 'onebot-settings/conflict', message: 'expectedRevision mismatch' } } })
     await harness.settle()
     gotoPage(harness, 'connection') // F3 起默认打开概览页
-    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
+    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '10002' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
     harness.flush()
@@ -1028,7 +1028,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     byRole(harness.tree, 'conflict-mine')[0].props.onClick()
     harness.flush()
     const rows = byClass(byRole(harness.tree, 'conflict-changes')[0], 'qqc-list-row')
-    expect(rows.map(row => textOf(row))).toEqual(['连接 · 机器人 QQ 号2564812526'])
+    expect(rows.map(row => textOf(row))).toEqual(['连接 · 机器人 QQ 号10002'])
     // 重新加载 → 重拉快照 + 横幅消失 + 改动清零
     const before = harness.calls.getSettings
     byRole(harness.tree, 'conflict-reload')[0].props.onClick()
@@ -1044,12 +1044,12 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     const harness = mountPanel()
     await harness.settle()
     gotoPage(harness, 'connection') // F3 起默认打开概览页
-    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
+    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '10002' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
     harness.flush()
     await harness.settle()
-    expect(harness.calls.updateSettings).toEqual([{ patch: { botQQ: '2564812526' }, revision: 1 }])
+    expect(harness.calls.updateSettings).toEqual([{ patch: { botQQ: '10002' }, revision: 1 }])
     const bar = byClass(harness.tree, 'qqc-savebar')[0]
     expect(bar.props['data-tone']).toBe('success')
     expect(textOf(byClass(bar, 'qqc-savebar-text')[0])).toBe('已保存，插件正在原地重启…')
@@ -1069,7 +1069,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     const harness = mountPanel()
     await harness.settle()
     gotoPage(harness, 'connection') // F3 起默认打开概览页
-    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
+    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '10002' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
     harness.flush()
@@ -1088,7 +1088,7 @@ describe('面板 — 保存流程（§4.11 / §5.6）', () => {
     const harness = mountPanel({ updateResult: { ok: false, error: { code: 'onebot-settings/edit-failed', message: '写入失败：配置文件被其他写入方占用' } } })
     await harness.settle()
     gotoPage(harness, 'connection') // F3 起默认打开概览页
-    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '2564812526' } })
+    byId(harness.tree, 'qqc-f-botQQ').props.onChange({ target: { value: '10002' } })
     harness.flush()
     savebarButtons(harness.tree)[1].props.onClick()
     harness.flush()

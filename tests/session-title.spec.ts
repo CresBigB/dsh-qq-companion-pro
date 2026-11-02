@@ -27,20 +27,20 @@ function fakeSession(id: string, createdAt?: number): Session {
 
 describe('renderSessionTitle', () => {
   it('renders the default template for a private chat', () => {
-    expect(renderSessionTitle('{kind} {target} · {date}', { kind: 'private', target: '2824149798', at: AT }))
-      .toBe('QQ私聊 2824149798 · 10-23')
+    expect(renderSessionTitle('{kind} {target} · {date}', { kind: 'private', target: '10001', at: AT }))
+      .toBe('QQ私聊 10001 · 10-23')
   })
 
   it('renders the default template for a group chat', () => {
-    expect(renderSessionTitle('{kind} {target} · {date}', { kind: 'group', target: '643561596', at: AT }))
-      .toBe('QQ群 643561596 · 10-23')
+    expect(renderSessionTitle('{kind} {target} · {date}', { kind: 'group', target: '20001', at: AT }))
+      .toBe('QQ群 20001 · 10-23')
   })
 
   it('substitutes every placeholder, zero-padded date/time', () => {
     const early = new Date(2026, 0, 3, 9, 5)
     expect(renderSessionTitle('{kind}|{target}|{nickname}|{date}|{time}', {
-      kind: 'private', target: '2824149798', nickname: '小明', at: early,
-    })).toBe('QQ私聊|2824149798|小明|01-03|09:05')
+      kind: 'private', target: '10001', nickname: '小明', at: early,
+    })).toBe('QQ私聊|10001|小明|01-03|09:05')
   })
 
   it('sanitizes the nickname (control chars, markup, 32 code points)', () => {
@@ -56,7 +56,7 @@ describe('renderSessionTitle', () => {
   })
 
   it('leaves {nickname} empty in groups', () => {
-    expect(renderSessionTitle('{kind} {nickname}', { kind: 'group', target: '643561596', nickname: '小明', at: AT }))
+    expect(renderSessionTitle('{kind} {nickname}', { kind: 'group', target: '20001', nickname: '小明', at: AT }))
       .toBe('QQ群')
   })
 
@@ -131,22 +131,22 @@ describe('titleSession', () => {
     const { service, renames } = makeService()
     const applied = titleSession({
       service,
-      session: fakeSession('onebot-private-2824149798', AT.getTime()),
-      chatId: 'private:2824149798',
+      session: fakeSession('onebot-private-10001', AT.getTime()),
+      chatId: 'private:10001',
       mode: 'create',
       template: '{kind} {target} · {date}',
       nickname: '小明',
     })
-    expect(applied).toBe('QQ私聊 2824149798 · 10-23')
-    expect(renames).toEqual([{ sessionId: 'onebot-private-2824149798', title: 'QQ私聊 2824149798 · 10-23' }])
+    expect(applied).toBe('QQ私聊 10001 · 10-23')
+    expect(renames).toEqual([{ sessionId: 'onebot-private-10001', title: 'QQ私聊 10001 · 10-23' }])
   })
 
   it('leaves an existing title alone on resume', () => {
     const { service, renames } = makeService({ title: '我自己改的' })
     const applied = titleSession({
       service,
-      session: fakeSession('onebot-private-2824149798'),
-      chatId: 'private:2824149798',
+      session: fakeSession('onebot-private-10001'),
+      chatId: 'private:10001',
       mode: 'resume',
       template: '{kind} {target}',
     })
@@ -158,20 +158,20 @@ describe('titleSession', () => {
     const { service, renames } = makeService()
     titleSession({
       service,
-      session: fakeSession('onebot-group-643561596'),
-      chatId: 'group:643561596',
+      session: fakeSession('onebot-group-20001'),
+      chatId: 'group:20001',
       mode: 'resume',
       template: '{kind} {target}',
     })
-    expect(renames).toEqual([{ sessionId: 'onebot-group-643561596', title: 'QQ群 643561596' }])
+    expect(renames).toEqual([{ sessionId: 'onebot-group-20001', title: 'QQ群 20001' }])
   })
 
   it('backfills on resume when the service has no get()', () => {
     const { service, renames } = makeService({ noGet: true })
     titleSession({
       service,
-      session: fakeSession('onebot-group-643561596'),
-      chatId: 'group:643561596',
+      session: fakeSession('onebot-group-20001'),
+      chatId: 'group:20001',
       mode: 'resume',
       template: '{kind} {target}',
     })
@@ -201,8 +201,8 @@ describe('titleSession', () => {
     const log = vi.fn()
     expect(titleSession({
       service,
-      session: fakeSession('onebot-private-2824149798'),
-      chatId: 'private:2824149798',
+      session: fakeSession('onebot-private-10001'),
+      chatId: 'private:10001',
       mode: 'create',
       template: '{kind} {target}',
       log,
@@ -210,7 +210,7 @@ describe('titleSession', () => {
     expect(log).toHaveBeenCalledTimes(1)
     const [level, message] = log.mock.calls[0] as [string, string]
     expect(level).toBe('warn')
-    expect(message).toContain('private:2824149798')
+    expect(message).toContain('private:10001')
     expect(message).toContain('not live in this store')
   })
 

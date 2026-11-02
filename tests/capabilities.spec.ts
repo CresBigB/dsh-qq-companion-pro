@@ -943,7 +943,7 @@ describe('群聊里主人的回合也走群友档（故意的，别当 bug 修�
 
 describe('未知能力 id 在启动自检里告警', () => {
   const base = {
-    host: '127.0.0.1', accessToken: 't', botQQ: '', adminUsers: ['2824149798'],
+    host: '127.0.0.1', accessToken: 't', botQQ: '', adminUsers: ['10001'],
     dmPolicy: 'open', groupPolicy: 'open', allowFrom: [], groupAllowFrom: [], allowAllUsers: false,
     memberPermission: 'read-only', workspacePath: '', adminWorkspacePath: '', groupMemoryDir: '',
     publicMemoryFile: '', scheduledPrompts: [], privateProactiveEnabled: false,

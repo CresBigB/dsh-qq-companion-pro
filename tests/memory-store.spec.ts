@@ -34,9 +34,9 @@ describe('记忆库第一次用就能建（真机踩过的坑）', () => {
     const library = new MemoryLibrary(root)
     libraries.push(library)
     expect(existsSync(root)).toBe(false)
-    await expect(library.remember('group:643561596', '周五打本')).resolves.toBe(1)
-    expect(existsSync(join(root, '643561596.db'))).toBe(true)
-    expect(await library.count('group:643561596')).toBe(1)
+    await expect(library.remember('group:20001', '周五打本')).resolves.toBe(1)
+    expect(existsSync(join(root, '20001.db'))).toBe(true)
+    expect(await library.count('group:20001')).toBe(1)
   })
 
   it('库确实打不开时不抛错、只回 0，且下次调用会重试而不是永远坏着', async () => {
@@ -57,8 +57,8 @@ describe('memory library paths', () => {
     expect(memoryStoreRootOf({ workspacePath: 'D:\\work' })).toBe(join('D:\\work', MEMORY_DIR_NAME))
     expect(memoryStoreRootOf({})).toBe('')
     expect(memoryStoreRootOf({ workspacePath: '   ' })).toBe('')
-    expect(memoryLibraryName('group:643561596')).toBe('643561596')
-    expect(memoryLibraryName('private:2824149798')).toBe('2824149798')
+    expect(memoryLibraryName('group:20001')).toBe('20001')
+    expect(memoryLibraryName('private:10001')).toBe('10001')
     // 非数字字符被剔掉，避免路径穿越
     expect(memoryLibraryName('group:../../etc/passwd')).toBe('etcpasswd')
     expect(memoryLibraryName('group:')).toBe('unknown')

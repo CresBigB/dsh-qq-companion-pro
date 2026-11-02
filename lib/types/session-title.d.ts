@@ -6,7 +6,7 @@
  * `source.kind === 'user'` (@deepseek-ai/dsh-session-title,
  * `sessionTitleUserMessageOf`), and every message this plugin feeds an agent is
  * `plugin:qq-companion`-sourced — so a QQ session would keep its raw id
- * (`onebot-private-2824149798-mvjxpyk7`) as its display name forever. This
+ * (`onebot-private-10001-mvjxpyk7`) as its display name forever. This
  * module writes the title itself through `sessionTitle.rename(session, title)`,
  * which appends one `session/title` event with the `user` source (that also pins
  * the title against later automatic generation, exactly like a Web rename).

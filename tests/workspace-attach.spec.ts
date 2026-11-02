@@ -127,7 +127,7 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
     const root = tmp('onebot-wsa-root-')
     const workspaces = makeWorkspaceRegistry()
     const registry = new ChatRegistry(makeDeps({ cwd: root, workspaceRegistry: workspaces, config: { workspacePath: root } }))
-    const chat = await registry.ensureChat('group:643561596', '群友')
+    const chat = await registry.ensureChat('group:20001', '群友')
     expect(workspaces.resolveByPath).toHaveBeenCalledWith(root)
     // 会话目录就是总工作区 → 不给它套「QQ群 <群号>」标题，沿用宿主按目录名的默认。
     expect(workspaces.created).toEqual([{ path: root, title: undefined }])
@@ -136,10 +136,10 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
 
   it('T28：聊天子目录归入它所在的总工作区（祖先认领），不为子目录另建工作区', async () => {
     const root = tmp('onebot-wsa-root-')
-    const dir = join(root, 'companion', 'groups', '643561596')
+    const dir = join(root, 'companion', 'groups', '20001')
     const workspaces = makeWorkspaceRegistry({ owned: [root] })
     const registry = new ChatRegistry(makeDeps({ cwd: dir, workspaceRegistry: workspaces, config: { workspacePath: root, sessionCwdMode: 'chat' } }))
-    const chat = await registry.ensureChat('group:643561596', '群友')
+    const chat = await registry.ensureChat('group:20001', '群友')
     expect(workspaces.resolveByPath).toHaveBeenCalledWith(dir)
     expect(workspaces.create).not.toHaveBeenCalled()
     expect(workspaces.attached).toEqual([{ path: root, sessionId: chat.sessionId }])
@@ -169,7 +169,7 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
   it('T28：旧群记忆目录布局的会话（不在总工作区下）不新建工作区，日志写清 chatId、目录和原因', async () => {
     const groupRoot = tmp('onebot-wsa-groups-')
     const root = tmp('onebot-wsa-root-')
-    const dir = join(groupRoot, '643561596')
+    const dir = join(groupRoot, '20001')
     const workspaces = makeWorkspaceRegistry()
     const logs: string[] = []
     const registry = new ChatRegistry(makeDeps({
@@ -178,11 +178,11 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
       log: (level, message) => logs.push(level + ':' + message),
       config: { workspacePath: root },
     }))
-    await registry.ensureChat('group:643561596', '群友')
+    await registry.ensureChat('group:20001', '群友')
     expect(workspaces.resolveByPath).toHaveBeenCalledWith(dir)
     expect(workspaces.create).not.toHaveBeenCalled()
     expect(workspaces.attached).toHaveLength(0)
-    const line = logs.find(entry => entry.includes('group:643561596'))
+    const line = logs.find(entry => entry.includes('group:20001'))
     expect(line).toBeDefined()
     expect(line!.startsWith('info:')).toBe(true)
     expect(line).toContain(dir)
@@ -193,15 +193,15 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
 describe('workspace attach · auto 模式（每个聊天一个工作区）', () => {
   it('群目录新建工作区，标题「QQ群 <群号>」', async () => {
     const root = tmp('onebot-wsa-root-')
-    const dir = join(root, 'companion', 'groups', '643561596')
+    const dir = join(root, 'companion', 'groups', '20001')
     const workspaces = makeWorkspaceRegistry()
     const registry = new ChatRegistry(makeDeps({
       cwd: dir,
       workspaceRegistry: workspaces,
       config: { workspacePath: root, sessionCwdMode: 'chat', attachWorkspaceMode: 'auto' },
     }))
-    const chat = await registry.ensureChat('group:643561596', '群友')
-    expect(workspaces.created).toEqual([{ path: dir, title: 'QQ群 643561596' }])
+    const chat = await registry.ensureChat('group:20001', '群友')
+    expect(workspaces.created).toEqual([{ path: dir, title: 'QQ群 20001' }])
     expect(workspaces.attached).toEqual([{ path: dir, sessionId: chat.sessionId }])
   })
 
@@ -211,11 +211,11 @@ describe('workspace attach · auto 模式（每个聊天一个工作区）', () 
     const registry = new ChatRegistry(makeDeps({
       cwd: adminDir,
       workspaceRegistry: workspaces,
-      isAdminPrivate: chatId => chatId === 'private:2824149798',
+      isAdminPrivate: chatId => chatId === 'private:10001',
       config: { workspacePath: tmp('onebot-wsa-'), adminWorkspacePath: adminDir, attachWorkspaceMode: 'auto' },
     }))
-    const chat = await registry.ensureChat('private:2824149798', '管理员')
-    expect(workspaces.created).toEqual([{ path: adminDir, title: 'QQ私聊 2824149798' }])
+    const chat = await registry.ensureChat('private:10001', '管理员')
+    expect(workspaces.created).toEqual([{ path: adminDir, title: 'QQ私聊 10001' }])
     expect(workspaces.attached).toEqual([{ path: adminDir, sessionId: chat.sessionId }])
   })
 
@@ -281,7 +281,7 @@ describe('workspace attach · 归入失败只记日志，不影响会话', () =>
 
   it('T34：workspace 模式下旧会话的子目录 cwd 只记 stale-cwd，不为它新建工作区', async () => {
     const root = tmp('onebot-wsa-root-')
-    const dir = join(root, 'companion', 'groups', '643561596')
+    const dir = join(root, 'companion', 'groups', '20001')
     const workspaces = makeWorkspaceRegistry({ owned: [root] })
     const logs: string[] = []
     const registry = new ChatRegistry(makeDeps({
@@ -290,11 +290,11 @@ describe('workspace attach · 归入失败只记日志，不影响会话', () =>
       log: (level, message) => logs.push(level + ':' + message),
       config: { workspacePath: root },
     }))
-    const chat = await registry.ensureChat('group:643561596', '群友')
+    const chat = await registry.ensureChat('group:20001', '群友')
     expect(chat.sessionId).toBeTruthy()
     expect(workspaces.create).not.toHaveBeenCalled()
     expect(workspaces.attached).toHaveLength(0)
-    const line = logs.find(entry => entry.includes('group:643561596'))
+    const line = logs.find(entry => entry.includes('group:20001'))
     expect(line).toBeDefined()
     expect(line!.startsWith('info:')).toBe(true)
     expect(line).toContain('旧的每聊天子目录')
@@ -362,19 +362,19 @@ function makeCommandCtx(overrides: {
 describe('/workspace attach 的四种回复', () => {
   it('成功（新建）：✅ 已归入工作区 <path>（新建）', async () => {
     const { ctx, sent } = makeCommandCtx({ outcome: { ok: true, path: '/ws/group', created: true } })
-    await handleWorkspaceCommand(ctx, 'group:643561596', 'attach')
+    await handleWorkspaceCommand(ctx, 'group:20001', 'attach')
     expect(sent).toEqual(['✅ 已归入工作区 /ws/group（新建）'])
   })
 
   it('成功（已有）：✅ 已归入工作区 <path>（已有）', async () => {
     const { ctx, sent } = makeCommandCtx({ outcome: { ok: true, path: '/ws/group', created: false } })
-    await handleWorkspaceCommand(ctx, 'group:643561596', 'attach')
+    await handleWorkspaceCommand(ctx, 'group:20001', 'attach')
     expect(sent).toEqual(['✅ 已归入工作区 /ws/group（已有）'])
   })
 
   it('模式 off：提示已关闭并给出下一步', async () => {
     const { ctx, sent } = makeCommandCtx({ outcome: { ok: false, reason: 'off' } })
-    await handleWorkspaceCommand(ctx, 'group:643561596', 'attach')
+    await handleWorkspaceCommand(ctx, 'group:20001', 'attach')
     expect(sent).toHaveLength(1)
     expect(sent[0]).toContain('❌ 会话归入工作区已关闭')
     expect(sent[0]).toContain('attachWorkspaceMode=off')

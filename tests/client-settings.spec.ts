@@ -181,7 +181,7 @@ function viewProps(overrides: Record<string, unknown> = {}): Record<string, unkn
     changedOnly: false,
     draft: draft({ config: config }),
     config: config,
-    botQQ: '2564812526',
+    botQQ: '10002',
     secretSet: true,
     clearSecret: false,
     tagInputs: {},
@@ -404,7 +404,7 @@ describe('客户端 bundle — descriptor 契约核对（与 src/settings-remote
     const full = getStatus.result.schema.parse({
       available: true,
       status: {
-        connection: { connected: true, online: true, selfId: '2564812526', botQQ: '2564812526', host: '127.0.0.1', port: 8643 },
+        connection: { connected: true, online: true, selfId: '10002', botQQ: '10002', host: '127.0.0.1', port: 8643 },
         sessions: { private: 1, group: 2, list: [{ chatId: 'private:1', sessionId: 's1', workspaceAttached: false }] },
         today: { sent: 12 },
         proactive: { enabled: true, doneToday: 1, plannedToday: 4, nextAt: '15:30' },
@@ -1257,7 +1257,7 @@ describe('子页视图（§2 布局 / §4.13 加载与空态 / §5.3 筛选）',
     expect(textOf(byClass(header, 'qqc-subtitle')[0])).toContain('cordis.patch.yml')
     const dot = byClass(header, 'qqc-dot')[0]
     expect(dot.props['data-state']).toBe('idle')
-    expect(textOf(byClass(header, 'qqc-conn')[0])).toBe('QQ 号 2564812526')
+    expect(textOf(byClass(header, 'qqc-conn')[0])).toBe('QQ 号 10002')
   })
 
   it('botQQ 未配置时不显示连接胶囊', () => {

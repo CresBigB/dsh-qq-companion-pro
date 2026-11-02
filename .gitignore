@@ -10,3 +10,7 @@ coverage/
 
 # 设置页静态预览（scripts/preview-client.mjs 的产物，仅供人工验收）
 preview/
+
+# 本地临时脚本与诊断现场（不发布）
+.tmp/
+diagnostics/

@@ -49,29 +49,29 @@ function memoryDir(): { dir: string; file: string; bytes: number } {
 function fullDeps(overrides: Partial<CompanionStatusDeps> = {}): CompanionStatusDeps {
   const { file } = memoryDir()
   return {
-    connection: () => ({ connected: true, selfId: '2564812526' }),
+    connection: () => ({ connected: true, selfId: '10002' }),
     transport: { host: '127.0.0.1', port: 8643 },
-    botQQ: '2564812526',
+    botQQ: '10002',
     liveness: () => ({ lastHeartbeatAt: NOW, online: true, intervalMs: 30_000 }),
     chats: () => ({
       live: [
-        { chatId: 'private:2824149798', sessionId: 's1' },
+        { chatId: 'private:10001', sessionId: 's1' },
         { chatId: 'group:123456', sessionId: 's2' },
       ],
       mapped: [
-        { chatId: 'private:2824149798', sessionId: 's1-stale' },
+        { chatId: 'private:10001', sessionId: 's1-stale' },
         { chatId: 'group:999999', sessionId: 's3' },
       ],
     }),
     workspaceSessionIds: () => new Set(['s2']),
-    titleOf: chatId => (chatId === 'private:2824149798' ? 'QQ私聊 2824149798 · 10-23' : undefined),
+    titleOf: chatId => (chatId === 'private:10001' ? 'QQ私聊 10001 · 10-23' : undefined),
     sendCounter: () => ({ lastMinute: 1, lastHour: 2, today: 12 }),
     scheduler: () => [
       { id: 'diary', time: '23:00', firedToday: false },
       { id: 'morning', time: '08:00', firedToday: true },
     ],
     scheduledPrompts: [
-      { id: 'diary', time: '23:00', chatId: 'private:2824149798' },
+      { id: 'diary', time: '23:00', chatId: 'private:10001' },
       { id: 'morning', time: '08:00', chatId: 'group:123456' },
     ],
     proactive: () => ({ enabled: true, firedToday: 1, remaining: ['15:30', '20:00'] }),
@@ -89,8 +89,8 @@ describe('buildCompanionStatusSnapshot — 全量字段（§4.14）', () => {
     expect(snapshot.connection).toEqual({
       connected: true,
       online: true,
-      selfId: '2564812526',
-      botQQ: '2564812526',
+      selfId: '10002',
+      botQQ: '10002',
       host: '127.0.0.1',
       port: 8643,
     })
@@ -101,7 +101,7 @@ describe('buildCompanionStatusSnapshot — 全量字段（§4.14）', () => {
       botQQ: '',
       liveness: () => ({ lastHeartbeatAt: undefined, online: undefined, intervalMs: undefined }),
     }))
-    expect(snapshot.connection).toMatchObject({ online: null, botQQ: '2564812526' })
+    expect(snapshot.connection).toMatchObject({ online: null, botQQ: '10002' })
   })
 
   it('会话：live 优先去重、私聊/群计数按全量、workspaceAttached 三态、标题来自宿主 sessionTitle', async () => {
@@ -111,7 +111,7 @@ describe('buildCompanionStatusSnapshot — 全量字段（§4.14）', () => {
     expect(sessions.private).toBe(1)
     expect(sessions.group).toBe(2)
     expect(sessions.list).toEqual([
-      { chatId: 'private:2824149798', sessionId: 's1', title: 'QQ私聊 2824149798 · 10-23', workspaceAttached: false },
+      { chatId: 'private:10001', sessionId: 's1', title: 'QQ私聊 10001 · 10-23', workspaceAttached: false },
       { chatId: 'group:123456', sessionId: 's2', workspaceAttached: true },
       { chatId: 'group:999999', sessionId: 's3', workspaceAttached: false },
     ])
@@ -166,7 +166,7 @@ describe('buildCompanionStatusSnapshot — 全量字段（§4.14）', () => {
   it('定时任务：prompts 与调度器状态按 id 对齐，doneToday 与 nextAt', async () => {
     const snapshot = await buildCompanionStatusSnapshot(fullDeps())
     expect(snapshot.scheduled).toEqual([
-      { id: 'diary', time: '23:00', chatId: 'private:2824149798', doneToday: false, nextAt: '23:00' },
+      { id: 'diary', time: '23:00', chatId: 'private:10001', doneToday: false, nextAt: '23:00' },
       { id: 'morning', time: '08:00', chatId: 'group:123456', doneToday: true, nextAt: '08:00' },
     ])
   })

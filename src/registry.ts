@@ -887,7 +887,7 @@ export class ChatRegistry {
 
   /**
    * Give a just-created / just-resumed session a human title from the
-   * configured template ("QQ私聊 2824149798 · 10-23"). The host only
+   * configured template ("QQ私聊 10001 · 10-23"). The host only
    * auto-titles `user`-sourced messages and this plugin's messages are
    * plugin-sourced, so without this a QQ session shows its raw session id in
    * the Web session list. Entirely best-effort: an absent sessionTitle service,

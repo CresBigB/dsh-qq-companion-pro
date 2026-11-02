@@ -93,7 +93,7 @@ type Entry = { id: string; time: string; chatId: string; prompt: string; include
 
 const ENTRIES: Entry[] = [
   { id: 'p1', time: '09:00', chatId: 'private:10001', prompt: '写日记', includeTodayLog: false, includeGroupLogs: false },
-  { id: 'p2', time: '21:30', chatId: 'group:643561596', prompt: '总结群聊', includeTodayLog: true, includeGroupLogs: true },
+  { id: 'p2', time: '21:30', chatId: 'group:20001', prompt: '总结群聊', includeTodayLog: true, includeGroupLogs: true },
 ]
 
 function configWith(entries: Entry[]): Record<string, unknown> {
@@ -111,7 +111,7 @@ function viewProps(overrides: Record<string, unknown> = {}): Record<string, unkn
     changedOnly: false,
     draft: draftWith(ENTRIES),
     config: config,
-    botQQ: '2564812526',
+    botQQ: '10002',
     secretSet: true,
     clearSecret: false,
     tagInputs: {},
@@ -153,7 +153,7 @@ describe('定时任务表：渲染', () => {
     expect(byClass(row, 'qqc-sched-row')).toHaveLength(2)
     expect(byClass(row, 'qqc-sched-time').map(element => element.props.value)).toEqual(['09:00', '21:30'])
     expect(byClass(row, 'qqc-sched-target').map(element => element.props.value))
-      .toEqual(['private:10001', 'group:643561596'])
+      .toEqual(['private:10001', 'group:20001'])
     expect(byClass(row, 'qqc-sched-id').map(element => element.props.value)).toEqual(['p1', 'p2'])
     expect(byClass(row, 'qqc-sched-prompt').map(element => String(element.props.value))).toEqual(['写日记', '总结群聊'])
     const boxes = byClass(row, 'qqc-sched-flag').flatMap(label => walk(label).filter(element => element.props.type === 'checkbox'))

@@ -26,13 +26,13 @@ const base = {
 
 describe('chatScopeFiles', () => {
   it('群聊注入自己号码下面那份 AGENTS.md', () => {
-    expect(chatScopeFiles({ ...base, chatId: 'group:643561596' })).toEqual([
-      { label: '本群的规则与记忆', path: join('/ws/companion/groups', '643561596', 'AGENTS.md'), maxBytes: CHAT_SCOPE_DEFAULT_MAX_BYTES },
+    expect(chatScopeFiles({ ...base, chatId: 'group:20001' })).toEqual([
+      { label: '本群的规则与记忆', path: join('/ws/companion/groups', '20001', 'AGENTS.md'), maxBytes: CHAT_SCOPE_DEFAULT_MAX_BYTES },
     ])
   })
 
   it('管理员私聊注入私聊记忆目录里的 AGENTS.md', () => {
-    expect(chatScopeFiles({ ...base, chatId: 'private:2824149798' })).toEqual([
+    expect(chatScopeFiles({ ...base, chatId: 'private:10001' })).toEqual([
       { label: '私聊的规则与记忆', path: join('/admin/ws', 'AGENTS.md'), maxBytes: CHAT_SCOPE_DEFAULT_MAX_BYTES },
     ])
   })

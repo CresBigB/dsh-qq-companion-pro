@@ -60,14 +60,14 @@ function tokenBlock(tokens) {
 /** 假快照（含若干非默认值，accessToken 已设置）。 */
 function demoConfig(DEFAULTS) {
   return Object.assign({}, DEFAULTS, {
-    botQQ: '2564812526',
+    botQQ: '10002',
     dmPolicy: 'allowlist',
-    allowFrom: ['2824149798'],
-    adminUsers: ['2824149798'],
+    allowFrom: ['10001'],
+    adminUsers: ['10001'],
     groupPeekEnabled: true,
     groupAutoQuote: 'busy',
     sessionTitleTemplate: '{kind} {target} · {date}',
-    stickerDir: 'E:\\To DeepSeek\\companion\\stickers',
+    stickerDir: 'D:\\QQ\\stickers',
     traceEnabled: true,
     logLevel: 'warn',
     memberPermission: 'read-only',
@@ -165,8 +165,8 @@ const workspace = {
   loaded: true,
   available: true,
   workspaces: [
-    { id: 'ws-1', path: 'E:\\To DeepSeek', sessionCount: 5 },
-    { id: 'ws-2', path: 'E:\\Vibe Coding\\dsh-qq-companion-魔改', sessionCount: 2 },
+    { id: 'ws-1', path: 'D:\\QQ\\workspace', sessionCount: 5 },
+    { id: 'ws-2', path: 'D:\\QQ\\workspace2', sessionCount: 2 },
   ],
   selectedId: 'ws-1',
 }
@@ -319,12 +319,12 @@ written.push(statesFile)
 
 /** 概览用的假快照（与 src/status.ts 的 CompanionStatusSnapshot 同构）。 */
 const overviewStatus = {
-  connection: { connected: true, online: true, selfId: '2564812526', botQQ: '2564812526', host: '127.0.0.1', port: 8643 },
+  connection: { connected: true, online: true, selfId: '10002', botQQ: '10002', host: '127.0.0.1', port: 8643 },
   sessions: {
     private: 1,
     group: 1,
     list: [
-      { chatId: 'private:2824149798', sessionId: 'onebot-private-2824149798-a1b2c3', title: 'QQ私聊 2824149798 · 10-23', workspaceAttached: true },
+      { chatId: 'private:10001', sessionId: 'onebot-private-10001-a1b2c3', title: 'QQ私聊 10001 · 10-23', workspaceAttached: true },
       { chatId: 'group:123456789', sessionId: 'onebot-group-123456789-d4e5f6', workspaceAttached: false },
     ],
   },
@@ -332,12 +332,12 @@ const overviewStatus = {
   proactive: { enabled: true, doneToday: 2, plannedToday: 5, nextAt: '15:30' },
   stickers: { enabled: false, count: 0, maxCount: 300, today: 0, dailyMax: 20 },
   memory: [
-    { label: '公开', path: 'E:\\To DeepSeek\\AGENTS.md', bytes: 5701, maxBytes: 6144 },
-    { label: '私密', path: 'E:\\To DeepSeek\\private\\AGENTS.md', bytes: 9216, maxBytes: 24576 },
+    { label: '公开', path: 'D:\\QQ\\workspace\\AGENTS.md', bytes: 5701, maxBytes: 6144 },
+    { label: '私密', path: 'D:\\QQ\\workspace\\private\\AGENTS.md', bytes: 9216, maxBytes: 24576 },
   ],
   scheduled: [
-    { id: 'diary', time: '23:00', chatId: 'private:2824149798', doneToday: false, nextAt: '23:00' },
-    { id: 'morning', time: '08:30', chatId: 'private:2824149798', doneToday: true, nextAt: '08:30' },
+    { id: 'diary', time: '23:00', chatId: 'private:10001', doneToday: false, nextAt: '23:00' },
+    { id: 'morning', time: '08:30', chatId: 'private:10001', doneToday: true, nextAt: '08:30' },
   ],
   permissions: { admin: 'danger-full-access', member: 'read-only' },
   generatedAt: Date.now(),
