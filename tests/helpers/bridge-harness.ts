@@ -21,8 +21,21 @@ import { Transcriber } from '../../src/stt.js'
 import { Synthesizer } from '../../src/tts.js'
 import { TraceSink } from '../../src/trace.js'
 
-/** A fake agent handle for the bridge. */
-export function makeFakeAgents(
+/**
+ * T33 最小记忆库：形状与生产端口一致，行为是「记了就回 1、搜不到」。只用来让
+ * 能力依赖与工具注册保持生产同构；真正验记忆内容的测试自带真库（见
+ * `tests/memory-store.spec.ts` 与 `tests/memory-tools.spec.ts`）。
+ */
+export function defaultMemoryLibraryStub() {
+  return {
+    remember: vi.fn(async () => 1),
+    search: vi.fn(async () => []),
+    recent: vi.fn(async () => []),
+    count: vi.fn(async () => 0),
+  }
+}
+
+/** A fake agent handle for the bridge. */export function makeFakeAgents(
   sessionIds: string[],
   captured: { followups: Array<{ text: string; sessionId: string; id?: string; source?: unknown }>; steers?: Array<{ text: string; sessionId: string }>; createdMeta?: Array<{ cwd?: string; agentPreset?: string }>; channelTools?: string[]; channelSections?: string[] },
   opts?: { failCreateFor?: string; resumeOk?: boolean; createDelayMs?: number },
@@ -292,6 +305,12 @@ export async function makeCmdHarness(opts?: {
   textImageThreshold?: number
   /** 表情包库（absent = 未开启，入站表情包不带收藏标注）。 */
   stickers?: unknown
+  /**
+   * T33 每聊天记忆库。absent = 用测试内的最小假库（能力依赖按「有库」算，这样
+   * 「注册表工具集合 ≡ 实际注册到的工具」那条不变量与生产一致）；传 null = 真的
+   * 没有库，用来验「没工作目录 → 记忆库这档关掉」的降级路径。
+   */
+  memoryLibrary?: unknown
   /** 公开记忆文件（absent = 不注册 qq_memory_note；能力矩阵测试用）。 */
   publicMemoryFile?: string
   /** 管理员名单（absent = ['10001']；多聊天旁问并发测试要用两个管理员私聊）。 */
@@ -369,6 +388,11 @@ export async function makeCmdHarness(opts?: {
     ...(opts?.activity !== undefined ? { activity: opts.activity as never } : {}),
     ...(opts?.groupChatter !== undefined ? { groupChatter: opts.groupChatter as never } : {}),
     ...(opts?.stickers !== undefined ? { stickers: opts.stickers as never } : {}),
+    // T33：生产里有工作目录就一定有记忆库；测试默认给一个最小假库，让
+    // 「注册表工具集合 ≡ 实际注册到的工具」保持成立。传 null 才真的没有。
+    ...(opts?.memoryLibrary === null
+      ? {}
+      : { memoryLibrary: (opts?.memoryLibrary ?? defaultMemoryLibraryStub()) as never }),
     // T16：和立即生产接线同构——宿主没有 goals 服务时 deps 里也不放它。
     ...(opts?.goals !== undefined ? { goals: opts.goals as never } : {}),
     // T18：只有真的拿到适配器才接线，和 src/index.ts 的降级路径同构。

@@ -174,7 +174,9 @@ describe('能力层 — 两个写操作能力默认关，说明写清后果', ()
       // T14 的三个互动能力与群体写操作无关，不算「老能力」。
       && !['qq.interact.react', 'qq.interact.poke', 'qq.interact.like'].includes(capability.id)
       // T15 新增的语音能力（默认关）同样不是老能力。
-      && capability.id !== 'qq.voice.tts')
+      && capability.id !== 'qq.voice.tts'
+      // T33 的记忆库（记 / 搜）也是新增项。
+      && capability.id !== 'qq.memory.store')
     expect(legacy).toHaveLength(11)
     for (const capability of legacy) {
       expect(capability.memberDefault, capability.id).toBe(true)

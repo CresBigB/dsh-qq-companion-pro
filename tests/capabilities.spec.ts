@@ -55,7 +55,7 @@ const ROOT = join(import.meta.dirname, '..')
 const REGISTRY_TOOLS = allToolNames()
 
 /** 依赖全开（表情包库 + 记忆文件 + 离线语音引擎都在）。 */
-const ALL_DEPS: CapabilityDependency[] = ['memoryNote', 'stickerLib', 'tts']
+const ALL_DEPS: CapabilityDependency[] = ['memoryNote', 'memoryStore', 'stickerLib', 'tts']
 
 /**
  * 主人私聊视角下默认关的能力，顺序同注册表（T15 起的离线语音，T14 r2 起的戳与
@@ -86,7 +86,7 @@ describe('能力注册表 — 结构自洽', () => {
     expect(capabilityOfTool('not_a_tool')).toBeUndefined()
   })
 
-  it('覆盖现在的全部模型工具（27 个）', () => {
+  it('覆盖现在的全部模型工具（29 个）', () => {
     expect(REGISTRY_TOOLS).toEqual([
       'qq_send_image',
       'qq_gif_frames',
@@ -99,6 +99,8 @@ describe('能力注册表 — 结构自洽', () => {
       'qq_group_history',
       'qq_open_message',
       'qq_memory_note',
+      'qq_memory_remember',
+      'qq_memory_search',
       'qq_sticker_save',
       'qq_sticker_search',
       'qq_sticker_send',
@@ -121,7 +123,7 @@ describe('能力注册表 — 结构自洽', () => {
 
   it('id 唯一、有中文名与一句说明；依赖键合法', () => {
     expect(new Set(ALL_CAPABILITY_IDS).size).toBe(ALL_CAPABILITY_IDS.length)
-    const validDeps: CapabilityDependency[] = ['stickerLib', 'memoryNote', 'tts']
+    const validDeps: CapabilityDependency[] = ['stickerLib', 'memoryNote', 'memoryStore', 'tts']
     for (const capability of CAPABILITIES) {
       expect(capability.title).toMatch(/[\u4e00-\u9fa5]/u)
       expect(capability.describe.length).toBeGreaterThan(8)
@@ -149,6 +151,8 @@ describe('能力注册表 — 结构自洽', () => {
     const T14_IDS = ['qq.interact.react', 'qq.interact.poke', 'qq.interact.like']
     /** T15 新增的一项，同样不算「改造前 11 项」。 */
     const T15_IDS = ['qq.voice.tts']
+    /** T33 新增的记忆库（记 / 搜）能力，同样不算「改造前 11 项」。 */
+    const T33_IDS = ['qq.memory.store']
     for (const capability of CAPABILITIES) {
       const off = OFF_BY_DEFAULT.includes(capability.id)
       expect(capability.memberDefault, capability.id).toBe(!off)
@@ -163,9 +167,9 @@ describe('能力注册表 — 结构自洽', () => {
     expect(findCapability('qq.interact.react')?.ownerDefault).toBe(true)
     // 改造前有过的那 11 项一个都没被改成默认关。
     expect(CAPABILITIES.filter(capability =>
-      !OFF_BY_DEFAULT.includes(capability.id) && !T14_IDS.includes(capability.id) && !T15_IDS.includes(capability.id))).toHaveLength(11)
-    // 16 个老能力（含 T12 三个隐私与 T13 两个写操作）+ T14 的三个互动能力 + T15 的语音。
-    expect(CAPABILITIES).toHaveLength(20)
+      !OFF_BY_DEFAULT.includes(capability.id) && !T14_IDS.includes(capability.id) && !T15_IDS.includes(capability.id) && !T33_IDS.includes(capability.id))).toHaveLength(11)
+    // 16 个老能力（含 T12 三个隐私与 T13 两个写操作）+ T14 的三个互动能力 + T15 的语音 + T33 的记忆库。
+    expect(CAPABILITIES).toHaveLength(21)
   })
 
   it('配置项 capabilitiesDeny 的描述覆盖注册表里的每个 id 与中文名（改注册表忘改描述会失败）', () => {
@@ -239,6 +243,9 @@ describe('工具清单一致性 — 两份手写清单 ≡ 注册表 ≡ 实际�
 /** T32：看动图的工具（挂在 `qq.send.image` 这一档，默认开，所有关系都能用）。 */
 const GIF_TOOLS = ['qq_gif_frames']
 
+/** T33 新增的两个记忆库工具（每个聊天只碰自己那本库，默认对所有档开放）。 */
+const MEMORY_TOOLS = ['qq_memory_remember', 'qq_memory_search']
+
 /**
  * 矩阵的**改造前**期望集合：在 capability 层落地之前用同一套 harness 跑一遍
  * （三种会话 × 表情包库开关 × 记忆文件开关 = 12 组）得到的原始输出，逐字写死
@@ -293,8 +300,8 @@ const INTERACT_DEFAULT_TOOLS = ['qq_emoji_react']
 function expectedTools(key: string): string {
   const legacy = PRE_CHANGE_TOOLS[key]
   const extra = key.startsWith('admin-private|')
-    ? [...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS, ...INTERACT_TOOLS, ...GIF_TOOLS]
-    : [...INTERACT_DEFAULT_TOOLS, ...GIF_TOOLS]
+    ? [...PRIVACY_TOOLS, ...GROUP_WRITE_TOOLS, ...INTERACT_TOOLS, ...GIF_TOOLS, ...MEMORY_TOOLS]
+    : [...INTERACT_DEFAULT_TOOLS, ...GIF_TOOLS, ...MEMORY_TOOLS]
   return [...legacy.split(' '), ...extra].sort().join(' ')
 }
 
@@ -789,7 +796,7 @@ describe('resolveCapabilities — 判定顺序与 why 文案', () => {
     expect(resolved.why('qq.sticker.manage')).toBe('已在 capabilitiesDeny 里关闭')
     // 无依赖的能力不受影响。
     expect(resolved.enabled.has('qq.send.image')).toBe(true)
-    expect(resolved.enabled.size).toBe(defaultOpenCount('owner') - 4)
+    expect(resolved.enabled.size).toBe(defaultOpenCount('owner') - 5)
   })
 
   it('群聊 / 非管理员私聊按各自的默认位判定（why 文案区分会话类型）', () => {
@@ -878,12 +885,12 @@ describe('四个关系 × 全部能力：空 grant 时的实际开启矩阵', ()
     }
   })
 
-  it('依赖全缺时每个关系都少同样的 3 项（表情包 2 + 记忆 1），默认位不受依赖影响', () => {
+  it('依赖全缺时每个关系都少同样的 4 项（表情包 2 + 记忆文件 1 + 记忆库 1），默认位不受依赖影响', () => {
     for (const relation of RELATIONS) {
       const withDeps = resolveCapabilities({ config: {}, deps: ALL_DEPS, chat: chatViewOf(relation) })
       const without = resolveCapabilities({ config: {}, deps: [], chat: chatViewOf(relation) })
       const lost = [...withDeps.enabled].filter(id => !without.enabled.has(id)).sort()
-      expect(lost, RELATION_NAMES[relation]).toEqual(relation === 'owner' ? ['qq.memory.note', 'qq.sticker.manage', 'qq.sticker.use', 'qq.voice.tts'] : ['qq.memory.note', 'qq.sticker.manage', 'qq.sticker.use'])
+      expect(lost, RELATION_NAMES[relation]).toEqual(relation === 'owner' ? ['qq.memory.note', 'qq.memory.store', 'qq.sticker.manage', 'qq.sticker.use', 'qq.voice.tts'] : ['qq.memory.note', 'qq.memory.store', 'qq.sticker.manage', 'qq.sticker.use'])
     }
   })
 
@@ -1028,8 +1035,8 @@ describe('/doctor 与状态快照', () => {
 
     const some = summarizeCapabilities({ config: { capabilitiesDeny: ['qq.send.image'] }, deps: [] })
     const line = formatCapabilityLine(some)
-    // 每个关系统一再少 4 项：deny 1（qq.send.image）+ 依赖缺 3（表情包 2 + 记忆 1）。
-    const lost = 4
+    // 每个关系统一再少 5 项：deny 1（qq.send.image）+ 依赖缺 4（表情包 2 + 记忆文件 1 + 记忆库 1）。
+    const lost = 5
     expect(line).toContain('能力：主人 ' + (defaultOpenCount('owner') - lost - 1)
       + ' / 好友 ' + (defaultOpenCount('friend') - lost)
       + ' / 群友 ' + (defaultOpenCount('groupMember') - lost)

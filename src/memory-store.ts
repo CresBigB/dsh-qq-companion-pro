@@ -121,22 +121,27 @@ export class MemoryLibrary {
    * Index one note for one chat. Repeating the same note only bumps its hit
    * counter and timestamp — that is what makes「按出现频率与日期排序」work.
    */
-  async remember(chatId: string, text: string, now: number = Date.now()): Promise<void> {
+  async remember(chatId: string, text: string, now: number = Date.now()): Promise<number> {
     const body = text.replace(/\s+/g, ' ').trim()
-    if (body === '') return
+    if (body === '') return 0
     const clipped = Array.from(body).length > MEMORY_NOTE_MAX_CHARS
       ? Array.from(body).slice(0, MEMORY_NOTE_MAX_CHARS).join('')
       : body
     const entry = await this.library(chatId)
-    if (entry === undefined || !entry.ready) return
+    if (entry === undefined || !entry.ready) return 0
     try {
       const when = stamp(now)
+      const norm = normalizeNote(clipped)
       entry.db.prepare(
         'INSERT INTO notes (norm, text, created_at, updated_at, hits) VALUES (?, ?, ?, ?, 1) '
         + 'ON CONFLICT(norm) DO UPDATE SET hits = hits + 1, updated_at = excluded.updated_at',
-      ).run(normalizeNote(clipped), clipped, when, when)
+      ).run(norm, clipped, when, when)
+      // T33：把这条现在被提到几次回给模型（同一句再记只涨次数，不会重复）。
+      const row = entry.db.prepare('SELECT hits FROM notes WHERE norm = ?').get(norm) as unknown as Record<string, unknown> | undefined
+      return Math.max(1, Math.trunc(Number(row?.hits ?? 1)))
     } catch (error) {
       this.log('warn', '记忆库写入失败：' + describeError(error))
+      return 0
     }
   }
 

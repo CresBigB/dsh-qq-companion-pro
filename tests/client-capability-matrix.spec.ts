@@ -56,12 +56,12 @@ function props(overrides: Record<string, unknown> = {}): Record<string, unknown>
 }
 
 describe('功能矩阵 — 完整注册表与scope语义', () => {
-  it('完整20能力纵向渲染，所有工具名与描述来自唯一注册表，恰好60个checkbox', () => {
+  it('完整21能力纵向渲染，所有工具名与描述来自唯一注册表，恰好63个checkbox', () => {
     const tree = render()
     const rows = byClass(tree, 'qqc-cap-row')
-    expect(CAPABILITIES).toHaveLength(20)
+    expect(CAPABILITIES).toHaveLength(21)
     expect(rows.map(row => row.props['data-capability'])).toEqual(CAPABILITIES.map(item => item.id))
-    expect(walk(tree).filter(element => element.type === 'input' && element.props.type === 'checkbox')).toHaveLength(60)
+    expect(walk(tree).filter(element => element.type === 'input' && element.props.type === 'checkbox')).toHaveLength(63)
     for (const capability of CAPABILITIES) {
       const row = rows.find(item => item.props['data-capability'] === capability.id)!
       expect(text(row)).toContain(capability.title)
@@ -117,7 +117,7 @@ describe('功能矩阵 — 完整注册表与scope语义', () => {
     const calls: unknown[] = []
     const tree = render({ disabled: true, onMatrixChange: (...args: unknown[]) => calls.push(args) })
     const inputs = walk(tree).filter(element => element.type === 'input')
-    expect(inputs).toHaveLength(60)
+    expect(inputs).toHaveLength(63)
     for (const input of inputs) {
       expect(input.props.disabled).toBe(true)
       input.props.onChange({ target: { checked: false } })
@@ -251,7 +251,7 @@ describe('权限数组旧配置原样往返和旧Host兼容', () => {
     const tree = view(props({ config: current, draft: draftFromSnapshot({ config: current }), onMatrixChange: (...args: unknown[]) => calls.push(args) }))
     expect(text(tree)).toContain(t('capabilities.restartRequired'))
     const inputs = walk(byRole(tree, 'capability-matrix')[0]).filter(element => element.type === 'input')
-    expect(inputs).toHaveLength(60)
+    expect(inputs).toHaveLength(63)
     for (const input of inputs) {
       expect(input.props.disabled).toBe(true)
       input.props.onChange({ target: { checked: true } })

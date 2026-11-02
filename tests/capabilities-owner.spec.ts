@@ -3,7 +3,7 @@ import { ALL_CAPABILITY_IDS, chatViewOf, resolveCapabilities } from '../src/capa
 import { RELATIONS } from '../src/relation.js'
 import { makeCmdHarness } from './helpers/bridge-harness.js'
 
-const allDeps = ['memoryNote', 'stickerLib', 'tts'] as const
+const allDeps = ['memoryNote', 'memoryStore', 'stickerLib', 'tts'] as const
 
 describe('管理员独立功能开关', () => {
   it('resolve入口默认全开，ownerDeny只关管理员且压过兼容ownerGrant', () => {
@@ -41,7 +41,8 @@ describe('管理员独立功能开关', () => {
         expect(h.captured.channelTools.includes('qq_send_image')).toBe(relation !== 'owner')
         const summary = h.bridge.capabilitySummary()
         expect(summary.disabled.find(item => item.id === 'qq.send.image')?.reason).toBe('主人关系 deny（ownerDeny）已关闭')
-        // 夹具无TTS、记忆与表情包依赖，共4项依赖关闭；另减ownerDeny这一项。
+        // 夹具无TTS、记忆文件与表情包依赖（记忆库那项默认有假库 = 依赖满足），
+        // 共 4 项能力因依赖关闭：语音 1 + 记忆文件 1 + 表情包 2；另减 ownerDeny 这一项。
         expect(summary.byRelation.owner).toBe(ALL_CAPABILITY_IDS.length - 5)
       } finally {
         h.client.close()

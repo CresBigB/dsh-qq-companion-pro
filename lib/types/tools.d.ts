@@ -125,3 +125,21 @@ export declare function registerMemoryNoteTool(ctx: Context, bridge: ChatBridge,
     ok: false;
     reason: string;
 }>, allow?: (toolName: string) => boolean): () => void;
+/**
+ * qq_memory_search / qq_memory_remember — T33：让模型自己在聊天里搜和记。
+ *
+ * T31 只给了人用的 `/memory 关键词`（管理员命令）和「群友让记 → 顺手进一个检索
+ * 索引」。模型手里一件记忆工具都没有，所以被问「我上次说过什么」时只能干瞪眼
+ * （用户反馈：机器人在工具列表里只看到 engram 那套，看不到本插件的）。
+ * 这两个工具补的就是这一环：
+ *
+ * - **搜**只读，走 {@link ChatBridge.searchMemory}（`LIKE` 模糊，1–2 字中文也
+ *   能匹配；按出现次数、再按时间排序）；
+ * - **记**走 {@link ChatBridge.rememberMemory}，只写这个聊天自己的 SQLite 库，
+ *   **不写** markdown 记忆文件——文件是「下个会话开头自动读进上下文」的正文，
+ *   由 `qq_memory_note`（群共享）和文件工具（私聊）负责，两者分工写进提示词。
+ *
+ * 两本库天然按聊天隔离（库名就是号码），所以群里搜不到私聊、别的群也搜不到；
+ * 这里不需要额外的回合门禁，也没有 QQ 状态变更。
+ */
+export declare function registerMemoryStoreTools(ctx: Context, bridge: ChatBridge, allow?: (toolName: string) => boolean): () => void;

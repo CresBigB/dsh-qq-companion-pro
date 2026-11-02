@@ -3,7 +3,7 @@ import { ALL_CAPABILITY_IDS, CAPABILITIES, chatViewOf, resolveCapabilities, type
 import { getMatrixState, MATRIX_KEYS, setMatrixState, type MatrixScope } from '../src/capability-matrix.js'
 import { RELATIONS } from '../src/relation.js'
 
-const allDeps = ['memoryNote', 'stickerLib', 'tts'] as const
+const allDeps = ['memoryNote', 'memoryStore', 'stickerLib', 'tts'] as const
 const scopes: MatrixScope[] = ['owner', 'private', 'group']
 const relations = { owner: ['owner'], private: ['friend', 'stranger'], group: ['groupMember'] } as const
 

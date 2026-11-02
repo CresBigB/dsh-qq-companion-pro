@@ -38,7 +38,7 @@ export declare class MemoryLibrary {
      * Index one note for one chat. Repeating the same note only bumps its hit
      * counter and timestamp — that is what makes「按出现频率与日期排序」work.
      */
-    remember(chatId: string, text: string, now?: number): Promise<void>;
+    remember(chatId: string, text: string, now?: number): Promise<number>;
     /** Fuzzy search inside one chat: LIKE handles 1–2 character Chinese queries,
      *  which SQLite's trigram tokenizer cannot match at all. */
     search(chatId: string, query: string, limit?: number): Promise<MemoryHit[]>;

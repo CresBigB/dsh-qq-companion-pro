@@ -59,7 +59,7 @@ import {
   type TaskGoalPort,
   type TaskGoalTurn,
 } from './task-goal.js'
-import { registerMemoryNoteTool, registerTools } from './tools.js'
+import { registerMemoryNoteTool, registerMemoryStoreTools, registerTools } from './tools.js'
 import { currentTrace, newTraceId, runWithTrace, TRACE_REASONS, type TraceScope, type TraceStage } from './trace.js'
 
 export * from './bridge-types.js'
@@ -945,6 +945,28 @@ export class ChatBridge {
     const library = this.deps.memoryLibrary
     if (library === undefined) return []
     return library.search(chatId, query, limit)
+  }
+
+  /** 这个进程有没有记忆库（决定 T33 的两个记忆工具注册不注册）。 */
+  get memoryStoreReady(): boolean {
+    return this.deps.memoryLibrary !== undefined
+  }
+
+  /**
+   * T33 — 让模型自己往这个聊天的库里记一条（qq_memory_remember）。
+   *
+   * 与 {@link Companion.memoryNoteWriter} 的区别：那条路写的是**给人看、给模型下个
+   * 会话读**的 markdown 记忆文件（群共享、200 字、有禁词与次数限制）；这里只写本
+   * 聊天的检索库，用来回答「我上次说过什么」。同一句重复记只涨次数。
+   */
+  async rememberMemory(chatId: ChatId, text: string): Promise<{ ok: true; hits: number } | { ok: false; reason: string }> {
+    const library = this.deps.memoryLibrary
+    if (library === undefined) return { ok: false, reason: '这个进程没有记忆库（先在设置里填工作目录）' }
+    const body = text.replace(/\s+/g, ' ').trim()
+    if (body === '') return { ok: false, reason: '要记的话是空的' }
+    const hits = await library.remember(chatId, body)
+    if (hits === 0) return { ok: false, reason: '记忆库打不开或写入失败，这一条没记上' }
+    return { ok: true, hits }
   }
 
   private tryHandleCommand(chatId: ChatId, text: string, userId: string, nickname?: string): Promise<boolean> {
@@ -1922,6 +1944,9 @@ export class ChatBridge {
       ...(this.deps.tts === undefined || !this.deps.tts.ready ? {} : { tts: this.deps.tts }),
     }, allow)
     if (writeNote !== undefined) registerMemoryNoteTool(agentCtx, this, writeNote, allow)
+    // 记忆库（T33）：模型自己搜 / 记这个聊天的库；没有工作目录就没有库，
+    // 这两个工具干脆不出现（提示词里也不提），避免她对着空气调用。
+    if (this.deps.memoryLibrary !== undefined) registerMemoryStoreTools(agentCtx, this, allow)
     if (this.deps.stickers !== undefined) registerStickerTools(agentCtx, this, this.deps.stickers, allow)
     // 群管理写操作（T13）：能力层默认关，且每个执行体还有一道回合门禁
     // （群里谁在说话只有回合级知道），见 src/group-tools.ts。
@@ -2001,11 +2026,12 @@ export class ChatBridge {
     })
   }
 
-  /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件 / 语音合成）。 */
+  /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件 / 记忆库 / 语音合成）。 */
   private availableCapabilityDeps(): CapabilityDependency[] {
     const deps: CapabilityDependency[] = []
     if (this.deps.stickers !== undefined) deps.push('stickerLib')
     if (this.companion.memoryNoteWriter() !== undefined) deps.push('memoryNote')
+    if (this.deps.memoryLibrary !== undefined) deps.push('memoryStore')
     if (this.deps.tts?.ready === true) deps.push('tts')
     return deps
   }

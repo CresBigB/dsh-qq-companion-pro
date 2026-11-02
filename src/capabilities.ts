@@ -59,6 +59,7 @@ export type CapabilityId =
   | 'qq.group.history'
   | 'qq.message.open'
   | 'qq.memory.note'
+  | 'qq.memory.store'
   | 'qq.sticker.use'
   | 'qq.sticker.manage'
   | 'qq.list.groups'
@@ -71,7 +72,7 @@ export type CapabilityId =
   | 'qq.interact.like'
 
 /** 能力的运行时依赖键：对应能力只有在依赖具备时才可能开启。 */
-export type CapabilityDependency = 'stickerLib' | 'memoryNote' | 'tts'
+export type CapabilityDependency = 'stickerLib' | 'memoryNote' | 'memoryStore' | 'tts'
 
 /** 一条能力定义。 */
 export interface CapabilityDef {
@@ -186,6 +187,15 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
     tools: ['qq_memory_note'],
     describe: '往当前群的记忆文件追加一行值得记住的小事。',
     deps: ['memoryNote'],
+    memberDefault: true,
+    groupDefault: true,
+  },
+  {
+    id: 'qq.memory.store',
+    title: '记忆库（记 / 搜）',
+    tools: ['qq_memory_remember', 'qq_memory_search'],
+    describe: '在当前聊天自己的记忆库里记一条、按关键词搜以前记下的条目。',
+    deps: ['memoryStore'],
     memberDefault: true,
     groupDefault: true,
   },
@@ -349,6 +359,7 @@ export function defaultOffNoteText(): string {
 const DEPENDENCY_REASON: Readonly<Record<CapabilityDependency, string>> = {
   stickerLib: '表情包库未开启（stickerDir 为空）',
   memoryNote: '没有可写的记忆文件（publicMemoryFile 与 groupMemoryDir 都没配）',
+  memoryStore: '没有可写的位置（设置里还没填工作目录，所以没有记忆库）',
   tts: '语音合成没开，或引擎用不了（ttsEnabled 为 false、ttsCommand 为空、找不到该程序，或 sherpa-onnx 与 VITS 模型没装好）',
 }
 

@@ -328,6 +328,22 @@ export declare class ChatBridge {
      */
     /** /memory — fuzzy search inside this chat's own library (T31). */
     searchMemory(chatId: ChatId, query: string, limit?: number): Promise<MemoryHit[]>;
+    /** 这个进程有没有记忆库（决定 T33 的两个记忆工具注册不注册）。 */
+    get memoryStoreReady(): boolean;
+    /**
+     * T33 — 让模型自己往这个聊天的库里记一条（qq_memory_remember）。
+     *
+     * 与 {@link Companion.memoryNoteWriter} 的区别：那条路写的是**给人看、给模型下个
+     * 会话读**的 markdown 记忆文件（群共享、200 字、有禁词与次数限制）；这里只写本
+     * 聊天的检索库，用来回答「我上次说过什么」。同一句重复记只涨次数。
+     */
+    rememberMemory(chatId: ChatId, text: string): Promise<{
+        ok: true;
+        hits: number;
+    } | {
+        ok: false;
+        reason: string;
+    }>;
     private tryHandleCommand;
     /**
      * The CommandContext handed to the command table: exposes exactly
@@ -570,7 +586,7 @@ export declare class ChatBridge {
      * 发言也按群友档），私聊按名单分 owner / friend / stranger。
      */
     private chatRelation;
-    /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件 / 语音合成）。 */
+    /** 当前进程里实际具备的能力运行时依赖（表情包库 / 记忆文件 / 记忆库 / 语音合成）。 */
     private availableCapabilityDeps;
     /**
      * 能力摘要（/doctor 与设置页概览共用）：`enabled` / `disabled` 按**主人私聊**

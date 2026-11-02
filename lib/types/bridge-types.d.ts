@@ -356,7 +356,7 @@ export interface BridgeDeps {
     ctx: SessionEventPort;
     /** T31 note index: one SQLite library per chat (absent = /memory off). */
     memoryLibrary?: {
-        remember(chatId: string, text: string, now?: number): Promise<void>;
+        remember(chatId: string, text: string, now?: number): Promise<number>;
         search(chatId: string, query: string, limit?: number): Promise<MemoryHit[]>;
         recent(chatId: string, limit?: number): Promise<MemoryHit[]>;
         count(chatId: string): Promise<number>;

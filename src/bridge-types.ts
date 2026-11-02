@@ -351,7 +351,7 @@ export interface ImagesPort {
 export interface BridgeDeps {
   ctx: SessionEventPort
   /** T31 note index: one SQLite library per chat (absent = /memory off). */
-  memoryLibrary?: { remember(chatId: string, text: string, now?: number): Promise<void>; search(chatId: string, query: string, limit?: number): Promise<MemoryHit[]>; recent(chatId: string, limit?: number): Promise<MemoryHit[]>; count(chatId: string): Promise<number> }
+  memoryLibrary?: { remember(chatId: string, text: string, now?: number): Promise<number>; search(chatId: string, query: string, limit?: number): Promise<MemoryHit[]>; recent(chatId: string, limit?: number): Promise<MemoryHit[]>; count(chatId: string): Promise<number> }
   /** T32 image path into the model (absent = 动图拼图只能落文件). */
   images?: ImagesPort
   /** runtime group allowlist for /group (absent = disabled). */

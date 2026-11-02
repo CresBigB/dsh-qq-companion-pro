@@ -156,7 +156,9 @@ describe('三个新能力：默认位全关、工具归属正确、老能力不�
       !Object.prototype.hasOwnProperty.call(expected, capability.id)
       && !T13_WRITE.includes(capability.id)
       && !T14_INTERACT.includes(capability.id)
-      && capability.id !== 'qq.voice.tts')
+      && capability.id !== 'qq.voice.tts'
+      // T33 的记忆库也不算老能力。
+      && capability.id !== 'qq.memory.store')
     expect(legacy.length).toBe(11)
     for (const capability of legacy) {
       expect(capability.memberDefault, capability.id).toBe(true)

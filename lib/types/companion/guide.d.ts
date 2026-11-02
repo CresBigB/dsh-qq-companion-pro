@@ -17,6 +17,8 @@ export interface CompanionGuideConfig {
     privateMemoryMaxBytes: number;
     groupMemoryDir: string;
     groupMemoryMaxBytes: number;
+    /** T33 per-chat SQLite library directory ('' = no library, no memory tools). */
+    memoryStorePath?: string;
     privateResetDays: number;
     groupResetDays: number;
     idleResetHours: number;
