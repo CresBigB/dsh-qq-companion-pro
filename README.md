@@ -116,9 +116,9 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     splitLines: true
     splitMaxMessages: 6
     textImageThreshold: 0                  # 长回复不转图片
-    workspacePath: /home/bot/memory
+    workspacePath: /home/bot/memory          # 总工作区：群在 companion/groups/<群号>、私聊在 companion/private/<QQ号>
     adminWorkspacePath: /home/bot/memory/private
-    groupMemoryDir: /home/bot/memory/groups
+    groupMemoryDir: ''                       # 已不再决定工作目录，只在没设总工作区时当群记忆根
     groupMemoryMaxBytes: 10240
     publicMemoryFile: /home/bot/memory/AGENTS.md
     publicMemoryMaxBytes: 24576
@@ -156,9 +156,9 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `adminPermission` | 空 | 管理员私聊每个新会话自动执行的宿主 `/permission` 预设 |
 | `memberPermission` | 空 | 非管理员私聊与所有群聊每个新会话自动执行的宿主 `/permission` 预设，建议 `read-only`；留空 = 继承宿主默认预设（默认是完整权限的话群友也能让她执行命令、读写文件） |
 | `adminWorkspacePath` | 空 | 管理员私聊的工作目录 |
-| `groupMemoryDir` | 空 | 每个群一个工作目录 `<根>/<群号>`，自动建 `AGENTS.md` 模板 |
+| `groupMemoryDir` | 空 | 每个群一份记忆文件 `<根>/<群号>/AGENTS.md`（不再决定工作目录）；设了总工作区时群目录固定为 `<总工作区>/companion/groups/<群号>` |
 | `groupMemoryMaxBytes` | `8192` | 群记忆满了就拒绝追加 |
-| `publicMemoryFile` / `publicMemoryMaxBytes` | 空 / `6144` | 没设 `groupMemoryDir` 时，群里的记忆追加写到这里 |
+| `publicMemoryFile` / `publicMemoryMaxBytes` | 空 / `6144` | 没有群专属记忆文件时，群里的记忆追加写到这里 |
 | `autoAcceptAdminRequests` | `false` | 管理员的好友申请 / 进群邀请自动同意 |
 | `autoAllowInvitedGroups` | `false` | 管理员拉进的群自动加白名单 |
 | `idleResetHours` | `0` | 空闲这么多小时后换新会话 |

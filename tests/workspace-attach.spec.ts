@@ -64,7 +64,8 @@ function makeWorkspaceRegistry(opts: {
       created.push({ path, title })
       return { id: 'ws-' + path, path, sessionIds: [] as string[], attachSession: attachTo(path) }
     }),
-    list: vi.fn(() => []),
+    // T28: 祖先归入要查 list()，所以 owned 里的路径也要出现在列表里。
+    list: vi.fn(() => (opts.owned ?? []).map(path => ({ id: 'ws-' + path, path, sessionIds: [] as string[], attachSession: attachTo(path) }))),
   }
 }
 
@@ -112,29 +113,51 @@ function makeDeps(overrides: {
 
 describe('workspace attach · existing 模式（默认，等于修复前的行为）', () => {
   it('已有工作区认领的目录：直接归入，不新建', async () => {
-    const dir = tmp('onebot-wsa-')
+    const root = tmp('onebot-wsa-root-')
+    const dir = join(root, 'companion', 'private', '10001')
     const workspaces = makeWorkspaceRegistry({ owned: [dir] })
-    const registry = new ChatRegistry(makeDeps({ cwd: dir, workspaceRegistry: workspaces, config: { workspacePath: dir } }))
+    const registry = new ChatRegistry(makeDeps({ cwd: dir, workspaceRegistry: workspaces, config: { workspacePath: root } }))
     const chat = await registry.ensureChat('private:10001', '小明')
     expect(workspaces.resolveByPath).toHaveBeenCalledWith(dir)
     expect(workspaces.create).not.toHaveBeenCalled()
     expect(workspaces.attached).toEqual([{ path: dir, sessionId: chat.sessionId }])
   })
 
-  it('没有工作区时只为全局 workspacePath 新建，且不传标题（宿主用目录名）', async () => {
-    const dir = tmp('onebot-wsa-')
-    const workspaces = makeWorkspaceRegistry()
-    const registry = new ChatRegistry(makeDeps({ cwd: dir, workspaceRegistry: workspaces, config: { workspacePath: dir } }))
-    const chat = await registry.ensureChat('private:10001', '小明')
-    expect(workspaces.create).toHaveBeenCalledTimes(1)
-    // 只传路径：标题留给宿主默认的目录名。
-    expect(workspaces.created).toEqual([{ path: dir, title: undefined }])
-    expect(workspaces.attached).toEqual([{ path: dir, sessionId: chat.sessionId }])
+  it('T28：聊天子目录归入它所在的总工作区（祖先认领），不为子目录另建工作区', async () => {
+    const root = tmp('onebot-wsa-root-')
+    const dir = join(root, 'companion', 'groups', '643561596')
+    const workspaces = makeWorkspaceRegistry({ owned: [root] })
+    const registry = new ChatRegistry(makeDeps({ cwd: dir, workspaceRegistry: workspaces, config: { workspacePath: root } }))
+    const chat = await registry.ensureChat('group:643561596', '群友')
+    expect(workspaces.resolveByPath).toHaveBeenCalledWith(dir)
+    expect(workspaces.create).not.toHaveBeenCalled()
+    expect(workspaces.attached).toEqual([{ path: root, sessionId: chat.sessionId }])
   })
 
-  it('群记忆目录（每个群一个 cwd）不会新建工作区，日志写清 chatId、目录和原因', async () => {
+  it('总工作区也没注册时 existing 模式不新建，日志说明原因', async () => {
+    const root = tmp('onebot-wsa-root-')
+    const dir = join(root, 'companion', 'private', '10001')
+    const workspaces = makeWorkspaceRegistry()
+    const logs: string[] = []
+    const registry = new ChatRegistry(makeDeps({
+      cwd: dir,
+      workspaceRegistry: workspaces,
+      log: (level, message) => logs.push(level + ':' + message),
+      config: { workspacePath: root },
+    }))
+    await registry.ensureChat('private:10001', '小明')
+    expect(workspaces.create).not.toHaveBeenCalled()
+    expect(workspaces.attached).toHaveLength(0)
+    const line = logs.find(entry => entry.includes('private:10001'))
+    expect(line).toBeDefined()
+    expect(line!.startsWith('info:')).toBe(true)
+    expect(line).toContain(dir)
+    expect(line).toContain('existing')
+  })
+
+  it('T28：旧群记忆目录布局的会话（不在总工作区下）不新建工作区，日志写清 chatId、目录和原因', async () => {
     const groupRoot = tmp('onebot-wsa-groups-')
-    const mediaDir = tmp('onebot-wsa-')
+    const root = tmp('onebot-wsa-root-')
     const dir = join(groupRoot, '643561596')
     const workspaces = makeWorkspaceRegistry()
     const logs: string[] = []
@@ -142,7 +165,7 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
       cwd: dir,
       workspaceRegistry: workspaces,
       log: (level, message) => logs.push(level + ':' + message),
-      config: { workspacePath: mediaDir, groupMemoryDir: groupRoot },
+      config: { workspacePath: root },
     }))
     await registry.ensureChat('group:643561596', '群友')
     expect(workspaces.resolveByPath).toHaveBeenCalledWith(dir)
@@ -152,19 +175,19 @@ describe('workspace attach · existing 模式（默认，等于修复前的行�
     expect(line).toBeDefined()
     expect(line!.startsWith('info:')).toBe(true)
     expect(line).toContain(dir)
-    expect(line).toContain('existing')
+    expect(line).toContain('不是该聊天当前应用的目录')
   })
 })
 
 describe('workspace attach · auto 模式（每个聊天一个工作区）', () => {
   it('群目录新建工作区，标题「QQ群 <群号>」', async () => {
-    const groupRoot = tmp('onebot-wsa-groups-')
-    const dir = join(groupRoot, '643561596')
+    const root = tmp('onebot-wsa-root-')
+    const dir = join(root, 'companion', 'groups', '643561596')
     const workspaces = makeWorkspaceRegistry()
     const registry = new ChatRegistry(makeDeps({
       cwd: dir,
       workspaceRegistry: workspaces,
-      config: { workspacePath: tmp('onebot-wsa-'), groupMemoryDir: groupRoot, attachWorkspaceMode: 'auto' },
+      config: { workspacePath: root, attachWorkspaceMode: 'auto' },
     }))
     const chat = await registry.ensureChat('group:643561596', '群友')
     expect(workspaces.created).toEqual([{ path: dir, title: 'QQ群 643561596' }])
@@ -226,14 +249,15 @@ describe('workspace attach · off 模式', () => {
 
 describe('workspace attach · 归入失败只记日志，不影响会话', () => {
   it('create 抛错：会话照常建好，只写一条 warn', async () => {
-    const dir = tmp('onebot-wsa-')
+    const root = tmp('onebot-wsa-root-')
+    const dir = join(root, 'companion', 'private', '10001')
     const workspaces = makeWorkspaceRegistry({ createThrows: true })
     const logs: string[] = []
     const registry = new ChatRegistry(makeDeps({
       cwd: dir,
       workspaceRegistry: workspaces,
       log: (level, message) => logs.push(level + ':' + message),
-      config: { workspacePath: dir },
+      config: { workspacePath: root, attachWorkspaceMode: 'auto' },
     }))
     const chat = await registry.ensureChat('private:10001', '小明')
     expect(chat.sessionId).toBeTruthy()
@@ -245,14 +269,15 @@ describe('workspace attach · 归入失败只记日志，不影响会话', () =>
   })
 
   it('attachSession 抛错：同上', async () => {
-    const dir = tmp('onebot-wsa-')
+    const root = tmp('onebot-wsa-root-')
+    const dir = join(root, 'companion', 'private', '10001')
     const workspaces = makeWorkspaceRegistry({ owned: [dir], attachThrows: true })
     const logs: string[] = []
     const registry = new ChatRegistry(makeDeps({
       cwd: dir,
       workspaceRegistry: workspaces,
       log: (level, message) => logs.push(level + ':' + message),
-      config: { workspacePath: dir },
+      config: { workspacePath: root },
     }))
     const chat = await registry.ensureChat('private:10001', '小明')
     expect(chat.sessionId).toBeTruthy()

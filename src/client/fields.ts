@@ -148,8 +148,8 @@ export const GROUPS: GroupMeta[] = [
       { key: 'botQQ', label: '机器人 QQ 号', type: 'string', hint: '留空则连上后自动识别。', section: 'NapCat 连接' },
       // workspacePath 的语义（对齐 README「会话工作区选择」）：修改只对新会话生效；
       // 已设 per-chat /workspace 覆盖的会话不受影响。
-      { key: 'workspacePath', label: '会话默认工作区路径', type: 'string', control: 'path', hint: 'QQ 会话的工作区目录；保存后仅对新会话生效，已用 /workspace 设置 per-chat 覆盖的会话不受影响。留空 = 宿主进程工作目录。管理员私聊优先用「私聊」页里的工作目录，开了群记忆的群聊用 <群记忆目录>/<群号>，这两类会话不受本项影响。', section: '工作区' },
-      { key: 'attachWorkspaceMode', label: '会话归入工作区', type: 'enum', options: ['existing', 'auto', 'off'], optionLabels: { existing: '只归入已有的', auto: '自动为每个聊天建', off: '不归入' }, hint: 'QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：只归入已有的 = 已有工作区的目录就归入（另外为 workspacePath 自动建一个）；自动为每个聊天建 = 群聊、私聊各自的工作目录也自动建工作区（每个群一个）；不归入 = 不碰工作区。已有会话在 QQ 里发 /workspace attach 可立即补挂。', section: '工作区' },
+      { key: 'workspacePath', label: '会话默认工作区路径', type: 'string', control: 'path', hint: 'QQ 会话的工作区根目录。每个群、每个私聊都在它下面的 companion/groups/<群号>、companion/private/<QQ号> 子目录里工作，并自动归入这个工作区（网页会话列表里不会再出现「未分组」）。保存后仅对新会话生效，已用 /workspace 覆盖过的会话不受影响。留空 = 宿主进程工作目录。管理员私聊优先用「私聊」页里的工作目录。', section: '工作区' },
+      { key: 'attachWorkspaceMode', label: '会话归入工作区', type: 'enum', options: ['existing', 'auto', 'off'], optionLabels: { existing: '只归入已有的', auto: '自动为每个聊天建', off: '不归入' }, hint: 'QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：只归入已有的 = 目录落在某个已有工作区里就归入（聊天子目录会自动归到它所属的总工作区）；自动为每个聊天建 = 连每个群、每个私聊的子目录也各建一个工作区；不归入 = 不碰工作区。已有会话在 QQ 里发 /workspace attach 可立即补挂。', section: '工作区' },
     ],
   },
   {
@@ -198,7 +198,7 @@ export const GROUPS: GroupMeta[] = [
       { key: 'groupNameTriggers', label: '点名关键词', type: 'stringArray', hint: '群里说出这些名字也算在叫她，不用 @', section: '怎么叫她' },
       { key: 'groupFollowupSeconds', label: '接话窗口', type: 'number', hint: '她回了某人之后这段时间内，那人接着说不用 @ 也算在跟她聊；0 = 关', section: '怎么叫她', unit: 's', min: 0, zeroMeans: '关闭' },
       { key: 'groupContextLines', label: '附带的群聊条数', type: 'number', hint: '叫到她时，把她没看到的最近几条群聊一并给她看；0 = 不附', section: '怎么叫她', unit: 'count', min: 0, zeroMeans: '关闭' },
-      { key: 'groupMemoryDir', label: '每群一份记忆的目录', type: 'string', control: 'path', hint: '<目录>/<群号>/AGENTS.md，群会话以此为工作目录；留空 = 所有群共用公开记忆。设置后覆盖「会话默认工作区路径」：群会话用 <目录>/<群号>。', section: '群记忆' },
+      { key: 'groupMemoryDir', label: '每群一份记忆的目录', type: 'string', control: 'path', hint: '群记忆文件放哪：<目录>/<群号>/ 下；留空 = 所有群共用公开记忆文件。这一项只管记忆文件，不再决定会话的工作目录——会话目录固定在工作区的 companion/groups 下。', section: '群记忆' },
       { key: 'groupMemoryMaxBytes', label: '每群记忆上限（字节）', type: 'number', hint: '每个群的记忆文件达到这个大小后就不再追加。', section: '群记忆', unit: 'byte', min: 0, dependsOnText: '仅在填了每群记忆目录时生效', dependsOn: draft => draftText(draft, 'groupMemoryDir') !== '' },
       { key: 'memoryNoteDenyWords', label: '群记忆禁词', type: 'stringArray', hint: '群友让她记的内容里出现这些词就拒绝（微信号、真名、住址等）；主人 QQ 号自动包含', section: '群记忆' },
       { key: 'groupPeekEnabled', label: '热闹时看一眼', type: 'boolean', hint: '群里聊得热闹时隔一段时间让她看看，自己决定插不插话', section: '热闹时看一眼' },

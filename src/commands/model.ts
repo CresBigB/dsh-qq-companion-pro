@@ -137,6 +137,11 @@ export async function sendModelPickList(ctx: CommandContext, chatId: ChatId, pro
   await ctx.sendToChat(chatId, `模型列表（${provider}）：\n` + shown.map((m, i) => `${i + 1}. ${m.id}`).join('\n') + '\n回复 /model <序号> 切换当前会话模型。')
 }
 
+/** Windows path comparison: case-insensitive, forward slashes folded. */
+function foldPath(path: string): string {
+  return path.replace(/\\/g, '/').toLowerCase()
+}
+
 /** /workspace: show current cwd, list workspaces, or switch directory. */
 export async function handleWorkspaceCommand(ctx: CommandContext, chatId: ChatId, arg: string): Promise<void> {
   if (arg === '') {
@@ -172,7 +177,19 @@ export async function handleWorkspaceCommand(ctx: CommandContext, chatId: ChatId
         } catch {
           // marker comparison falls back to the raw cwd
         }
-        out += '\n工作区列表：\n' + list.map((w, i) => `${i + 1}. ${w.path}（${w.sessionIds.length} 会话）${w.path === cwd || w.path === cwdReal ? ' ← 当前' : ''}`).join('\n')
+        // T28: a chat works in a subdirectory of its workspace
+        // (`<总工作区>/companion/groups/...`), so "current" means "the workspace
+        // that encloses this cwd", not "the workspace whose path equals it".
+        const isCurrent = (path: string): boolean => {
+          const target = foldPath(path.endsWith('\\') || path.endsWith('/') ? path.slice(0, -1) : path)
+          for (const probe of [cwd, cwdReal]) {
+            const here = foldPath(probe)
+            // foldPath() turns both separators into '/', so compare with '/'.
+            if (target === here || here.startsWith(target + '/')) return true
+          }
+          return false
+        }
+        out += '\n工作区列表：\n' + list.map((w, i) => `${i + 1}. ${w.path}（${w.sessionIds.length} 会话）${isCurrent(w.path) ? ' ← 当前' : ''}`).join('\n')
         out += '\n回复 /workspace <序号> 切换。'
         ctx.setPendingSelection(chatId, {
           kind: 'workspace',

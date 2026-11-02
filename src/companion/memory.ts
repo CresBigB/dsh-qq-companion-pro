@@ -189,6 +189,21 @@ export function groupMemoryTemplate(groupId: string, maxBytes: number = GROUP_ME
     + '## 最近两天\n\n> 写日记时更新，只留最近两天，每天一两句。\n\n- （还没有）\n'
 }
 
+/**
+ * T28: the root every group's memory directory lives under.
+ *
+ * When a workspace root is configured the group directories live inside it
+ * (`<总工作区>/companion/groups/<群号>`), so the chat cwd and the memory
+ * directory are the same directory — the seeded AGENTS.md is then actually
+ * loaded by the host. Without a workspace root the configured
+ * `groupMemoryDir` is used as before.
+ */
+export function groupMemoryRootOf(config: { workspacePath?: string; groupMemoryDir?: string }): string {
+  const workspace = config.workspacePath ?? ''
+  if (workspace !== '') return join(workspace, 'companion', 'groups')
+  return config.groupMemoryDir ?? ''
+}
+
 /** The memory directory and file of one group. */
 export function groupMemoryPaths(root: string, groupId: string): { dir: string; file: string } {
   const dir = join(root, groupId)

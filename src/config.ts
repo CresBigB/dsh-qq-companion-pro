@@ -465,7 +465,7 @@ export const Config: Z<Config> = z.object({
   privateMemoryMaxBytes: z.number().default(24 * 1024)
     .description('管理员私密记忆（adminWorkspacePath/AGENTS.md）的上限（字节），写进给她的功能说明里，由她自己整理'),
   groupMemoryDir: z.string().default('')
-    .description('每个群一份记忆的根目录；留空=所有群共用 publicMemoryFile。设置后群会话以 <目录>/<群号> 为工作目录，覆盖 workspacePath'),
+    .description('每个群一份记忆的根目录（已不再决定工作目录）：设了总工作区（workspacePath）时群目录固定为 <总工作区>/companion/groups/<群号>；本项只在总工作区留空时作为群记忆的根目录。留空=所有群共用 publicMemoryFile'),
   groupMemoryMaxBytes: z.number().default(8 * 1024)
     .description('每个群的记忆文件达到这个大小（字节）后 qq_memory_note 不再追加'),
   memoryNoteDenyWords: z.array(z.string()).default([])
@@ -549,9 +549,9 @@ export const Config: Z<Config> = z.object({
   proactiveMaxUnanswered: z.number().deprecated()
     .description('[deprecated] 旧名别名（现 privateProactiveMaxUnanswered / groupProactiveMaxUnanswered）'),
   workspacePath: z.string().default('')
-    .description('QQ 会话的默认工作区目录（写入会话 cwd，并自动归入该工作区，不存在则创建）；管理员私聊优先用 adminWorkspacePath，开了群记忆（groupMemoryDir）的群聊用 <群记忆目录>/<群号>，这两类会话不受本项影响；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区），单聊 /workspace 覆盖优先且已持久化到会话映射文件，重启/恢复失败均不丢失'),
+    .description('QQ 会话的默认工作区目录（总工作区）：群聊在 <本目录>/companion/groups/<群号>、私聊在 <本目录>/companion/private/<QQ号> 里工作，并自动归入本目录对应的工作区（按「最近的上级工作区」匹配，所以网页会话列表不会显示未分组）；管理员私聊优先用 adminWorkspacePath，单聊 /workspace 覆盖优先且已持久化到会话映射文件；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区）'),
   attachWorkspaceMode: z.union([z.const('existing'), z.const('auto'), z.const('off')]).default('existing')
-    .description('QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：existing（默认）= 只归入已存在的工作区（另外为 workspacePath 自动建一个）；auto = 群聊、私聊各自的工作目录也自动建工作区（每个群一个）；off = 不归入。已有会话可发 /workspace attach 立即补挂'),
+    .description('QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：existing（默认）= 归入聊天目录「最近的上级工作区」，没有上级工作区时只为 workspacePath 自动建一个；auto = 群聊、私聊各自的工作目录也自动建工作区（每个群一个）；off = 不归入。已有会话可发 /workspace attach 立即补挂'),
   inboundFileMaxBytes: z.number().default(INBOUND_FILE_MAX_BYTES)
     .description('QQ 入站文件最大字节数（直链/base64 拉取，0 = 不限制）'),
   maxInboundFileBytes: z.number().deprecated()

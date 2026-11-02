@@ -361,14 +361,25 @@ export class ChatBridge {
     const isTurnAdmin = sessionId !== undefined && this.canEditFiles(sessionId)
     const chatId = sessionId !== undefined ? this.bySession.get(sessionId) : undefined
     const candidates = [this.deps.config.mediaDir]
-    if (chatId !== undefined && isTurnAdmin) candidates.push(this.registry.effectiveCwd(chatId))
+    if (chatId !== undefined && isTurnAdmin) {
+      candidates.push(this.registry.effectiveCwd(chatId))
+      // T28: a chat now works inside `<总工作区>/companion/...`, so "the files
+      // of this workspace" are one level up — without the root here an admin
+      // could not send a file that sits right in the configured workspace.
+      const workspaceRoot = this.deps.config.workspacePath
+      if (workspaceRoot !== undefined && workspaceRoot !== '') candidates.push(workspaceRoot)
+      const adminRoot = this.deps.config.adminWorkspacePath
+      if (adminRoot !== undefined && adminRoot !== '') candidates.push(adminRoot)
+    }
     const roots: string[] = []
     for (const root of candidates) {
+      let resolved = root
       try {
-        roots.push(await realpath(root))
+        resolved = await realpath(root)
       } catch {
-        roots.push(root) // missing root: kept as-is; the fence skips it (cannot contain anything)
+        // missing root: kept as-is; the fence skips it (cannot contain anything)
       }
+      if (!roots.includes(resolved)) roots.push(resolved)
     }
     return { roots, isTurnAdmin }
   }

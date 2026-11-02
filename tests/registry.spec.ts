@@ -204,8 +204,18 @@ describe('ChatRegistry', () => {
       }),
     }
     const attached: Array<{ sessionId: string; cwd: string }> = []
+    // T28: the chat works in `<总工作区>/companion/private/<QQ号>`. The root
+    // workspace already exists here, so the session is attached to it by the
+    // enclosing-directory rule instead of creating a brand-new workspace.
+    const rootWorkspace = {
+      id: 'ws-root',
+      path: mediaDir,
+      sessionIds: [] as string[],
+      attachSession: vi.fn(async (sessionId: string) => { attached.push({ sessionId, cwd: mediaDir }) }),
+    }
     const workspaceRegistry = {
       resolveByPath: vi.fn(async () => undefined),
+      list: vi.fn(() => [rootWorkspace]),
       create: vi.fn(async (path: string) => ({
         attachSession: vi.fn(async (sessionId: string) => { attached.push({ sessionId, cwd: path }) }),
       })),
@@ -264,10 +274,11 @@ describe('ChatRegistry', () => {
     // The session header records the resolved preset id (config in this case),
     // so the Web surface can label the session without a second lookup.
     expect(captured.createdMeta[0].agentPreset).toBe('standard')
-    // The session was attached to the workspace owning its header cwd
-    // (creating the workspace when unowned) instead of landing ungrouped.
-    expect(workspaceRegistry.resolveByPath).toHaveBeenCalledWith(mediaDir)
-    expect(workspaceRegistry.create).toHaveBeenCalledWith(mediaDir)
+    // The session was attached to the workspace enclosing its header cwd
+    // (the chat's own subdirectory) instead of landing ungrouped.
+    expect(workspaceRegistry.resolveByPath).toHaveBeenCalledWith(join(mediaDir, 'companion', 'private', '10001'))
+    expect(attached[0].cwd).toBe(mediaDir)
+    expect(workspaceRegistry.create).not.toHaveBeenCalled()
     expect(attached[0]).toEqual({ sessionId: sessionIds[0], cwd: mediaDir })
 
     client.close()

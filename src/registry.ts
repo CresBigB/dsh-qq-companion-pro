@@ -11,13 +11,13 @@ import type { Agent, AgentSetup, ModelSelection, ModelSelectionRef } from '@deep
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { SessionId as makeSessionId } from '@deepseek-ai/dsh-session'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile } from 'node:fs/promises'
+import { join, resolve as resolvePath, sep } from 'node:path'
 
-import type { SessionReadHandleLike } from './bridge-types.js'
+import type { SessionReadHandleLike, WorkspaceLike } from './bridge-types.js'
 import type { ChatId } from './chat.js'
 import { sessionIdForChat } from './chat.js'
-import { ensureGroupMemory, groupMemoryPaths } from './companion/index.js'
+import { ensureGroupMemory, groupMemoryPaths, groupMemoryRootOf } from './companion/index.js'
 import { describeError } from './errors.js'
 import { SerialFileWriter } from './persist.js'
 import { SessionLedger } from './session-ledger.js'
@@ -257,8 +257,17 @@ export class ChatRegistry {
     }
     const { agentOptions, selectionRef } = this.modelWiring(chatId)
     const cwd = this.effectiveCwd(chatId)
-    const groupRoot = this.deps.config.groupMemoryDir
-    if (groupRoot !== undefined && groupRoot !== '' && chatId.startsWith('group:') && this.getSettings(chatId).workspacePath === undefined) {
+    // T28: the per-chat directory lives under the workspace and may not exist
+    // yet (a brand-new group / private chat). Create it before the agent is
+    // created, otherwise the host rejects the cwd with "directory does not
+    // exist". Best-effort: a failure only logs, `agents.create` then reports it.
+    try {
+      await mkdir(cwd, { recursive: true })
+    } catch (error) {
+      this.deps.log('warn', '会话目录创建失败 ' + cwd + ': ' + describeError(error))
+    }
+    const groupRoot = groupMemoryRootOf(this.deps.config)
+    if (groupRoot !== '' && chatId.startsWith('group:') && this.getSettings(chatId).workspacePath === undefined) {
       try {
         await ensureGroupMemory(groupRoot, chatId.slice('group:'.length), this.deps.config.groupMemoryMaxBytes)
       } catch (error) {
@@ -742,13 +751,33 @@ export class ChatRegistry {
     // memory directory), so group sessions never load the private AGENTS.md.
     const adminCwd = this.deps.config.adminWorkspacePath
     if (chatId !== undefined && adminCwd !== undefined && adminCwd !== '' && this.deps.isAdminPrivate?.(chatId) === true) return adminCwd
-    // each group gets its own memory directory as cwd, so it
-    // loads the shared AGENTS.md above plus only its own group file.
+    // T28: when a workspace root is configured, every chat gets its OWN
+    // subdirectory of it — `<总工作区>/companion/groups/<群号>` and
+    // `<总工作区>/companion/private/<QQ号>`. One workspace then owns every QQ
+    // session (see findEnclosingWorkspace), instead of each group directory
+    // being an unregistered orphan that shows up as 未分组.
+    const configuredRoot = this.deps.config.workspacePath
+    if (chatId !== undefined && configuredRoot !== undefined && configuredRoot !== '') return this.companionSubdir(chatId)
+    // No workspace root configured: keep the old layout (a group still uses its
+    // own memory directory) rather than littering the host process directory
+    // with a `companion/` tree.
     const groupRoot = this.deps.config.groupMemoryDir
     if (chatId !== undefined && groupRoot !== undefined && groupRoot !== '' && chatId.startsWith('group:')) {
       return groupMemoryPaths(groupRoot, chatId.slice('group:'.length)).dir
     }
     return this.globalWorkspacePath()
+  }
+
+  /**
+   * The per-chat directory under the global workspace (T28): groups under
+   * `companion/groups`, private chats under `companion/private`. Exported for
+   * the settings-page hint and for tests, so the layout has one definition.
+   */
+  companionSubdir(chatId: ChatId): string {
+    const root = this.globalWorkspacePath()
+    if (chatId.startsWith('group:')) return join(root, 'companion', 'groups', chatId.slice('group:'.length))
+    if (chatId.startsWith('private:')) return join(root, 'companion', 'private', chatId.slice('private:'.length))
+    return root
   }
 
   /** The global default directory: the configured workspacePath, else the host
@@ -896,6 +925,40 @@ export class ChatRegistry {
   }
 
   /**
+   * The already-registered workspace whose directory contains `dir` (deepest
+   * match wins), or undefined. T28 relies on this: every chat gets its own
+   * subdirectory of the configured workspace, so "the workspace that owns this
+   * session" is an ancestor lookup rather than an exact path match. Path
+   * comparison is case-insensitive because Windows paths are.
+   */
+  private findEnclosingWorkspace(dir: string): WorkspaceLike | undefined {
+    const registry = this.deps.workspaceRegistry
+    if (registry === undefined) return undefined
+    const target = resolvePath(dir)
+    const fold = (value: string): string => value.toLowerCase()
+    let best: WorkspaceLike | undefined
+    let bestLength = -1
+    let entries: readonly WorkspaceLike[]
+    try {
+      entries = registry.list()
+    } catch (error) {
+      this.deps.log('warn', 'workspace list failed: ' + describeError(error))
+      return undefined
+    }
+    for (const workspace of entries) {
+      if (typeof workspace.path !== 'string' || workspace.path === '') continue
+      const path = resolvePath(workspace.path)
+      const withSeparator = path.endsWith(sep) ? path : path + sep
+      if (!fold(target).startsWith(fold(withSeparator))) continue
+      if (path.length > bestLength) {
+        best = workspace
+        bestLength = path.length
+      }
+    }
+    return best
+  }
+
+  /**
    * /workspace attach: re-run the workspace attach for a chat's live session
    * right now. The plugin otherwise only attaches at create/resume, so a
    * workspace added later in the DSH UI would wait for the next restart —
@@ -937,6 +1000,16 @@ export class ChatRegistry {
         await workspace.attachSession(sessionId)
         this.deps.log('info', 'attached session ' + sessionId + ' to workspace ' + headerCwd)
         return { ok: true, path: headerCwd, created: false }
+      }
+      // T28: a chat directory lives INSIDE the configured workspace
+      // (`<总工作区>/companion/...`), so the nearest ancestor workspace is the
+      // one that should own this session. Without this the per-chat subdirectory
+      // never matched any workspace and every QQ group showed up as 未分组.
+      const enclosing = this.findEnclosingWorkspace(headerCwd)
+      if (enclosing !== undefined) {
+        await enclosing.attachSession(sessionId)
+        this.deps.log('info', 'attached session ' + sessionId + ' to enclosing workspace ' + enclosing.path + ' for ' + who)
+        return { ok: true, path: enclosing.path, created: false }
       }
       // A missing workspace may only be created for the directory this chat is
       // supposed to use (effectiveCwd(chatId)); a legacy/foreign session cwd

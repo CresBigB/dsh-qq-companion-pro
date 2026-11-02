@@ -12,7 +12,7 @@
 import { selfCheck } from './selfcheck.js'
 import { QqLiveness } from './liveness.js'
 import { buildCompanionStatusSnapshot, provideCompanionStatus } from './status.js'
-import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter, groupMemoryRootOf } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -436,6 +436,10 @@ export function apply(ctx: Context, config: Config): void {
     })
   const privateProactiveTargets = laneTargets('private', config.privateProactiveTargets)
   const groupProactiveTargets = laneTargets('group', config.groupProactiveTargets)
+  // T28: one definition of where per-group memory lives — inside the configured
+  // workspace when there is one, so a group's cwd and its memory directory are
+  // the same place and the seeded AGENTS.md is actually loaded.
+  const groupMemoryRoot = groupMemoryRootOf(config)
   const companionGuide = (chatId: string): string => buildCompanionGuide({
     ownerTitle: config.ownerTitle,
     adminUsers: policy.adminUsers,
@@ -447,7 +451,7 @@ export function apply(ctx: Context, config: Config): void {
     publicMemoryMaxBytes: config.publicMemoryMaxBytes,
     adminWorkspacePath: config.adminWorkspacePath ?? '',
     privateMemoryMaxBytes: config.privateMemoryMaxBytes ?? 24 * 1024,
-    groupMemoryDir: config.groupMemoryDir ?? '',
+    groupMemoryDir: groupMemoryRoot,
     groupMemoryMaxBytes: config.groupMemoryMaxBytes,
     privateResetDays: config.privateResetDays ?? 0,
     groupResetDays: config.groupResetDays ?? 0,
@@ -672,7 +676,7 @@ export function apply(ctx: Context, config: Config): void {
         { label: '公开', path: config.publicMemoryFile, max: config.publicMemoryMaxBytes },
         ...(config.adminWorkspacePath !== '' ? [{ label: '私密', path: join(config.adminWorkspacePath, 'AGENTS.md') }] : []),
       ],
-      groupMemoryDir: config.groupMemoryDir,
+      groupMemoryDir: groupMemoryRoot,
       groupMemoryMaxBytes: config.groupMemoryMaxBytes,
     }),
     // health: the config snapshot is redacted at the source — secrets
@@ -831,7 +835,7 @@ export function apply(ctx: Context, config: Config): void {
         { label: '公开', path: config.publicMemoryFile, max: config.publicMemoryMaxBytes },
         ...(config.adminWorkspacePath !== '' ? [{ label: '私密', path: join(config.adminWorkspacePath, 'AGENTS.md') }] : []),
       ],
-      groupMemoryDir: config.groupMemoryDir,
+      groupMemoryDir: groupMemoryRoot,
       groupMemoryMaxBytes: config.groupMemoryMaxBytes,
       permissions: { admin: config.adminPermission ?? '', member: config.memberPermission ?? '' },
       // 能力开关摘要（与 /doctor 的能力行同源，按管理员私聊视角）。

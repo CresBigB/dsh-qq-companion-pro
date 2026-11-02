@@ -167,6 +167,12 @@ export declare class ChatRegistry {
      * back to the host process cwd.
      */
     effectiveCwd(chatId?: ChatId): string;
+    /**
+     * The per-chat directory under the global workspace (T28): groups under
+     * `companion/groups`, private chats under `companion/private`. Exported for
+     * the settings-page hint and for tests, so the layout has one definition.
+     */
+    companionSubdir(chatId: ChatId): string;
     /** The global default directory: the configured workspacePath, else the host
      * process cwd. Everything a chat does NOT specialize (no /workspace
      * override, no admin private dir, no group memory dir) lands here — and it
@@ -228,6 +234,14 @@ export declare class ChatRegistry {
      * never given a new one, in any mode.
      */
     private attachToWorkspace;
+    /**
+     * The already-registered workspace whose directory contains `dir` (deepest
+     * match wins), or undefined. T28 relies on this: every chat gets its own
+     * subdirectory of the configured workspace, so "the workspace that owns this
+     * session" is an ancestor lookup rather than an exact path match. Path
+     * comparison is case-insensitive because Windows paths are.
+     */
+    private findEnclosingWorkspace;
     /**
      * /workspace attach: re-run the workspace attach for a chat's live session
      * right now. The plugin otherwise only attaches at create/resume, so a

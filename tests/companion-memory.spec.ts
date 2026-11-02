@@ -3,7 +3,7 @@
  * append-only public memory note, the daily scheduler, and the admin cwd.
  * @module dsh-qq-companion/tests/companion-memory
  */
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -161,7 +161,7 @@ describe('bridge integration', () => {
     await h.connection.stop()
   })
 
-  it("an admin's private chat uses adminWorkspacePath; groups keep workspacePath", async () => {
+  it("an admin's private chat uses adminWorkspacePath; groups live under the workspace root", async () => {
     const adminDir = tmp()
     const h = await makeCmdHarness({ adminWorkspacePath: adminDir })
     h.sendText('你好')
@@ -169,7 +169,8 @@ describe('bridge integration', () => {
     expect(h.capturedMeta[0].cwd).toBe(adminDir)
     h.sendGroupTextAs('大家好', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
-    expect(h.capturedMeta[1].cwd).toBe(h.mediaDir)
+    // T28: a group chat works in its own subdirectory of the workspace root.
+    expect(h.capturedMeta[1].cwd).toBe(join(h.mediaDir, 'companion', 'groups', '888'))
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
@@ -298,17 +299,21 @@ describe('day-based session resets', () => {
 
 describe('per-group memory', () => {
   it('each group gets its own cwd and seeded AGENTS.md; private chats are unaffected', async () => {
-    const { groupMemoryPaths } = await import('../src/companion/index.js')
-    const root = tmp()
-    const h = await makeCmdHarness({ groupMemoryDir: root })
+    const legacyRoot = tmp()
+    const h = await makeCmdHarness({ groupMemoryDir: legacyRoot })
     h.sendGroupTextAs('大家好', 10003)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
-    const { dir, file } = groupMemoryPaths(root, '888')
+    // T28: with a workspace root configured the group directory lives inside it,
+    // and the seeded memory file sits IN that directory (cwd == memory dir), so
+    // the host actually loads it. The old `groupMemoryDir` is not used then.
+    const dir = join(h.mediaDir, 'companion', 'groups', '888')
     expect(h.capturedMeta[0].cwd).toBe(dir)
-    expect(readFileSync(file, 'utf8')).toContain('# 群 888 的记忆')
+    expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('# 群 888 的记忆')
+    expect(existsSync(join(legacyRoot, '888', 'AGENTS.md'))).toBe(false)
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
-    expect(h.capturedMeta[1].cwd).toBe(h.mediaDir)
+    // T28: a private chat also lives in its own subdirectory of the workspace.
+    expect(h.capturedMeta[1].cwd).toBe(join(h.mediaDir, 'companion', 'private', '10001'))
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()

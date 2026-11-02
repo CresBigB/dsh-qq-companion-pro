@@ -60,6 +60,19 @@ export declare const GROUP_MEMORY_DEFAULT_MAX_BYTES: number;
 /** A new group's memory file (her notes about that group only); the header
  * states the configured size cap (Chinese is ~3 bytes per character). */
 export declare function groupMemoryTemplate(groupId: string, maxBytes?: number): string;
+/**
+ * T28: the root every group's memory directory lives under.
+ *
+ * When a workspace root is configured the group directories live inside it
+ * (`<总工作区>/companion/groups/<群号>`), so the chat cwd and the memory
+ * directory are the same directory — the seeded AGENTS.md is then actually
+ * loaded by the host. Without a workspace root the configured
+ * `groupMemoryDir` is used as before.
+ */
+export declare function groupMemoryRootOf(config: {
+    workspacePath?: string;
+    groupMemoryDir?: string;
+}): string;
 /** The memory directory and file of one group. */
 export declare function groupMemoryPaths(root: string, groupId: string): {
     dir: string;
