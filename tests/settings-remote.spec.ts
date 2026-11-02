@@ -101,18 +101,18 @@ function parameterNames(fn: Function): string[] {
   return inner === '' ? [] : inner.split(',').map((part) => part.trim())
 }
 
-describe('设置页覆盖清单 — 145 键自检（后端新增键忘了上页会在这里失败）', () => {
+describe('设置页覆盖清单 — 146 键自检（后端新增键忘了上页会在这里失败）', () => {
   const schemaKeys = Object.keys((Config as unknown as { dict: Record<string, unknown> }).dict)
 
   it('排除列表与上页键不重叠：ALL_KEYS ∩ EXCLUDED_KEYS = ∅', () => {
     for (const key of EXCLUDED_KEYS) expect(ALL_KEYS).not.toContain(key)
   })
 
-  it('Config.dict 的键 − 排除列表 = ALL_KEYS（160 − 15 = 145）', () => {
+  it('Config.dict 的键 − 排除列表 = ALL_KEYS（161 − 15 = 146）', () => {
     const onPage = schemaKeys.filter((key) => !EXCLUDED_KEYS.includes(key))
     expect([...onPage].sort()).toEqual([...ALL_KEYS].sort())
-    expect(schemaKeys).toHaveLength(160)
-    expect(ALL_KEYS).toHaveLength(145)
+    expect(schemaKeys).toHaveLength(161)
+    expect(ALL_KEYS).toHaveLength(146)
     expect(schemaKeys.filter(key => EXCLUDED_KEYS.includes(key))).toHaveLength(15)
   })
 
@@ -409,12 +409,12 @@ describe('onebotSettings remote — 失败守卫（configEditor 失败场景：�
   })
 })
 
-describe('onebotSettings remote — workspacePath 白名单扩展（connection 组 26 键）', () => {
-  it('workspacePath 入快照：默认值 \'\'、connection 组键序追加、ALL_KEYS 25→26', () => {
+describe('onebotSettings remote — workspacePath 白名单扩展（connection 组 27 键）', () => {
+  it('workspacePath 入快照：默认值 \'\'、connection 组键序追加、ALL_KEYS 26→27', () => {
     const snapshot = getSettings(new FakeConfigEditor(), createRevisionState())
     expect(ALL_KEYS).toHaveLength(Object.values(SETTINGS_GROUPS).flat().length)
     expect(SCHEMA_DEFAULTS.workspacePath).toBe('')
-    expect(SETTINGS_GROUPS.connection).toEqual(['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'attachWorkspaceMode'])
+    expect(SETTINGS_GROUPS.connection).toEqual(['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'sessionCwdMode', 'attachWorkspaceMode'])
     expect(snapshot.groups.connection).toEqual(SETTINGS_GROUPS.connection)
     expect(snapshot.config.workspacePath).toBe('')
   })

@@ -45,6 +45,7 @@
 | `/task` 定时任务 | 仅管理员私聊：列出定时任务和今天剩余的主动聊天时间；`/task <id>`、`/task checkin` 立刻执行 |
 | 长任务（自动接力） | 管理员私聊发 `/task 写一份 3000 字的报告`，她会开一个带预算的长任务，之后宿主自己一轮轮驱动她接着做，不用人再催：它在宿主的 goals 里跑，**只有宿主把目标标成完成/暂停/阻塞才算结束**——她自己说“做完了”不等于结束。`-r N`（1～200）显式给预算，不传就用宿主的默认预算（多少轮以创建回执里宿主给的数为准）；`/task status` 看进度、`/task stop` 暂停（进度保留）、`/task resume` 继续；新会话 / 换工作目录 / 重开会话都会撤销授权，不会偷偷换地方接着做 |
 | qq_gif_frames | 群里收到的动图，她能自己「看完」：等距抽帧拼成一张网格图（每格标序号与这一帧的停留时间），不再只看得到封面；解码是自己写的，不依赖 ffmpeg。路径必须在她本来就能发图的媒体目录里；模型能看图就作为图片交给它，看不了就落到媒体目录并说明「只拿到路径」。 |
+| 会话归入工作区 | QQ 会话默认就在「会话默认工作区路径」里工作，所以会真的归入这个工作区、网页会话列表里不再出现「未分组」（宿主只接收 cwd 与工作区目录完全相等的会话，子目录不算）。每个号码自己那份规则与记忆仍然分开存放，并由插件强行读进对应聊天的提示词（改了下一步就生效）；想要每个聊天一个子目录的彻底隔离，把「会话自己的目录」改成子目录即可 |
 | 记忆库搜索 | 每个 QQ 号 / 群号一个独立的 SQLite 记忆库，放在总工作区下面的 `memorys/`（文件名就是号码，彼此看不到对方）。群友让记的事在写进记忆文件的同时也进这个库，同一句重复记只累加次数；**她自己也会用**（聊到「上次说的那事」先搜一遍、觉得值得记就顺手记一条），管理员发 `/memory <关键词>` 也能在当前这个聊天自己的库里搜，按出现次数和最近时间排序——一个字的词也能搜到 |
 | `/doctor` 陪伴状态 | QQ 账号是否真在线、定时任务今天执行没有、主动聊天计划、每个记忆文件占上限多少 |
 | 群聊怎么触发 | 默认「必须 @ 才回」（`requireMention`）。要更细就配 `groupTriggerPolicy`（JSON）：按群、按人分别设要不要 @、没 @ 要不要主动接话（`replyWithoutMention`，旧写法 `proactiveEnabled` 仍可用但会提示改名）、只回相关的 / 按概率回 / 不回（`replyMode=related|probability|off`，`probability` 0–1）；不配仍是原来的行为 |
@@ -120,9 +121,10 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
     splitLines: true
     splitMaxMessages: 6
     textImageThreshold: 0                  # 长回复不转图片
-    workspacePath: /home/bot/memory          # 总工作区：群在 companion/groups/<群号>、私聊在 companion/private/<QQ号>
+    workspacePath: /home/bot/memory          # 总工作区：QQ 会话就在这里面工作（所以能归入总工作区）
+    sessionCwdMode: workspace                # workspace = 直接用总工作区（能归入工作区）；chat = 每个聊天一个子目录（显示未分组）
     adminWorkspacePath: /home/bot/memory/private
-    groupMemoryDir: ''                       # 已不再决定工作目录，只在没设总工作区时当群记忆根
+    groupMemoryDir: ''                       # 已不再决定工作目录；群记忆永远是 <总工作区>/companion/groups/<群号>/AGENTS.md
     groupMemoryMaxBytes: 10240
     publicMemoryFile: /home/bot/memory/AGENTS.md
     publicMemoryMaxBytes: 24576
@@ -162,7 +164,8 @@ sudo apt install fonts-noto-cjk fonts-wqy-zenhei fonts-noto-color-emoji fonts-de
 | `adminPermission` | 空 | 管理员私聊每个新会话自动执行的宿主 `/permission` 预设 |
 | `memberPermission` | 空 | 非管理员私聊与所有群聊每个新会话自动执行的宿主 `/permission` 预设，建议 `read-only`；留空 = 继承宿主默认预设（默认是完整权限的话群友也能让她执行命令、读写文件） |
 | `adminWorkspacePath` | 空 | 管理员私聊的工作目录 |
-| `groupMemoryDir` | 空 | 每个群一份记忆文件 `<根>/<群号>/AGENTS.md`（不再决定工作目录）；设了总工作区时群目录固定为 `<总工作区>/companion/groups/<群号>` |
+| `sessionCwdMode` | `workspace` | QQ 会话拿哪个目录当自己的工作目录：`workspace` = 直接用总工作区（宿主要求会话目录与工作区目录完全相等，这样才会归入工作区、网页上不出现「未分组」；每个号码的规则与记忆文件由插件强制读进提示词）；`chat` = 每个聊天一个子目录 `companion/groups/<群号>` / `companion/private/<QQ号>`（隔离最彻底，但会话只能显示未分组）。改完对旧会话不生效，发 `/new` 换新会话 |
+| `groupMemoryDir` | 空 | 只在没设总工作区时当群记忆的根。群记忆固定是 `<总工作区>/companion/groups/<群号>/AGENTS.md`，无论会话目录在总工作区还是子目录，这份文件都会被插件读进群聊的提示词 |
 | `groupMemoryMaxBytes` | `8192` | 群记忆满了就拒绝追加 |
 | `publicMemoryFile` / `publicMemoryMaxBytes` | 空 / `6144` | 没有群专属记忆文件时，群里的记忆追加写到这里 |
 | `autoAcceptAdminRequests` | `false` | 管理员的好友申请 / 进群邀请自动同意 |

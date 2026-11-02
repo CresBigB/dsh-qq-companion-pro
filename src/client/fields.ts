@@ -148,8 +148,9 @@ export const GROUPS: GroupMeta[] = [
       { key: 'botQQ', label: '机器人 QQ 号', type: 'string', hint: '留空则连上后自动识别。', section: 'NapCat 连接' },
       // workspacePath 的语义（对齐 README「会话工作区选择」）：修改只对新会话生效；
       // 已设 per-chat /workspace 覆盖的会话不受影响。
-      { key: 'workspacePath', label: '会话默认工作区路径', type: 'string', control: 'path', hint: 'QQ 会话的工作区根目录。每个群、每个私聊都在它下面的 companion/groups/<群号>、companion/private/<QQ号> 子目录里工作，并自动归入这个工作区（网页会话列表里不会再出现「未分组」）。保存后仅对新会话生效，已用 /workspace 覆盖过的会话不受影响。留空 = 宿主进程工作目录。管理员私聊优先用「私聊」页里的工作目录。', section: '工作区' },
-      { key: 'attachWorkspaceMode', label: '会话归入工作区', type: 'enum', options: ['existing', 'auto', 'off'], optionLabels: { existing: '只归入已有的', auto: '自动为每个聊天建', off: '不归入' }, hint: 'QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：只归入已有的 = 目录落在某个已有工作区里就归入（聊天子目录会自动归到它所属的总工作区）；自动为每个聊天建 = 连每个群、每个私聊的子目录也各建一个工作区；不归入 = 不碰工作区。已有会话在 QQ 里发 /workspace attach 可立即补挂。', section: '工作区' },
+      { key: 'workspacePath', label: '会话默认工作区路径', type: 'string', control: 'path', hint: 'QQ 会话的工作区根目录（总工作区）。默认情况下会话就开在这个目录里，所以 QQ 会话会归入这个工作区、网页会话列表里不再有「未分组」；每个群、每个私聊各自的规则与记忆文件仍按号码分开存放（companion/groups/<群号>、companion/private/<QQ号>），由插件读进提示词。保存后仅对新会话生效，已用 /workspace 覆盖过的会话不受影响。留空 = 宿主进程工作目录。', section: '工作区' },
+      { key: 'sessionCwdMode', label: '会话自己的目录', type: 'enum', options: ['workspace', 'chat'], optionLabels: { workspace: '直接用总工作区（会话能归入总工作区）', chat: '每个聊天一个子目录（隔离更彻底，会话显示未分组）' }, hint: 'QQ 会话拿哪个目录当自己的工作目录。直接用总工作区 = 会话归入总工作区，每个聊天的规则与记忆文件由插件强制读进提示词；每个聊天一个子目录 = 群在 companion/groups/<群号>、私聊在 companion/private/<QQ号> 里工作，隔离最彻底，但宿主要求会话目录与工作区目录完全相等，这类会话只能显示为未分组。两种模式下记忆库与群记忆文件都按号码分开。改完只对新会话生效（旧会话发 /new 换新会话）。', section: '工作区' },
+      { key: 'attachWorkspaceMode', label: '会话归入工作区', type: 'enum', options: ['existing', 'auto', 'off'], optionLabels: { existing: '只归入已有的', auto: '自动为每个聊天建', off: '不归入' }, hint: 'QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：只归入已有的 = 会话目录正好是某个已有工作区就归入，没有时只为「会话默认工作区路径」建一个；自动为每个聊天建 = 会话自己的目录也各建一个工作区；不归入 = 不碰工作区。已有会话在 QQ 里发 /workspace attach 可立即补挂。', section: '工作区' },
     ],
   },
   {
@@ -374,6 +375,7 @@ export const DEFAULTS: Record<string, unknown> = {
   accessToken: '',
   botQQ: '',
   workspacePath: '',
+  sessionCwdMode: 'workspace',
   attachWorkspaceMode: 'existing',
   adminUsers: [],
   friendUsers: [],

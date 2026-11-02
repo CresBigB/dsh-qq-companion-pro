@@ -95,7 +95,7 @@ export const SETTINGS_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'capabilitiesDeny', 'ownerDeny', 'friendDeny', 'memberDeny', 'strangerDeny',
     'ownerGrant', 'friendGrant', 'memberGrant', 'strangerGrant',
   ],
-  connection: ['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'attachWorkspaceMode'],
+  connection: ['host', 'port', 'accessToken', 'botQQ', 'workspacePath', 'sessionCwdMode', 'attachWorkspaceMode'],
   private: [
     'dmPolicy', 'allowFrom', 'allowAllUsers',
     'adminPreset', 'adminPermission', 'adminWorkspacePath',

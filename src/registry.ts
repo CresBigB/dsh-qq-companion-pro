@@ -751,19 +751,24 @@ export class ChatRegistry {
     // memory directory), so group sessions never load the private AGENTS.md.
     const adminCwd = this.deps.config.adminWorkspacePath
     if (chatId !== undefined && adminCwd !== undefined && adminCwd !== '' && this.deps.isAdminPrivate?.(chatId) === true) return adminCwd
-    // T28: when a workspace root is configured, every chat gets its OWN
-    // subdirectory of it — `<总工作区>/companion/groups/<群号>` and
-    // `<总工作区>/companion/private/<QQ号>`. One workspace then owns every QQ
-    // session (see findEnclosingWorkspace), instead of each group directory
-    // being an unregistered orphan that shows up as 未分组.
-    const configuredRoot = this.deps.config.workspacePath
-    if (chatId !== undefined && configuredRoot !== undefined && configuredRoot !== '') return this.companionSubdir(chatId)
-    // No workspace root configured: keep the old layout (a group still uses its
-    // own memory directory) rather than littering the host process directory
-    // with a `companion/` tree.
-    const groupRoot = this.deps.config.groupMemoryDir
-    if (chatId !== undefined && groupRoot !== undefined && groupRoot !== '' && chatId.startsWith('group:')) {
-      return groupMemoryPaths(groupRoot, chatId.slice('group:'.length)).dir
+    // T34：两种会话目录。
+    //  workspace（默认）= 直接用总工作区。宿主的 WorkspaceEntity.attachSession 要求
+    //   会话 header 的 cwd 与工作区目录**完全相等**（子目录不算），只有这样才能让
+    //   QQ 会话真正归入总工作区、不再显示未分组；每聊天那份隔离改由插件强制注入
+    //   （见 companion/chat-scope.ts）。
+    //  chat = T28 的老做法，每个聊天一个子目录：隔离最彻底，但会话永远是未分组。
+    const mode = this.deps.config.sessionCwdMode ?? 'workspace'
+    if (mode === 'chat') {
+      const configuredRoot = this.deps.config.workspacePath
+      if (chatId !== undefined && configuredRoot !== undefined && configuredRoot !== '') return this.companionSubdir(chatId)
+      // No workspace root configured: keep the old layout (a group still uses its
+      // own memory directory) rather than littering the host process directory
+      // with a `companion/` tree.
+      const groupRoot = this.deps.config.groupMemoryDir
+      if (chatId !== undefined && groupRoot !== undefined && groupRoot !== '' && chatId.startsWith('group:')) {
+        return groupMemoryPaths(groupRoot, chatId.slice('group:'.length)).dir
+      }
+      return this.globalWorkspacePath()
     }
     return this.globalWorkspacePath()
   }
@@ -1007,6 +1012,12 @@ export class ChatRegistry {
       // never matched any workspace and every QQ group showed up as 未分组.
       const enclosing = this.findEnclosingWorkspace(headerCwd)
       if (enclosing !== undefined) {
+        // T34：workspace 模式下宿主要求 cwd 与工作区目录完全相等，子目录挂不上去
+        // （宿主原文：its cwd resolves to '<子目录>'）。旧会话只能靠 /new 换新会话。
+        if ((this.deps.config.sessionCwdMode ?? 'workspace') === 'workspace') {
+          this.deps.log('info', 'workspace attach skipped for ' + who + ': 这个会话的目录还是旧的每聊天子目录（' + headerCwd + '），宿主要求目录完全相等；发 /new 换一个新会话就会归入 ' + enclosing.path)
+          return { ok: false, reason: 'stale-cwd', path: headerCwd }
+        }
         await enclosing.attachSession(sessionId)
         this.deps.log('info', 'attached session ' + sessionId + ' to enclosing workspace ' + enclosing.path + ' for ' + who)
         return { ok: true, path: enclosing.path, created: false }

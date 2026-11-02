@@ -7,7 +7,7 @@
  *   ① 语法可解析 + CJS banner/footer 形态 + externals 仅 react；
  *   ② 入口导出 inject + apply；apply 注册两个 slot（settings.section 主入口与
  *      plugins.row.config keyed slot 第二入口，后者 embedded）；
- *   ③ 11 组 145 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
+ *   ③ 11 组 146 键：分组/键序/默认值与宿主 src/settings-remote.ts 导出常量互相
  *      核对；字段类型与宿主配置 dict 的 kind 逐键对照；静态元数据 + 函数型
  *      dependsOn（§3「依赖」列逐项覆盖）；
  *   ④ Typert descriptor 与宿主服务方法面逐字对齐；
@@ -483,10 +483,10 @@ describe('客户端 bundle — 分组、键集、默认值与 host 一致', () =
     for (const group of groups) expect(group.fields.map((field) => field.key)).toEqual([...SETTINGS_GROUPS[group.id]])
     expect(allFields.map((field) => field.key)).toEqual([...ALL_KEYS])
     expect(allFields).toHaveLength(ALL_KEYS.length)
-    expect(ALL_KEYS).toHaveLength(145)
+    expect(ALL_KEYS).toHaveLength(146)
   })
 
-  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 145 键（恢复默认值唯一来源）', () => {
+  it('默认值逐字对齐 host SCHEMA_DEFAULTS，且全量覆盖 146 键（恢复默认值唯一来源）', () => {
     expect(client.DEFAULTS).toEqual(SCHEMA_DEFAULTS)
     expect(Object.keys(client.DEFAULTS as Record<string, unknown>).sort()).toEqual([...ALL_KEYS].sort())
   })
@@ -1544,7 +1544,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
     const order = walk(card)
       .map(element => String(element.props['data-key'] == null ? (element.props['data-role'] == null ? '' : element.props['data-role']) : element.props['data-key']))
       .filter(key => key !== '')
-    expect(order).toEqual(['workspacePath', 'workspace-picker', 'attachWorkspaceMode'])
+    expect(order).toEqual(['workspacePath', 'workspace-picker', 'sessionCwdMode', 'attachWorkspaceMode'])
   })
 
   it('填入后仍走显式保存通道：computePatch 只产出 workspacePath 键', () => {
@@ -1556,7 +1556,7 @@ describe('workspace 选择器（§4.8）— 三态语义', () => {
 })
 
 describe('客户端 bundle — 保存语义（updateSettings(patch, expectedRevision) 入参构造）', () => {
-  it('仅下发与生效值有差异的键（145 键任意子集）', () => {
+  it('仅下发与生效值有差异的键（146 键任意子集）', () => {
     const values = draft({ config: SCHEMA_DEFAULTS })
     values.port = '9999'
     values.dmPolicy = 'allowlist'

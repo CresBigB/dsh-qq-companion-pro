@@ -14,7 +14,7 @@ import { JUMP_IN_INSTRUCTION, parseJumpInAnswer } from './group-jumpin.js'
 import { QqLiveness } from './liveness.js'
 import { MemoryLibrary, memoryStoreRootOf } from './memory-store.js'
 import { buildCompanionStatusSnapshot, provideCompanionStatus } from './status.js'
-import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter, groupMemoryRootOf } from './companion/index.js'
+import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter, groupMemoryRootOf, createChatScopeReader } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -549,6 +549,24 @@ export function apply(ctx: Context, config: Config): void {
     stickerDir: config.stickerDir ?? '',
     diaryTime: diary !== undefined && diary.chatId === chatId ? diary.time : '',
   }, chatId.startsWith('group:') ? 'group' : policy.adminUsers.includes(chatId.slice('private:'.length)) ? 'owner' : 'other')
+  // T34：会话目录回到总工作区（sessionCwdMode=workspace）时，每个聊天那份按号码
+  // 分开的 AGENTS.md 不再由宿主按 cwd 自动读，改由这里强行读进提示词；每个聊天
+  // 一个读取器（内部按 mtime+size 缓存），读不到就是空串。
+  const chatScopeReaders = new Map<string, () => string>()
+  const chatScope = (chatId: string): string => {
+    let reader = chatScopeReaders.get(chatId)
+    if (reader === undefined) {
+      reader = createChatScopeReader({
+        chatId,
+        groupMemoryRoot,
+        adminWorkspacePath: config.adminWorkspacePath ?? '',
+        groupMemoryMaxBytes: config.groupMemoryMaxBytes,
+        publicMemoryMaxBytes: config.publicMemoryMaxBytes,
+      }, log)
+      chatScopeReaders.set(chatId, reader)
+    }
+    return reader()
+  }
   // Counts what the account sends (shown by /doctor).
   const sendCounter = new SendCounter()
   // 输出协议（B 档）状态：开关与灰度聊天来自配置，计数来自同一个 SendCounter
@@ -791,6 +809,7 @@ export function apply(ctx: Context, config: Config): void {
     activity,
     groupChatter,
     companionGuide,
+    ...(config.sessionCwdMode === 'chat' ? {} : { chatScope }),
     ...(stickers !== undefined ? { stickers } : {}),
     ...(privateProactiveTargets.length > 0 || groupProactiveTargets.length > 0 ? { proactive: proactiveHandle } : {}),
     sendCounter,

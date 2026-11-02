@@ -37,7 +37,7 @@ export type WorkspaceAttachOutcome = {
     created: boolean;
 } | {
     ok: false;
-    reason: 'off' | 'no-registry' | 'no-session' | 'no-cwd' | 'no-workspace' | 'foreign-cwd' | 'failed';
+    reason: 'off' | 'no-registry' | 'no-session' | 'no-cwd' | 'no-workspace' | 'foreign-cwd' | 'stale-cwd' | 'failed';
     path?: string;
     message?: string;
 };
@@ -206,7 +206,7 @@ export interface RegistryDeps {
     sessionTitle?: () => SessionTitleLike | undefined;
     defaultModel: (() => ModelSelection | undefined) | undefined;
     /** The only config fields the registry reads. */
-    config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'attachWorkspaceMode' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>;
+    config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'sessionCwdMode' | 'attachWorkspaceMode' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>;
     log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void;
     /** Bridge stop flag (guards the resume loop). */
     isStopping(): boolean;

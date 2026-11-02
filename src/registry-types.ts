@@ -32,7 +32,7 @@ export type SessionSwitchOutcome =
  * created for it; 'failed' — the host call threw (message carries the error). */
 export type WorkspaceAttachOutcome =
   | { ok: true; path: string; created: boolean }
-  | { ok: false; reason: 'off' | 'no-registry' | 'no-session' | 'no-cwd' | 'no-workspace' | 'foreign-cwd' | 'failed'; path?: string; message?: string }
+  | { ok: false; reason: 'off' | 'no-registry' | 'no-session' | 'no-cwd' | 'no-workspace' | 'foreign-cwd' | 'stale-cwd' | 'failed'; path?: string; message?: string }
 
 /** 这个聊天新建工作区时用的标题：群聊「QQ群 <群号>」、私聊「QQ私聊 <QQ号>」。 */
 export function workspaceTitleForChat(chatId: ChatId): string {
@@ -211,7 +211,7 @@ export interface RegistryDeps {
   sessionTitle?: () => SessionTitleLike | undefined
   defaultModel: (() => ModelSelection | undefined) | undefined
   /** The only config fields the registry reads. */
-  config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'attachWorkspaceMode' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>
+  config: Pick<BridgeConfig, 'mediaDir' | 'workspacePath' | 'sessionCwdMode' | 'attachWorkspaceMode' | 'adminWorkspacePath' | 'groupMemoryDir' | 'groupMemoryMaxBytes' | 'agentPreset' | 'adminPreset' | 'restrictedMemberPrefix' | 'maxImageBytes' | 'maxVoiceBytes' | 'maxFileBytes' | 'chatIdleEvictDays' | 'groupReasoningEffort' | 'sessionTitleTemplate'>
   log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void
   /** Bridge stop flag (guards the resume loop). */
   isStopping(): boolean

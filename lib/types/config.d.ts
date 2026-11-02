@@ -190,6 +190,9 @@ export interface Config {
     /** QQ 会话怎么归入 DSH 工作区：existing 只归入已存在的（另为 workspacePath 建一个）；
      *  auto 连群/私聊各自的工作目录也建；off 完全不碰工作区。 */
     attachWorkspaceMode: 'existing' | 'auto' | 'off';
+    /** 会话自己的目录：workspace 直接用总工作区（会话才能在网页里归入总工作区）；
+     *  chat 用每聊天子目录（隔离更好，但宿主要求目录完全相等，会显示未分组）。 */
+    sessionCwdMode: 'workspace' | 'chat';
     inboundFileMaxBytes: number;
     /** @deprecated alias of inboundFileMaxBytes; honored for one release. */
     maxInboundFileBytes?: number;

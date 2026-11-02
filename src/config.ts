@@ -205,6 +205,9 @@ export interface Config {
   /** QQ 会话怎么归入 DSH 工作区：existing 只归入已存在的（另为 workspacePath 建一个）；
    *  auto 连群/私聊各自的工作目录也建；off 完全不碰工作区。 */
   attachWorkspaceMode: 'existing' | 'auto' | 'off'
+  /** 会话自己的目录：workspace 直接用总工作区（会话才能在网页里归入总工作区）；
+   *  chat 用每聊天子目录（隔离更好，但宿主要求目录完全相等，会显示未分组）。 */
+  sessionCwdMode: 'workspace' | 'chat'
   inboundFileMaxBytes: number
   /** @deprecated alias of inboundFileMaxBytes; honored for one release. */
   maxInboundFileBytes?: number
@@ -553,9 +556,11 @@ export const Config: Z<Config> = z.object({
   proactiveMaxUnanswered: z.number().deprecated()
     .description('[deprecated] 旧名别名（现 privateProactiveMaxUnanswered / groupProactiveMaxUnanswered）'),
   workspacePath: z.string().default('')
-    .description('QQ 会话的默认工作区目录（总工作区）：群聊在 <本目录>/companion/groups/<群号>、私聊在 <本目录>/companion/private/<QQ号> 里工作，并自动归入本目录对应的工作区（按「最近的上级工作区」匹配，所以网页会话列表不会显示未分组）；管理员私聊优先用 adminWorkspacePath，单聊 /workspace 覆盖优先且已持久化到会话映射文件；留空时使用宿主进程工作目录并在启动时告警提醒（宿主未提供可编程查询的默认工作区）'),
+    .description('QQ 会话的默认工作区目录（总工作区）：留空时用宿主进程工作目录；管理员私聊优先用 adminWorkspacePath，单聊 /workspace 覆盖优先且已持久化到会话映射文件'),
+  sessionCwdMode: z.union([z.const('workspace'), z.const('chat')]).default('workspace')
+    .description('QQ 会话自己的工作目录怎么定：workspace（默认）= 直接用总工作区（宿主按目录完全相等判定归属，所以会话会归入总工作区）；chat = 每个聊天一个子目录（<总工作区>/companion/groups/<群号>、/private/<QQ号>，隔离更彻底，但宿主要求会话目录正好等于工作区目录，这类会话在网页里显示为未分组）。两种模式下每个聊天的记忆库与群记忆文件都仍按号码分开；选 workspace 时那份按号码分开的 AGENTS.md 与群记忆文件由插件强制读进提示词'),
   attachWorkspaceMode: z.union([z.const('existing'), z.const('auto'), z.const('off')]).default('existing')
-    .description('QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：existing（默认）= 归入聊天目录「最近的上级工作区」，没有上级工作区时只为 workspacePath 自动建一个；auto = 群聊、私聊各自的工作目录也自动建工作区（每个群一个）；off = 不归入。已有会话可发 /workspace attach 立即补挂'),
+    .description('QQ 会话怎么归入 DSH 工作区（网页会话列表按工作区分组）：existing（默认）= 归入会话目录对应的工作区，没有时只为 workspacePath 自动建一个；auto = 会话目录也自动建工作区（每群一个）；off = 不归入。已有会话可发 /workspace attach 立即补挂'),
   inboundFileMaxBytes: z.number().default(INBOUND_FILE_MAX_BYTES)
     .description('QQ 入站文件最大字节数（直链/base64 拉取，0 = 不限制）'),
   maxInboundFileBytes: z.number().deprecated()

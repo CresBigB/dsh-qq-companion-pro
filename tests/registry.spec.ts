@@ -214,7 +214,8 @@ describe('ChatRegistry', () => {
       attachSession: vi.fn(async (sessionId: string) => { attached.push({ sessionId, cwd: mediaDir }) }),
     }
     const workspaceRegistry = {
-      resolveByPath: vi.fn(async () => undefined),
+      // T34: the session cwd now IS the workspace root, so resolveByPath hits it.
+      resolveByPath: vi.fn(async (path: string) => (path === mediaDir ? rootWorkspace : undefined)),
       list: vi.fn(() => [rootWorkspace]),
       create: vi.fn(async (path: string) => ({
         attachSession: vi.fn(async (sessionId: string) => { attached.push({ sessionId, cwd: path }) }),
@@ -274,9 +275,10 @@ describe('ChatRegistry', () => {
     // The session header records the resolved preset id (config in this case),
     // so the Web surface can label the session without a second lookup.
     expect(captured.createdMeta[0].agentPreset).toBe('standard')
-    // The session was attached to the workspace enclosing its header cwd
-    // (the chat's own subdirectory) instead of landing ungrouped.
-    expect(workspaceRegistry.resolveByPath).toHaveBeenCalledWith(join(mediaDir, 'companion', 'private', '10001'))
+    // T34: the session works IN the workspace root, which is exactly what the
+    // host requires to attach it (it compares the cwd string with the workspace
+    // path), so the session no longer lands ungrouped.
+    expect(workspaceRegistry.resolveByPath).toHaveBeenCalledWith(mediaDir)
     expect(attached[0].cwd).toBe(mediaDir)
     expect(workspaceRegistry.create).not.toHaveBeenCalled()
     expect(attached[0]).toEqual({ sessionId: sessionIds[0], cwd: mediaDir })

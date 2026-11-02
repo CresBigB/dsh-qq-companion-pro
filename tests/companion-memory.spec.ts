@@ -169,8 +169,11 @@ describe('bridge integration', () => {
     expect(h.capturedMeta[0].cwd).toBe(adminDir)
     h.sendGroupTextAs('大家好', 10001)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
-    // T28: a group chat works in its own subdirectory of the workspace root.
-    expect(h.capturedMeta[1].cwd).toBe(join(h.mediaDir, 'companion', 'groups', '888'))
+    // T34: by default a group works in the workspace root itself, so the host
+    // can actually attach the session to that workspace (it requires cwd ==
+    // workspace path). The per-chat memory file still lives under the number.
+    expect(h.capturedMeta[1].cwd).toBe(h.mediaDir)
+    expect(existsSync(join(h.mediaDir, 'companion', 'groups', '888', 'AGENTS.md'))).toBe(true)
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()
@@ -298,21 +301,37 @@ describe('day-based session resets', () => {
 })
 
 describe('per-group memory', () => {
-  it('each group gets its own cwd and seeded AGENTS.md; private chats are unaffected', async () => {
+  it('each group keeps its own seeded AGENTS.md under its number; the session works in the workspace root', async () => {
     const legacyRoot = tmp()
     const h = await makeCmdHarness({ groupMemoryDir: legacyRoot })
     h.sendGroupTextAs('大家好', 10003)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
-    // T28: with a workspace root configured the group directory lives inside it,
-    // and the seeded memory file sits IN that directory (cwd == memory dir), so
-    // the host actually loads it. The old `groupMemoryDir` is not used then.
+    // T34: with a workspace root configured and the default 'workspace' cwd mode
+    // the group works IN the workspace root (so the host attaches the session to
+    // it), while the seeded memory file still sits under the group's own number.
+    // The old `groupMemoryDir` is not used then.
     const dir = join(h.mediaDir, 'companion', 'groups', '888')
-    expect(h.capturedMeta[0].cwd).toBe(dir)
+    expect(h.capturedMeta[0].cwd).toBe(h.mediaDir)
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('# 群 888 的记忆')
     expect(existsSync(join(legacyRoot, '888', 'AGENTS.md'))).toBe(false)
     h.sendText('你好')
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
-    // T28: a private chat also lives in its own subdirectory of the workspace.
+    // T34: a private chat uses the very same workspace root (never 未分组).
+    expect(h.capturedMeta[1].cwd).toBe(h.mediaDir)
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it("sessionCwdMode 'chat' still gives each chat its own working directory", async () => {
+    const h = await makeCmdHarness({ sessionCwdMode: 'chat' })
+    h.sendGroupTextAs('大家好', 10003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    const dir = join(h.mediaDir, 'companion', 'groups', '888')
+    expect(h.capturedMeta[0].cwd).toBe(dir)
+    expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('# 群 888 的记忆')
+    h.sendText('你好')
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(h.capturedMeta[1].cwd).toBe(join(h.mediaDir, 'companion', 'private', '10001'))
     h.client.close()
     await h.bridge.stop()

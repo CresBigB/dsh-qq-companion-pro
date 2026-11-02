@@ -1925,6 +1925,16 @@ export class ChatBridge {
     // How her companion features work in this chat, from the live config.
     const guide = this.deps.companionGuide?.(chatId) ?? ''
     if (guide !== '') agentCtx.systemPrompt.section({ name: 'channel:qq-companion-guide', order: 91, text: guide })
+    // T34：会话目录回到总工作区之后，每个聊天那份按号码分开的 AGENTS.md 不再由
+    // 宿主按 cwd 自动读。这里注册成**动态上下文**（宿主每步都会重新求值），所以
+    // 改完群记忆文件下一步就生效；读不到就渲染成空串，会被宿主直接过滤掉。
+    if (this.deps.chatScope !== undefined) {
+      agentCtx.systemPrompt.context({
+        name: 'channel:qq-companion-scope',
+        order: 92,
+        text: () => this.deps.chatScope?.(chatId) ?? '',
+      })
+    }
     const noteWriter = this.companion.memoryNoteWriter()
     // T31：写进 markdown 的同时进本聊天的搜索索引（文件仍是模型读的正文，
     // 索引只负责「她以前说过什么」这类查找）。

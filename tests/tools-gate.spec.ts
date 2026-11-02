@@ -176,7 +176,7 @@ describe('qq_send_* local-path outbound gate', () => {
 })
 
 describe('ChatBridge.mediaSendRoots', () => {
-  it('derives roots from the turn-level role: member → mediaDir, admin → mediaDir + chat dir + workspace root', async () => {
+  it('derives roots from the turn-level role: member → mediaDir, admin → mediaDir + workspace root', async () => {
     const h = await makeHarness()
     const member = 'acc-member'
     const admin = 'acc-admin'
@@ -186,15 +186,12 @@ describe('ChatBridge.mediaSendRoots', () => {
       roots: [realpathSync(h.mediaDir)],
       isTurnAdmin: false,
     })
-    // T28: the chat itself lives in `<workspace>/companion/groups/<群号>`, so an
-    // admin turn may send from that chat dir AND from the workspace root it
-    // belongs to (a file dropped right in the workspace used to be refused).
+    // T34: the chat works in the workspace root by default, so the chat dir and
+    // the workspace root are the same directory and collapse to one root (an
+    // admin turn may still send from the workspace root a file was dropped in).
     expect(await h.bridge.mediaSendRoots(admin)).toEqual({
       roots: [
         realpathSync(h.mediaDir),
-        // the harness seeds the chat without creating its directory, and a
-        // missing root is kept as written (the fence then finds nothing in it).
-        join(h.workspace, 'companion', 'groups', '20001'),
         realpathSync(h.workspace),
       ],
       isTurnAdmin: true,

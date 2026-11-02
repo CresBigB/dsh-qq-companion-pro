@@ -144,6 +144,12 @@ export interface BridgeConfig {
      * private chat); 'off' = never touch the workspace registry. Absent =
      * 'existing'. */
     attachWorkspaceMode?: 'existing' | 'auto' | 'off';
+    /** T34: which directory a chat's session uses — 'workspace' (default) = the
+     * global workspace itself (that is what the host needs to attach the session
+     * to that workspace); 'chat' = the per-chat subdirectory (better isolation,
+     * but the host only attaches a session whose cwd EQUALS the workspace path,
+     * so such sessions show up as 未分组). */
+    sessionCwdMode?: 'workspace' | 'chat';
     /** Max inbound file bytes fetched via QQ direct link / base64 (0 = no cap). */
     maxInboundFileBytes: number;
     /** chats idle longer than this many days are evicted on the next
@@ -369,6 +375,9 @@ export interface BridgeDeps {
     companionStatus?: () => Promise<string[]>;
     /** The companion guide for one chat (how her features work, from the live config). */
     companionGuide?: (chatId: string) => string;
+    /** T34: this chat's own rules & memory, read fresh for every model step
+     * (absent = the chat directory is the cwd, and the host loads it itself). */
+    chatScope?: (chatId: string) => string;
     /** Counts every message that went out (for /doctor), plus today's
      * 「她选择不回」decisions (recordPass; absent = the pass is not counted).
      * 三个 protocol* 端口统计输出协议 B 档（协议启用聊天里的回复数 / 控制块解析

@@ -163,6 +163,7 @@ const CONFIG_SHAPE: Record<string, Schema<unknown>> = {
   accessToken: vString(0, 256),
   botQQ: vString(0, 64),
   workspacePath: vString(0, 1024),
+  sessionCwdMode: vEnum(['workspace', 'chat']),
   attachWorkspaceMode: vEnum(['existing', 'auto', 'off']),
   // access（15）
   adminUsers: vArray(vString(0, 64)),

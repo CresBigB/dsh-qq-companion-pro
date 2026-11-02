@@ -140,6 +140,7 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
       textImageThreshold: opts?.textImageThreshold ?? 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
       agentPreset: 'standard', workspacePath: mediaDir,
+      ...(opts?.sessionCwdMode !== undefined ? { sessionCwdMode: opts.sessionCwdMode } : {}),
       // busy-turn policy override (absent = the 'queue' default).
       ...(opts?.newMessagePolicy !== undefined ? { newMessagePolicy: opts.newMessagePolicy } : {}),
       // deferred-delivery timeout override (absent = the 10min default).
@@ -268,6 +269,8 @@ export async function makeCmdHarness(opts?: {
   /** 非管理员私聊与所有群聊的新会话自动切换的宿主权限预设。 */
   memberPermission?: string
   adminWorkspacePath?: string
+  /** T34：会话目录模式（absent = 'workspace'，与生产默认一致）。 */
+  sessionCwdMode?: 'workspace' | 'chat'
   idleResetHours?: number
   groupMemoryDir?: string
   privateResetDays?: number
@@ -468,6 +471,7 @@ export async function makeCmdHarness(opts?: {
       maxVoiceBytes: 15 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024,
       textImageThreshold: opts?.textImageThreshold ?? 0, cardFooter: 'dsh', fontFiles: [], fontFamilies: [],
       agentPreset: 'standard', workspacePath: mediaDir,
+      ...(opts?.sessionCwdMode !== undefined ? { sessionCwdMode: opts.sessionCwdMode } : {}),
       ...(opts?.protocolMode !== undefined ? { protocolMode: opts.protocolMode } : {}),
       ...(opts?.protocolChats !== undefined ? { protocolChats: opts.protocolChats } : {}),
       ...(opts?.publicMemoryFile !== undefined ? { publicMemoryFile: opts.publicMemoryFile } : {}),
