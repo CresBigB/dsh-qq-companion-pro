@@ -67,17 +67,12 @@ function stamp(now: number): string {
   return new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
 
-interface OpenLibrary {
-  db: InstanceType<typeof DatabaseSync>
-  ready: boolean
-}
-
 /**
  * Per-chat note index. One SQLite file per chat, opened lazily and kept open
  * for the process lifetime (the host never hot-reloads a single chat).
  */
 export class MemoryLibrary {
-  private readonly open = new Map<string, OpenLibrary>()
+  private readonly open = new Map<string, InstanceType<typeof DatabaseSync>>()
   private readonly root: string
   private readonly log: MemoryLog
 
@@ -91,14 +86,24 @@ export class MemoryLibrary {
     return join(this.root, memoryLibraryName(chatId) + '.db')
   }
 
-  private async library(chatId: string): Promise<OpenLibrary | undefined> {
+  /**
+   * Open (and initialize) one chat's library.
+   *
+   * Order matters: the directory is created *before* SQLite opens the file,
+   * otherwise the very first note on a fresh machine fails with
+   * `unable to open database file` — which is what happened in the field when
+   * the directory did not exist yet. A failed open is **not** cached: the next
+   * call retries, so deleting or repairing the folder does not need a restart.
+   */
+  private async library(chatId: string): Promise<InstanceType<typeof DatabaseSync> | undefined> {
     const name = memoryLibraryName(chatId)
     const cached = this.open.get(name)
     if (cached !== undefined) return cached
-    const entry: OpenLibrary = { db: new DatabaseSync(this.pathOf(chatId)), ready: false }
+    let db: InstanceType<typeof DatabaseSync> | undefined
     try {
       await mkdir(this.root, { recursive: true })
-      entry.db.exec(
+      db = new DatabaseSync(this.pathOf(chatId))
+      db.exec(
         'CREATE TABLE IF NOT EXISTS notes ('
         + 'norm TEXT PRIMARY KEY, '
         + 'text TEXT NOT NULL, '
@@ -106,15 +111,18 @@ export class MemoryLibrary {
         + 'updated_at TEXT NOT NULL, '
         + 'hits INTEGER NOT NULL DEFAULT 1)',
       )
-      entry.db.exec('CREATE INDEX IF NOT EXISTS notes_by_hits ON notes (hits DESC, updated_at DESC)')
-      entry.ready = true
+      db.exec('CREATE INDEX IF NOT EXISTS notes_by_hits ON notes (hits DESC, updated_at DESC)')
     } catch (error) {
+      try {
+        db?.close()
+      } catch {
+        // 打不开的库连接本身也可能已经坏了，关不掉就算了。
+      }
       this.log('warn', '记忆库打不开（' + name + '）：' + describeError(error))
-      this.open.set(name, entry)
-      return entry
+      return undefined
     }
-    this.open.set(name, entry)
-    return entry
+    this.open.set(name, db)
+    return db
   }
 
   /**
@@ -127,17 +135,17 @@ export class MemoryLibrary {
     const clipped = Array.from(body).length > MEMORY_NOTE_MAX_CHARS
       ? Array.from(body).slice(0, MEMORY_NOTE_MAX_CHARS).join('')
       : body
-    const entry = await this.library(chatId)
-    if (entry === undefined || !entry.ready) return 0
+    const db = await this.library(chatId)
+    if (db === undefined) return 0
     try {
       const when = stamp(now)
       const norm = normalizeNote(clipped)
-      entry.db.prepare(
+      db.prepare(
         'INSERT INTO notes (norm, text, created_at, updated_at, hits) VALUES (?, ?, ?, ?, 1) '
         + 'ON CONFLICT(norm) DO UPDATE SET hits = hits + 1, updated_at = excluded.updated_at',
       ).run(norm, clipped, when, when)
       // T33：把这条现在被提到几次回给模型（同一句再记只涨次数，不会重复）。
-      const row = entry.db.prepare('SELECT hits FROM notes WHERE norm = ?').get(norm) as unknown as Record<string, unknown> | undefined
+      const row = db.prepare('SELECT hits FROM notes WHERE norm = ?').get(norm) as unknown as Record<string, unknown> | undefined
       return Math.max(1, Math.trunc(Number(row?.hits ?? 1)))
     } catch (error) {
       this.log('warn', '记忆库写入失败：' + describeError(error))
@@ -150,10 +158,10 @@ export class MemoryLibrary {
   async search(chatId: string, query: string, limit: number = MEMORY_SEARCH_LIMIT): Promise<MemoryHit[]> {
     const needle = query.replace(/\s+/g, ' ').trim()
     if (needle === '') return []
-    const entry = await this.library(chatId)
-    if (entry === undefined || !entry.ready) return []
+    const db = await this.library(chatId)
+    if (db === undefined) return []
     try {
-      const rows = entry.db.prepare(
+      const rows = db.prepare(
         'SELECT text, created_at, updated_at, hits FROM notes WHERE text LIKE ? '
         + 'ORDER BY hits DESC, updated_at DESC LIMIT ?',
       ).all('%' + needle + '%', Math.max(1, Math.min(50, Math.floor(limit)))) as unknown as Array<Record<string, unknown>>
@@ -171,10 +179,10 @@ export class MemoryLibrary {
 
   /** Most-recently-touched notes of one chat. */
   async recent(chatId: string, limit: number = MEMORY_SEARCH_LIMIT): Promise<MemoryHit[]> {
-    const entry = await this.library(chatId)
-    if (entry === undefined || !entry.ready) return []
+    const db = await this.library(chatId)
+    if (db === undefined) return []
     try {
-      const rows = entry.db.prepare(
+      const rows = db.prepare(
         'SELECT text, created_at, updated_at, hits FROM notes ORDER BY updated_at DESC LIMIT ?',
       ).all(Math.max(1, Math.min(50, Math.floor(limit)))) as unknown as Array<Record<string, unknown>>
       return rows.map(row => ({
@@ -191,10 +199,10 @@ export class MemoryLibrary {
 
   /** How many notes one chat has indexed (0 when the library is unusable). */
   async count(chatId: string): Promise<number> {
-    const entry = await this.library(chatId)
-    if (entry === undefined || !entry.ready) return 0
+    const db = await this.library(chatId)
+    if (db === undefined) return 0
     try {
-      const row = entry.db.prepare('SELECT COUNT(*) AS n FROM notes').get() as unknown as Record<string, unknown> | undefined
+      const row = db.prepare('SELECT COUNT(*) AS n FROM notes').get() as unknown as Record<string, unknown> | undefined
       return Number(row?.n ?? 0)
     } catch (error) {
       this.log('warn', '记忆库计数失败：' + describeError(error))
@@ -204,9 +212,9 @@ export class MemoryLibrary {
 
   /** Close every open library (plugin dispose). */
   close(): void {
-    for (const entry of this.open.values()) {
+    for (const db of this.open.values()) {
       try {
-        entry.db.close()
+        db.close()
       } catch (error) {
         this.log('debug', '记忆库关闭失败：' + describeError(error))
       }

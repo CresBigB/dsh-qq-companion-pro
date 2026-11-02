@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -26,6 +26,32 @@ afterEach(() => {
   for (const library of libraries.splice(0)) library.close()
 })
 
+describe('记忆库第一次用就能建（真机踩过的坑）', () => {
+  // T33 现场故障：`new DatabaseSync()` 排在 mkdir 前面，目录还不存在时第一次写
+  // 记忆直接抛 `unable to open database file`——群里就是这么失败的。
+  it('目录还不存在时第一次记账就能成功，并且目录是自己建出来的', async () => {
+    const root = join(tempRoot(), 'deep', 'memorys')
+    const library = new MemoryLibrary(root)
+    libraries.push(library)
+    expect(existsSync(root)).toBe(false)
+    await expect(library.remember('group:643561596', '周五打本')).resolves.toBe(1)
+    expect(existsSync(join(root, '643561596.db'))).toBe(true)
+    expect(await library.count('group:643561596')).toBe(1)
+  })
+
+  it('库确实打不开时不抛错、只回 0，且下次调用会重试而不是永远坏着', async () => {
+    const root = join(tempRoot(), 'blocked')
+    // 让 root 这个路径被一个普通文件占住，mkdir 必然失败。
+    writeFileSync(root, 'not a directory')
+    const library = new MemoryLibrary(root)
+    libraries.push(library)
+    await expect(library.remember('group:1', '随便')).resolves.toBe(0)
+    await expect(library.search('group:1', '随便')).resolves.toEqual([])
+    // 把占位的文件删掉后，同一个实例应该能直接用（失败没有缓存）。
+    rmSync(root)
+    await expect(library.remember('group:1', '随便')).resolves.toBe(1)
+  })
+})
 describe('memory library paths', () => {
   it('lives under the workspace and names the file after the number', () => {
     expect(memoryStoreRootOf({ workspacePath: 'D:\\work' })).toBe(join('D:\\work', MEMORY_DIR_NAME))

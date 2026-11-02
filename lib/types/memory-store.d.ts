@@ -33,6 +33,15 @@ export declare class MemoryLibrary {
     constructor(root: string, log?: MemoryLog);
     /** Where the library of one chat lives (also used by tests and diagnostics). */
     pathOf(chatId: string): string;
+    /**
+     * Open (and initialize) one chat's library.
+     *
+     * Order matters: the directory is created *before* SQLite opens the file,
+     * otherwise the very first note on a fresh machine fails with
+     * `unable to open database file` — which is what happened in the field when
+     * the directory did not exist yet. A failed open is **not** cached: the next
+     * call retries, so deleting or repairing the folder does not need a restart.
+     */
     private library;
     /**
      * Index one note for one chat. Repeating the same note only bumps its hit
