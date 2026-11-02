@@ -12,6 +12,7 @@ export * from './commands/session.js';
 export * from './commands/model.js';
 export * from './commands/host.js';
 export * from './commands/info.js';
+export * from './commands/memory.js';
 /** One routed slash command: the table row IS the registration —
  * adding a command is exactly one row here and /help picks it up for free. */
 export interface CommandDefinition {

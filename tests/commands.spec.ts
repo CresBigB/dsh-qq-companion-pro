@@ -603,13 +603,13 @@ describe('commands', () => {
     await h.connection.stop()
   }, 60_000)
 
-  it('command table registers exactly the 18 routed commands, one row each, and /help renders the grouped card from the table', () => {
+  it('command table registers exactly the 19 routed commands, one row each, and /help renders the grouped card from the table', () => {
     // Row order = the /help line order inside each group; the router matches
     // by name so ordering is routing-neutral. Adding a command is exactly one
     // row here (group + usage-style help) — /help picks it up for free.
-    expect(COMMANDS.map(c => c.name)).toEqual(['new', 'stop', 'steer', 'model', 'workspace', 'preset', 'session', 'status', 'doctor', 'retry', 'id', 'ver', 'plan', 'permission', 'group', 'task', 'goal', 'help'])
-    expect(COMMANDS).toHaveLength(18)
-    expect(new Set(COMMANDS.map(c => c.name)).size).toBe(18)
+    expect(COMMANDS.map(c => c.name)).toEqual(['new', 'stop', 'steer', 'memory', 'model', 'workspace', 'preset', 'session', 'status', 'doctor', 'retry', 'id', 'ver', 'plan', 'permission', 'group', 'task', 'goal', 'help'])
+    expect(COMMANDS).toHaveLength(19)
+    expect(new Set(COMMANDS.map(c => c.name)).size).toBe(19)
     for (const c of COMMANDS) {
       expect(c.adminOnly).toBe(true)
       expect(c.help).not.toContain('\n')
@@ -631,6 +631,7 @@ describe('commands', () => {
       '▍输出',
       '/plan [off|内容] 宿主计划模式',
       '▍查询',
+      '/memory <关键词> 在当前聊天的记忆库里模糊搜索（按出现次数与时间排序）',
       '/status 会话全景',
       '/doctor [export [参考号]] 体检：连接、账号在线、定时任务、记忆和表情包；export [参考号] 导出脱敏诊断包',
       '/id 会话标识（session/chat）',

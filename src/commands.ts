@@ -10,6 +10,7 @@ import { handleModelCommand, handlePresetCommand, handleWorkspaceCommand } from 
 import { handleDoctorCommand, handleIdCommand, handleStatusCommand, handleVerCommand } from './commands/info.js'
 import { handlePermissionCommand, handlePlanCommand } from './commands/host.js'
 import { handleTaskCommand } from './commands/task.js'
+import { handleMemoryCommand } from './commands/memory.js'
 import { handleGroupCommand } from './groups.js'
 
 import { type ChatId } from './chat.js'
@@ -23,6 +24,7 @@ export * from './commands/session.js'
 export * from './commands/model.js'
 export * from './commands/host.js'
 export * from './commands/info.js'
+export * from './commands/memory.js'
 
 
 /** One routed slash command: the table row IS the registration —
@@ -55,6 +57,7 @@ export const COMMANDS: CommandDefinition[] = [
   } },
   { name: 'stop', adminOnly: true, group: '操作', help: '停止当前生成', handler: (ctx, chatId) => handleStopCommand(ctx, chatId) },
   { name: 'steer', adminOnly: true, group: '操作', help: '<补充内容> 向运行中的任务补充指令', handler: (ctx, chatId, arg, sender) => handleSteerCommand(ctx, chatId, arg, sender) },
+  { name: 'memory', adminOnly: true, group: '查询', help: '<关键词> 在当前聊天的记忆库里模糊搜索（按出现次数与时间排序）', handler: (ctx, chatId, arg) => handleMemoryCommand(ctx, chatId, arg) },
   { name: 'model', adminOnly: true, group: '其他', help: '[--default] <provider> <model> 切换模型（--default 改部署默认；无参两级序号列表）', handler: (ctx, chatId, arg) => handleModelCommand(ctx, chatId, arg) },
   { name: 'workspace', adminOnly: true, group: '会话', help: '[路径|序号|list|attach] 查看或切换工作区（attach=把当前会话归入工作区）', handler: (ctx, chatId, arg) => handleWorkspaceCommand(ctx, chatId, arg) },
   { name: 'preset', adminOnly: true, group: '会话', help: '[id|序号] 查看/切换 agent 预设', handler: (ctx, chatId, arg) => handlePresetCommand(ctx, chatId, arg) },

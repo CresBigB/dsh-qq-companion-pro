@@ -1,5 +1,6 @@
 import type { BridgeDeps } from './bridge-types.js';
 import { type CapabilitySummary } from './capabilities.js';
+import type { MemoryHit } from './memory-store.js';
 import type { ChatId } from './chat.js';
 import type { ScheduledPrompt } from './companion/index.js';
 import type { OneBotEvent } from './connection.js';
@@ -320,6 +321,8 @@ export declare class ChatBridge {
      * @param nickname - sender display name (pre-sanitized at the /steer boundary).
      * @returns true when the message was consumed by a command.
      */
+    /** /memory — fuzzy search inside this chat's own library (T31). */
+    searchMemory(chatId: ChatId, query: string, limit?: number): Promise<MemoryHit[]>;
     private tryHandleCommand;
     /**
      * The CommandContext handed to the command table: exposes exactly

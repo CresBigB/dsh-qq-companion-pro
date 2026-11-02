@@ -322,8 +322,12 @@ export interface GoalChangedPayloadLike {
 
 /** Services the bridge needs (the plugin Context enters only through
  * the two explicit ports below — session events and the /model catalog). */
+import type { MemoryHit } from './memory-store.js'
+
 export interface BridgeDeps {
   ctx: SessionEventPort
+  /** T31 note index: one SQLite library per chat (absent = /memory off). */
+  memoryLibrary?: { remember(chatId: string, text: string, now?: number): Promise<void>; search(chatId: string, query: string, limit?: number): Promise<MemoryHit[]>; recent(chatId: string, limit?: number): Promise<MemoryHit[]>; count(chatId: string): Promise<number> }
   /** runtime group allowlist for /group (absent = disabled). */
   groupAccess?: GroupAccessLike
   /** Companion lines for /doctor (liveness, plans, memory sizes). */

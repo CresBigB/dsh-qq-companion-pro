@@ -15,6 +15,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { BridgeDeps, SideAskAgentPort } from './bridge-types.js'
 import { resolveCapabilities, summarizeCapabilities, groupWriteWarningLine, interactionWarningLine, type CapabilityConfig, type CapabilityDependency, type CapabilitySummary, type ResolveCapabilitiesResult } from './capabilities.js'
 import { relayHostCards } from './card-relay.js'
+import type { MemoryHit } from './memory-store.js'
 import type { ChatId, UserRole } from './chat.js'
 import { buildChatId, classifyUserRole, groupAllowed, sanitizeMessageId, splitChatId } from './chat.js'
 import { STEER_ACCEPTED_NOTICE, tryHandleCommand as routeCommand, type CommandContext } from './commands.js'
@@ -930,6 +931,13 @@ export class ChatBridge {
    * @param nickname - sender display name (pre-sanitized at the /steer boundary).
    * @returns true when the message was consumed by a command.
    */
+  /** /memory — fuzzy search inside this chat's own library (T31). */
+  async searchMemory(chatId: ChatId, query: string, limit?: number): Promise<MemoryHit[]> {
+    const library = this.deps.memoryLibrary
+    if (library === undefined) return []
+    return library.search(chatId, query, limit)
+  }
+
   private tryHandleCommand(chatId: ChatId, text: string, userId: string, nickname?: string): Promise<boolean> {
     return routeCommand(this.commandCtx, chatId, text, userId, nickname)
   }
@@ -947,6 +955,9 @@ export class ChatBridge {
       log: (level, message) => bridge.deps.log(level, message),
       isAdmin: userId => classifyUserRole(userId, bridge.deps.policy.adminUsers) === 'admin',
       groupAccess: bridge.deps.groupAccess,
+      searchMemory: bridge.deps.memoryLibrary === undefined
+        ? undefined
+        : (chatId, query, limit) => bridge.searchMemory(chatId, query, limit),
       scheduledPrompts: () => bridge.deps.config.scheduledPrompts ?? [],
       fireScheduled: prompt => bridge.fireScheduled(prompt),
       proactive: bridge.deps.proactive,
@@ -1883,7 +1894,16 @@ export class ChatBridge {
     // How her companion features work in this chat, from the live config.
     const guide = this.deps.companionGuide?.(chatId) ?? ''
     if (guide !== '') agentCtx.systemPrompt.section({ name: 'channel:qq-companion-guide', order: 91, text: guide })
-    const writeNote = this.companion.memoryNoteWriter()
+    const noteWriter = this.companion.memoryNoteWriter()
+    // T31：写进 markdown 的同时进本聊天的搜索索引（文件仍是模型读的正文，
+    // 索引只负责「她以前说过什么」这类查找）。
+    const writeNote = noteWriter === undefined
+      ? undefined
+      : async (chatId: string, text: string, byAdmin: boolean) => {
+        const result = await noteWriter(chatId, text, byAdmin)
+        if (result.ok) void this.deps.memoryLibrary?.remember(chatId, text).catch(() => undefined)
+        return result
+      }
     const allowedTools = new Set(resolved.tools)
     const allow = (toolName: string): boolean => allowedTools.has(toolName)
     registerTools(agentCtx, this, this.deps.connection, {

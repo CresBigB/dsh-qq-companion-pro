@@ -12,6 +12,7 @@
 import { selfCheck } from './selfcheck.js'
 import { JUMP_IN_INSTRUCTION, parseJumpInAnswer } from './group-jumpin.js'
 import { QqLiveness } from './liveness.js'
+import { MemoryLibrary, memoryStoreRootOf } from './memory-store.js'
 import { buildCompanionStatusSnapshot, provideCompanionStatus } from './status.js'
 import { ChatActivity, DailyScheduler, GroupChatter, buildCompanionGuide, chatPromptVersion, personaBlocks, NoteCounter, ProactiveScheduler, proactiveTargetsOf, SendCounter, SessionCleaner, StickerLibrary, TypingPacer, companionStatusLines, setDefaultNoteCounter, groupMemoryRootOf } from './companion/index.js'
 import { GroupAccess, handleGroupEvent } from './groups.js'
@@ -636,6 +637,11 @@ export function apply(ctx: Context, config: Config): void {
   if (config.groupJumpInJudgeEnabled === true && jumpInJudge === undefined) {
     log('warn', '群聊自判已开启，但宿主没有可用的 subagents（spawn）服务；没被 @ 的消息仍按触发策略一律接')
   }
+  const memoryLibrary = (() => {
+    const root = memoryStoreRootOf(config)
+    if (root === '') return undefined
+    return new MemoryLibrary(root, log)
+  })()
   const bridge: import('./bridge.js').ChatBridge = new ChatBridge({
     ctx,
     // the bridge sees only explicit ports — the session-event feed
@@ -659,6 +665,9 @@ export function apply(ctx: Context, config: Config): void {
     media,
     transcriber,
     tts,
+    // T31：每个聊天一个 SQLite 记忆库（<总工作区>/memorys/<号码>.db）。
+    // 工作区没配就没有落点，/memory 直接提示去填。
+    ...(memoryLibrary === undefined ? {} : { memoryLibrary }),
     agents: ctx.agents,
     sessions: ctx.sessions,
     agentPresets: ctx.agentPresets,
@@ -831,6 +840,8 @@ export function apply(ctx: Context, config: Config): void {
       await sessionCleaner.stop()
       liveness.stop()
       await bridge.stop()
+      // T31：先关桥（不再写索引）再关库，避免关闭后仍有写入。
+      memoryLibrary?.close()
       // After the bridge: its last replies are recorded too.
       await activity.flush()
       await connection.stop()

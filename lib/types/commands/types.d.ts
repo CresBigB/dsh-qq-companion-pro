@@ -11,6 +11,7 @@ import { type ChatId, type UserRole } from '../chat.js';
 import type { PendingSelection, SessionSwitchOutcome, SwitchableSession, WorkspaceAttachOutcome } from '../registry.js';
 import type { AgentDefaultModelLike, AgentPresetsLike, BridgeConfig, BridgeDeps, LlmCatalogPort, SessionPersistenceLike, WorkspaceRegistryLike } from '../bridge.js';
 import type { TraceStage } from '../trace.js';
+import type { MemoryHit } from '../memory-store.js';
 import type { GoalsPortLike, TaskGoalPort } from '../task-goal.js';
 /** Narrow view of a live chat the command handlers may read or mutate —
  * the structural subset of the bridge's internal ChatAgent that the
@@ -48,6 +49,8 @@ export interface CommandContext {
         remaining(): string[];
         fireNow(): Promise<void>;
     };
+    /** /memory — fuzzy search inside this chat's own note library (absent = memory search off). */
+    searchMemory?(chatId: ChatId, query: string, limit?: number): Promise<MemoryHit[]>;
     /** Router entry gate: the admin check against the policy allowlist. */
     isAdmin(userId: string): boolean;
     /** Live chat lookup / existence probe. */
