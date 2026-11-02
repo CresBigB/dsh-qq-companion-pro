@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MEMORY_DIR_NAME, MemoryLibrary, memoryLibraryName, memoryStoreRootOf } from '../src/memory-store.js'
@@ -70,7 +70,7 @@ describe('memory library paths', () => {
     const b = library.pathOf('private:2')
     expect(a).not.toBe(b)
     expect(a.endsWith('1.db')).toBe(true)
-    expect(a.slice(0, a.lastIndexOf('\\'))).toBe(b.slice(0, b.lastIndexOf('\\')))
+    expect(dirname(a)).toBe(dirname(b))
   })
 })
 
