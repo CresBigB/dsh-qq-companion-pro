@@ -1,5 +1,7 @@
 # dsh-qq-companion-pro
 
+[![ci](https://github.com/CresBigB/dsh-qq-companion-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/CresBigB/dsh-qq-companion-pro/actions/workflows/ci.yml)
+
 给 [dsh（DeepSeek Harness）](https://github.com/deepseek-ai/deepseek-harness) 接**个人 QQ 号**的陪伴型通道插件。
 
 本仓库是 [Geng-zy/dsh-qq-companion](https://github.com/Geng-zy/dsh-qq-companion) 的 **-pro** 发行版：npm 包名和插件 id 都是 `dsh-qq-companion-pro`，宿主里挂载用的 config 行 id 仍沿用上游的 `dsh-onebot`（见下面「安装」），所以从上游版本换过来时 config 覆盖行不用改。
