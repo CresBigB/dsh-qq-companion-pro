@@ -20,6 +20,7 @@ import { MediaStore } from '../../src/media.js'
 import { Transcriber } from '../../src/stt.js'
 import { Synthesizer } from '../../src/tts.js'
 import { TraceSink } from '../../src/trace.js'
+import { GroupChatter } from '../../src/companion/group-chatter.js'
 
 /**
  * T33 最小记忆库：形状与生产端口一致，行为是「记了就回 1、搜不到」。只用来让
@@ -107,25 +108,41 @@ export function defaultMemoryLibraryStub() {
 }
 
 /** Full bridge + WS harness: inbound via real WebSocket, outbound captured. */
-export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; requireMention?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig; log?: (level: string, message: string) => void; jumpIn?: { enabled?: boolean; maxMinutes?: number; judge?: (text: string, parent: unknown) => Promise<boolean> } }) {
+export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: string; interimMessages?: boolean; textImageThreshold?: number; maxImageBytes?: number; resumeOk?: boolean; createDelayMs?: number; transcriber?: Transcriber; trace?: TraceSink; ignoreSelf?: boolean; requireMention?: boolean; newMessagePolicy?: 'queue' | 'steer'; deferredTimeoutMs?: number; groupTriggerPolicy?: import('../../src/group-trigger-policy.js').GroupTriggerConfig; groupNameTriggers?: string[]; groupContextLines?: number; groupFollowupSeconds?: number; log?: (level: string, message: string) => void; jumpIn?: { enabled?: boolean; maxMinutes?: number; judge?: (text: string, parent: unknown, context: string) => Promise<boolean> } }) {
   const ctx = new Context()
   const sessionIds: string[] = []
   const captured = { followups: [] as Array<{ text: string; sessionId: string; id?: string; source?: unknown }>, steers: [] as Array<{ text: string; sessionId: string }>, channelTools: [] as string[], channelSections: [] as string[] }
   const agents = makeFakeAgents(sessionIds, captured, opts)
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
+  // 生产里群聊缓冲区总是存在（index.ts 无条件建 GroupChatter），自判要拿它当
+  // 「群里刚在聊什么」的背景。这里也默认建一个，避免测试环境比生产少一层。
+  const groupChatter = (opts as { groupChatter?: unknown } | undefined)?.groupChatter ?? new GroupChatter({
+    config: {
+      contextLines: opts?.groupContextLines ?? 0,
+      names: opts?.groupNameTriggers ?? [],
+      followupSeconds: opts?.groupFollowupSeconds ?? 0,
+      peekEnabled: false,
+      peekGapMinutes: 30,
+      peekMinMessages: 10,
+      peekQuietMinutes: 10,
+      peekWindowStart: '09:00',
+      peekWindowEnd: '23:00',
+    },
+  })
   const connection = new OneBotConnection({
     host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
   })
   const bridge = new ChatBridge({
     ctx,
     connection,
+    groupChatter: groupChatter as never,
     media: new MediaStore(join(mediaDir, 'media'), 6),
     transcriber: opts?.transcriber ?? new Transcriber({ enabled: false, engine: 'auto', command: '', args: [], model: 'small', timeoutMs: 10_000 }),
     agents: agents as never,
     ...(opts?.jumpIn?.judge !== undefined ? {
       jumpInJudge: {
-        judge: async (text: string, parent: unknown) => opts.jumpIn!.judge!(text, parent),
+        judge: async (text: string, parent: unknown, context: string) => opts.jumpIn!.judge!(text, parent, context),
       },
     } : {}),
     sessions: sessions as never,
@@ -152,6 +169,8 @@ export async function makeHarness(opts?: { failCreateFor?: string; mediaDir?: st
       } : {}),
       // optional decision-trace sink (absent = tracing off).
       trace: opts?.trace,
+      // T36：自判时要不要告诉她「群里这么叫你」。
+      ...(opts?.groupNameTriggers !== undefined ? { groupNameTriggers: opts.groupNameTriggers } : {}),
     },
     policy: {
       dmPolicy: 'open', groupPolicy: 'open', allowFrom: [], groupAllowFrom: [],
@@ -347,7 +366,7 @@ export async function makeCmdHarness(opts?: {
   jumpIn?: {
     enabled?: boolean
     maxMinutes?: number
-    judge?: (text: string, parent: unknown) => Promise<boolean>
+    judge?: (text: string, parent: unknown, context: string) => Promise<boolean>
   }
   /** 自动旁问（BTW 式侧道）：给 ask 就等于开启功能并接线（T18 自动模式）。 */
   sideAsk?: {
@@ -376,6 +395,21 @@ export async function makeCmdHarness(opts?: {
   const agents = makeFakeAgents(sessionIds, captured, opts?.resumeOk !== undefined ? { resumeOk: opts.resumeOk } : undefined)
   const sessions = { flush: vi.fn(async () => undefined) }
   const mediaDir = opts?.mediaDir ?? mkdtempSync(join(tmpdir(), 'onebot-test-'))
+  // 生产里群聊缓冲区总是存在（index.ts 无条件建 GroupChatter）：自判要拿它当
+  // 「群里刚在聊什么」的背景。这里也默认建一个，避免测试环境比生产少一层。
+  const groupChatter = opts?.groupChatter ?? new GroupChatter({
+    config: {
+      contextLines: opts?.groupContextLines ?? 0,
+      names: opts?.groupNameTriggers ?? [],
+      followupSeconds: opts?.groupFollowupSeconds ?? 0,
+      peekEnabled: false,
+      peekGapMinutes: 30,
+      peekMinMessages: 10,
+      peekQuietMinutes: 10,
+      peekWindowStart: '09:00',
+      peekWindowEnd: '23:00',
+    },
+  })
   const connection = new OneBotConnection({
     host: '127.0.0.1', port: 0, accessToken: 'test-token', callTimeoutMs: 3_000,
   })
@@ -389,7 +423,7 @@ export async function makeCmdHarness(opts?: {
     sessions: sessions as never,
     agentPresets: opts?.agentPresets as never,
     ...(opts?.activity !== undefined ? { activity: opts.activity as never } : {}),
-    ...(opts?.groupChatter !== undefined ? { groupChatter: opts.groupChatter as never } : {}),
+    groupChatter: groupChatter as never,
     ...(opts?.stickers !== undefined ? { stickers: opts.stickers as never } : {}),
     // T33：生产里有工作目录就一定有记忆库；测试默认给一个最小假库，让
     // 「注册表工具集合 ≡ 实际注册到的工具」保持成立。传 null 才真的没有。
@@ -401,7 +435,7 @@ export async function makeCmdHarness(opts?: {
     // T18：只有真的拿到适配器才接线，和 src/index.ts 的降级路径同构。
     ...(opts?.jumpIn?.judge !== undefined ? {
       jumpInJudge: {
-        judge: async (text: string, parent: unknown) => opts.jumpIn!.judge!(text, parent),
+        judge: async (text: string, parent: unknown, context: string) => opts.jumpIn!.judge!(text, parent, context),
       },
     } : {}),
     ...(opts?.sideAsk?.ask !== undefined ? {

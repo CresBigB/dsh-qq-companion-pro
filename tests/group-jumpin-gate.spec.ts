@@ -25,6 +25,9 @@ describe('群聊自判（T30）', () => {
     h.sendPlainGroupTextAs('午饭吃什么', 20003)
     await vi.waitFor(() => expect(judge).toHaveBeenCalledTimes(1))
     expect(judge.mock.calls[0]![0]).toContain('午饭吃什么')
+    // T36：判断必须拿到背景——群里刚在聊什么（第一条「今天天气不错」），否则它只能
+    // 看到一句孤立的话，认不出「在说她」。
+    expect(judge.mock.calls[0]![2]).toContain('今天天气不错')
     await new Promise(resolve => setTimeout(resolve, 120))
     expect(h.captured.followups).toHaveLength(1)
     h.client.close()
@@ -41,6 +44,7 @@ describe('群聊自判（T30）', () => {
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(2))
     expect(judge).toHaveBeenCalledTimes(1)
     expect(judge.mock.calls[0]![1]).toBeDefined()
+    expect(judge.mock.calls[0]![2]).toContain('先说一句')
     expect(h.captured.followups[1]!.text).toContain('帮我看看这段代码')
     h.client.close()
     await h.bridge.stop()
@@ -66,6 +70,25 @@ describe('群聊自判（T30）', () => {
     const h = await makeHarness({ requireMention: false, groupTriggerPolicy: OPEN_POLICY })
     h.sendPlainGroupTextAs('随便说一句', 20003)
     await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    h.client.close()
+    await h.bridge.stop()
+    await h.connection.stop()
+  })
+
+  it('把「群里怎么叫她」也交给判断（认得出在说她）', async () => {
+    const judge = vi.fn(async () => false)
+    const h = await makeHarness({
+      requireMention: false,
+      groupTriggerPolicy: OPEN_POLICY,
+      groupNameTriggers: ['小岚'],
+      jumpIn: { judge },
+    })
+    h.sendPlainGroupTextAs('先说一句', 20003)
+    await vi.waitFor(() => expect(h.captured.followups).toHaveLength(1))
+    // 这条没出现名字（所以不叫「点名」，仍要走判断），但判断要知道她叫小岚。
+    h.sendPlainGroupTextAs('她今天怎么没来', 20003)
+    await vi.waitFor(() => expect(judge).toHaveBeenCalledTimes(1))
+    expect(judge.mock.calls[0]![2]).toContain('小岚')
     h.client.close()
     await h.bridge.stop()
     await h.connection.stop()

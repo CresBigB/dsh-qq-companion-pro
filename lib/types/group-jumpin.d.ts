@@ -34,7 +34,22 @@ export declare function noteJumpInSpoke(state: JumpInState, now: number): void;
 export declare function noteJumpInAnswered(state: JumpInState): void;
 /** 退避还剩多少毫秒（0 = 可以开口）。 */
 export declare function jumpInWaitMs(state: JumpInState, now: number, maxMinutes?: number): number;
-/** 自判提示词：只回一个词，省 token 也省时间。 */
+/** 自判时给她的背景：她在群里叫什么、群里最近在聊什么。 */
+export interface JumpInBackground {
+    /** 群里用来叫她的名字与别名（空数组 = 没设）。 */
+    names: readonly string[];
+    /** 群里最近的聊天记录，已经是 `<group_context>` 块（'' = 没有）。 */
+    recent: string;
+}
+/**
+ * 把背景拼成提示词的一段。
+ *
+ * 没有这段的时候，判断只能看到孤零零的一句话：明明在聊她、在评价她，也看不出
+ * 来，只好瞎猜；而真正无关的闲聊又容易被她当成「在问事」。名字与最近的记录是
+ * 判断「关于她」唯一可靠的依据，所以两条都必须给。
+ */
+export declare function jumpInBackgroundText(background: JumpInBackground): string;
+/** 自判提示词：先读懂背景，再决定接不接；只回一个词，省 token 也省时间。 */
 export declare const JUMP_IN_INSTRUCTION: string;
 /**
  * 解析自判结果：只有明确说「接」才算接。模型回了别的东西（空、报错文本、

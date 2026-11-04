@@ -334,7 +334,7 @@ export function jumpInJudgeOf(ctx: ServiceReader): JumpInJudgePort | undefined {
   }
   const startActivation = subagents.startActivation
   return {
-    judge: async (text, parent) => {
+    judge: async (text, parent, context) => {
       // 自判没有可取消的上游（一条消息一判），用一个已经结束的 signal 不成立，
       // 因此这里显式给一个不会触发的控制器。
       const controller = new AbortController()
@@ -343,7 +343,10 @@ export function jumpInJudgeOf(ctx: ServiceReader): JumpInJudgePort | undefined {
         label: 'QQ 群聊自判',
         request: {
           parent,
-          prompt: [{ type: 'text', text: JUMP_IN_INSTRUCTION + text }],
+          prompt: [{
+            type: 'text',
+            text: JUMP_IN_INSTRUCTION + '\n\n背景：\n' + context + '\n\n群友的这条消息：\n' + text,
+          }],
           agentOptions: { maxTokens: JUMP_IN_MAX_TOKENS },
         },
         signal: controller.signal,

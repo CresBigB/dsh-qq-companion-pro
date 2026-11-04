@@ -3,6 +3,7 @@ import {
   JUMP_IN_BACKOFF_MAX_MINUTES,
   JUMP_IN_BASE_MS,
   createJumpInState,
+  jumpInBackgroundText,
   jumpInBlocked,
   jumpInWaitMs,
   noteJumpInAnswered,
@@ -64,6 +65,30 @@ describe('群聊自判的社交退避（T30）', () => {
     const state = createJumpInState()
     for (let i = 0; i < 40; i += 1) noteJumpInSpoke(state, 1_000 + i)
     expect(state.unanswered).toBe(16)
+  })
+})
+
+describe('群聊自判的背景（T36）', () => {
+  it('没有名字也没有记录时，只说「没有固定叫你的名字」', () => {
+    expect(jumpInBackgroundText({ names: [], recent: '' })).toBe('群里没有固定叫你的名字。')
+  })
+
+  it('名字与最近的聊天都拼进去，空名字被忽略', () => {
+    const text = jumpInBackgroundText({
+      names: ['小岚', '  ', '青岚'],
+      recent: '<group_context>\n甲：在吗\n</group_context>',
+    })
+    expect(text).toContain('小岚、青岚')
+    expect(text).toContain('<group_context>')
+    expect(text).toContain('甲：在吗')
+    // 空字符串名字不能变成「、、」
+    expect(text).not.toContain('、、')
+  })
+
+  it('只有最近记录时不出现名字那一行', () => {
+    const text = jumpInBackgroundText({ names: ['   '], recent: '<group_context>\n乙：睡了\n</group_context>' })
+    expect(text.startsWith('群里没有固定叫你的名字。')).toBe(true)
+    expect(text).toContain('乙：睡了')
   })
 })
 

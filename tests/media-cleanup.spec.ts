@@ -95,16 +95,17 @@ describe('Transcriber work dir cleanup', () => {
   })
 
   // Success path needs a real ffmpeg to synthesize the input audio; skipped
-  // with runIf when ffmpeg is not on PATH.
+  // with runIf when ffmpeg is not on PATH. The "engine" command is node itself
+  // (not `sh -c`) so the case also runs on Windows, where no POSIX shell exists.
   it.runIf(ffmpegAvailable)('removes the stt_* work dir after a successful transcription', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stt-ok-'))
     const input = join(dir, 'voice.wav')
     // Synthesize a short tone so no sample file is needed; the command
-    // engine is a fake shell command printing the transcript to stdout.
+    // engine is a fake transcriber printing the transcript to stdout.
     await runCommand('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.3', input])
     const transcriber = new Transcriber({
-      enabled: true, engine: 'command', command: 'sh',
-      args: ['-c', 'test -s "$0" && printf fake-transcript', '{wav}'],
+      enabled: true, engine: 'command', command: process.execPath,
+      args: ['-e', 'if (!require("node:fs").statSync(process.argv[1]).size) process.exit(1); process.stdout.write("fake-transcript")', '{wav}'],
       model: '', timeoutMs: 30_000,
     })
     await expect(transcriber.transcribe(input)).resolves.toBe('fake-transcript')

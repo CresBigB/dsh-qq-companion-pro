@@ -37,6 +37,8 @@ export interface BridgeConfig {
   sideAskConcurrency?: number
   /** 群聊「要不要接这句话」先过模型自判。 */
   groupJumpInJudgeEnabled?: boolean
+  /** 群里用来叫她的名字与别名（自判时告诉她「有人这么叫就是在叫你」）。 */
+  groupNameTriggers?: string[]
   /** 群里没人理她时的最长安静间隔（分钟）。 */
   groupJumpInBackoffMaxMinutes?: number
   sideAskMaxChars?: number
@@ -284,8 +286,11 @@ export interface JumpInJudgePort {
   /**
    * 给一条没被 @ 的群消息判个「接 / 不接」。实现应当在无法判断时返回 true
    * （保持旧行为：照常接话），只有明确判为不接时才返回 false。
+   *
+   * `context` 是判断的依据：她在群里叫什么、群里最近在聊什么（见
+   * `jumpInBackgroundText`）。没有它，判断只能看到一句孤立的话，认不出「在说她」。
    */
-  judge(text: string, parent: unknown): Promise<boolean>
+  judge(text: string, parent: unknown, context: string): Promise<boolean>
 }
 
 export interface SideAskAgentPort {

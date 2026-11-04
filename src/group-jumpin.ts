@@ -66,15 +66,37 @@ export function jumpInWaitMs(state: JumpInState, now: number, maxMinutes: number
   return Math.max(0, wait - (now - state.backoffFrom))
 }
 
-/** 自判提示词：只回一个词，省 token 也省时间。 */
+/** 自判时给她的背景：她在群里叫什么、群里最近在聊什么。 */
+export interface JumpInBackground {
+  /** 群里用来叫她的名字与别名（空数组 = 没设）。 */
+  names: readonly string[]
+  /** 群里最近的聊天记录，已经是 `<group_context>` 块（'' = 没有）。 */
+  recent: string
+}
+
+/**
+ * 把背景拼成提示词的一段。
+ *
+ * 没有这段的时候，判断只能看到孤零零的一句话：明明在聊她、在评价她，也看不出
+ * 来，只好瞎猜；而真正无关的闲聊又容易被她当成「在问事」。名字与最近的记录是
+ * 判断「关于她」唯一可靠的依据，所以两条都必须给。
+ */
+export function jumpInBackgroundText(background: JumpInBackground): string {
+  const names = background.names.map(name => name.trim()).filter(name => name !== '')
+  const head = names.length === 0
+    ? '群里没有固定叫你的名字。'
+    : '群里叫你：' + names.join('、') + '（有人这么叫，就是在叫你）。'
+  return background.recent === '' ? head : head + '\n' + background.recent
+}
+
+/** 自判提示词：先读懂背景，再决定接不接；只回一个词，省 token 也省时间。 */
 export const JUMP_IN_INSTRUCTION = [
-  '你在一个 QQ 群里，是群友之一。',
-  '下面这条消息没有 @ 你、也不是在接着你的话，你想不想主动接一句？',
-  '规则：只输出「接」或「不接」两个词之一，不要解释，不要标点，不要调用工具。',
-  '觉得插话有价值（需要你、在问事、正好你懂、气氛合适）就回「接」；',
-  '闲聊寒暄、别人互相聊天、刷屏玩笑、你看不出在说什么，一律回「不接」。',
-  '',
-  '群友的消息：',
+  '你在一个 QQ 群里，是群友之一。下面这条消息没有 @ 你、也不是在接着你的话。',
+  '先看背景（你在群里叫什么、群里最近在聊什么），再判断这条消息要不要你开口。',
+  '规则：只输出「接」或「不接」，不要解释，不要标点，不要调用工具。',
+  '回「接」的情形：消息在说你、问你、评价你、点名要你表态；在问一件你正好懂或能查到的事；群里冷场或说到点子上，你补一句确实有用的话。',
+  '回「不接」的情形：别人互相聊天、和你无关的日常、刷屏玩笑、你看不出在说什么、你接话也只是重复别人。',
+  '拿不准就回「不接」。',
 ].join('\n')
 
 /**

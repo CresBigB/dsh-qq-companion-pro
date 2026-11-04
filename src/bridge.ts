@@ -28,7 +28,7 @@ import { describeError, errorStack } from './errors.js'
 import { exportDiagnostics, healthReport, type HealthDeps } from './health.js'
 import { InboundPipeline, normalizeOneBot11 } from './inbound.js'
 import { parsePokeNotice, pokeMessageEvent } from './poke.js'
-import { createJumpInState, jumpInBlocked, noteJumpInAnswered as markJumpInAnswered, noteJumpInSpoke as markJumpInSpoke, type JumpInState } from './group-jumpin.js'
+import { createJumpInState, jumpInBackgroundText, jumpInBlocked, noteJumpInAnswered as markJumpInAnswered, noteJumpInSpoke as markJumpInSpoke, type JumpInState } from './group-jumpin.js'
 import { InterimTracker } from './interim.js'
 import { OutboundPipeline, type OutboundSegment, type SendOptions } from './outbound.js'
 import { SideAskScheduler } from './side-ask.js'
@@ -861,7 +861,14 @@ export class ChatBridge {
       // 宿主要求「活的父 agent」才能开子代理：这个聊天还没有 agent 时先不判。
       const parent = this.chats.get(chatId)?.agent
       if (parent === undefined) return true
-      return await judge.judge(text, parent)
+      // 判断的依据：她在群里叫什么 + 群里最近在聊什么。少了这两样，判断只能看到
+      // 一句孤立的话，既认不出「在说她」，也分不清闲聊与问事。
+      const groupId = chatId.startsWith('group:') ? chatId.slice('group:'.length) : ''
+      const context = jumpInBackgroundText({
+        names: this.deps.config.groupNameTriggers ?? [],
+        recent: groupId === '' ? '' : (this.deps.groupChatter?.recentContext(groupId) ?? ''),
+      })
+      return await judge.judge(text, parent, context)
     } catch (error) {
       // 判断本身失败不该变成「不理人」：退回旧行为，让她照常接话。
       this.deps.log('warn', '群聊自判失败，按原样接话: ' + describeError(error))
